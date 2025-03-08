@@ -2,6 +2,9 @@
 
 This repository contains a Python-based TMD file processor that supports reading and visualizing height maps stored in TMD files generated either by **TrueMap v6** or **GelSight**. The tool reads the TMD file header, extracts metadata and height map data, and provides multiple visualization options including 3D surface plots with a slider, 2D heatmaps, and X profiles. It can also convert the height data into displacement maps and STL files for 3D printing.
 
+
+![](image.svg)
+
 ---
 
 ## Table of Contents

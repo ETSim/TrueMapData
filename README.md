@@ -32,14 +32,7 @@ Ensure you have Python 3.12+ installed. Then, install the required packages:
 pip install numpy plotly pillow
 ```
 
-Clone the repository and navigate into the project directory:
-
-```bash
-git clone https://github.com/your-repo-link.git
-cd your-repo-link
-```
-
----
+Clone the repository and navigate into the project directory
 
 ## Usage
 

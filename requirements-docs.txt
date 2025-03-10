@@ -1,0 +1,9 @@
+# Documentation requirements for TMD Processor
+
+# For building and serving documentation
+mkdocs>=1.4.0
+mkdocs-material>=9.0.0
+mkdocstrings>=0.20.0
+mkdocstrings-python>=1.0.0
+pymdown-extensions>=9.0
+pygments>=2.13.0

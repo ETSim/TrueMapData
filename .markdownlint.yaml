@@ -1,0 +1,28 @@
+# Configuration for markdownlint
+
+# Default state for all rules
+default: true
+
+# Line length limit
+MD013:
+  # Line length
+  line_length: 120
+  # Exclude code blocks
+  code_blocks: false
+  # Exclude tables
+  tables: false
+  # Exclude headings
+  headings: false
+
+# MD024/no-duplicate-heading - Multiple headings with the same content
+MD024:
+  allow_different_nesting: true
+
+# MD033/no-inline-html - Inline HTML
+MD033:
+  allowed_elements:
+    - br
+    - img
+
+# Allow emphasis with underscore
+MD036: false

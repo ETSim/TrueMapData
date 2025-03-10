@@ -1,0 +1,25 @@
+[flake8]
+max-line-length = 100
+exclude = .git,__pycache__,docs/,build/,dist/,*.egg-info/,venv/,env/
+ignore = 
+    E203,  # whitespace before ':' - Black handles this differently
+    E231,  # missing whitespace after ',' - Black handles this differently
+    E501,  # line too long - Black handles this
+    W503,  # line break before binary operator - Black handles this
+    D100,  # Missing docstring in public module - Too verbose
+    D104,  # Missing docstring in public package - Too verbose
+    D200,  # One-line docstring should fit on one line with quotes
+    D205,  # 1 blank line required between summary line and description
+    D400,  # First line should end with a period
+    D401,  # First line should be in imperative mood
+    D403,  # First word of the first line should be capitalized
+    D413   # Missing blank line after last section
+per-file-ignores =
+    # Tests don't need docstrings
+    tests/*:D103,D100
+    # Examples don't need docstrings
+    examples/*:D103
+    # Allow print statements in CLI module
+    tmd/cli.py:T201
+max-complexity = 12
+docstring-convention = google

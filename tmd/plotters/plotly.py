@@ -1,0 +1,145 @@
+"""
+Plotly-based visualization functions for TMD data.
+"""
+import numpy as np
+import plotly.graph_objects as go
+import plotly.io as pio
+
+# Default settings
+COLORBAR_LABEL = "Height (µm)"
+SCALE_FACTORS = [0.5, 1, 2, 3]  # Z-axis scaling factors for slider
+
+def plot_height_map_with_slider(height_map, colorbar_label=None, html_filename="slider_plot.html", 
+                               partial_range=None, scale_factors=None):
+    """
+    Creates a 3D surface plot with a slider to adjust vertical scaling.
+    
+    Args:
+        height_map: 2D numpy array of height values
+        colorbar_label: Label for the color bar (default: "Height (µm)")
+        html_filename: Name of the HTML file to save
+        partial_range: Optional tuple (row_start, row_end, col_start, col_end) for partial rendering
+        scale_factors: List of vertical scale factors for the slider
+        
+    Returns:
+        Plotly figure object
+    """
+    if colorbar_label is None:
+        colorbar_label = COLORBAR_LABEL
+    if scale_factors is None:
+        scale_factors = SCALE_FACTORS
+
+    if partial_range is not None:
+        height_map = height_map[partial_range[0]:partial_range[1], partial_range[2]:partial_range[3]]
+        print(f"Partial render applied: rows {partial_range[0]}:{partial_range[1]}, cols {partial_range[2]}:{partial_range[3]}")
+    
+    zmin = float(height_map.min())
+    zmax = float(height_map.max())
+    surface = go.Surface(
+        z=height_map,
+        cmin=zmin,
+        cmax=zmax,
+        colorscale='Viridis',
+        colorbar=dict(title=colorbar_label)
+    )
+    
+    fig = go.Figure(data=[surface])
+    fig.update_layout(
+        title='3D Surface Plot',
+        scene=dict(
+            xaxis_title='X',
+            yaxis_title='Y',
+            zaxis_title=colorbar_label,
+            aspectmode='cube'
+        ),
+        margin=dict(l=65, r=50, b=65, t=90)
+    )
+    
+    steps = []
+    for sf in scale_factors:
+        steps.append(dict(
+            method='relayout',
+            args=[{'scene.aspectratio': dict(x=1, y=1, z=sf)}],
+            label=f"{sf}x"
+        ))
+    
+    sliders = [dict(
+        active=1,
+        currentvalue={"prefix": "Z-scale: "},
+        steps=steps,
+        pad={"t": 50}
+    )]
+    
+    fig.update_layout(sliders=sliders)
+    fig.write_html(html_filename, include_plotlyjs="cdn")
+    print(f"3D Plot saved to {html_filename}")
+    return fig
+
+def plot_2d_heatmap(height_map, colorbar_label=None, html_filename="2d_heatmap.html"):
+    """
+    Creates a 2D heatmap of the height map.
+    
+    Args:
+        height_map: 2D numpy array of height values
+        colorbar_label: Label for the color bar (default: "Height (µm)")
+        html_filename: Name of the HTML file to save
+        
+    Returns:
+        Plotly figure object
+    """
+    if colorbar_label is None:
+        colorbar_label = COLORBAR_LABEL
+        
+    fig = go.Figure(data=go.Heatmap(
+        z=height_map,
+        colorscale='Viridis',
+        colorbar=dict(title=colorbar_label)
+    ))
+    
+    fig.update_layout(
+        title="2D Heatmap of Height Map",
+        xaxis_title="X",
+        yaxis_title="Y"
+    )
+    
+    fig.write_html(html_filename, include_plotlyjs="cdn")
+    print(f"2D Heatmap saved to {html_filename}")
+    return fig
+
+def plot_x_profile(data, profile_row=None, html_filename="x_profile.html"):
+    """
+    Extracts an X profile from the height map and plots a 2D line chart.
+    
+    Args:
+        data: Dictionary containing height_map, width, x_offset, x_length
+        profile_row: Row index to extract (default: middle row)
+        html_filename: Name of the HTML file to save
+        
+    Returns:
+        Tuple of (x_coordinates, profile_heights, figure)
+    """
+    height_map = data['height_map']
+    width = data['width']
+    
+    if profile_row is None:
+        profile_row = height_map.shape[0] // 2
+        
+    x_coords = np.linspace(data['x_offset'], data['x_offset'] + data['x_length'], num=width)
+    x_profile = height_map[profile_row, :]
+    
+    print(f"\nX Profile at row {profile_row}:")
+    print("X coordinates (first 10):", x_coords[:10])
+    print("Heights (first 10):", x_profile[:10])
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x_coords, y=x_profile, mode='lines+markers', name='X Profile'))
+    
+    fig.update_layout(
+        title=f"X Profile (row {profile_row})",
+        xaxis_title='X Coordinate',
+        yaxis_title=COLORBAR_LABEL
+    )
+    
+    fig.write_html(html_filename, include_plotlyjs="cdn")
+    print(f"X Profile plot saved to {html_filename}")
+    return x_coords, x_profile, fig

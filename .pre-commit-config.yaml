@@ -1,0 +1,96 @@
+# Pre-commit configuration for TMD Processor
+# See https://pre-commit.com for more information
+
+repos:
+# Standard pre-commit hooks
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-toml
+    -   id: check-json
+    -   id: check-added-large-files
+        args: ['--maxkb=1024']
+    -   id: debug-statements
+    -   id: mixed-line-ending
+        args: ['--fix=lf']
+    -   id: check-merge-conflict
+    -   id: detect-private-key
+    -   id: fix-encoding-pragma
+        args: ['--remove']
+
+# Black code formatter
+-   repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+    -   id: black
+        language_version: python3
+        additional_dependencies: ['click==8.1.3']
+
+# Import sorting with isort
+-   repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+    -   id: isort
+        name: isort (python)
+
+# Flake8 linting
+-   repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+    -   id: flake8
+        additional_dependencies:
+        -   flake8-bugbear==23.3.12
+        -   flake8-docstrings==1.7.0
+        -   flake8-comprehensions==3.13.0
+        -   flake8-print==5.0.0
+        -   flake8-simplify==0.19.3
+
+# Type checking with mypy
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.3.0
+    hooks:
+    -   id: mypy
+        exclude: ^(docs/|examples/|tests/|setup.py)
+        additional_dependencies:
+        -   types-setuptools
+        -   types-PyYAML
+        -   types-requests
+        -   numpy
+        -   plotly
+        -   matplotlib
+        -   seaborn
+        -   rich
+        -   typer
+
+# Jupyter notebook cleaning
+-   repo: https://github.com/kynan/nbstripout
+    rev: 0.6.1
+    hooks:
+    -   id: nbstripout
+        files: ".ipynb$"
+
+# Documentation linting with markdownlint
+-   repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.35.0
+    hooks:
+    -   id: markdownlint
+        args: ['--fix']
+        exclude: ^(LICENSE|CHANGELOG.md)
+
+# Python import security check
+-   repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.1
+    hooks:
+    -   id: python-safety-dependencies-check
+        files: requirements.*\.txt$
+
+# Documentation strings check
+-   repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+    -   id: pydocstyle
+        exclude: ^(tests/|examples/|setup.py)
+        additional_dependencies: ['tomli']

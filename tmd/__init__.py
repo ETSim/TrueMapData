@@ -1,5 +1,8 @@
 """
-tmd: A library to process TMD files and generate visualizations and 3D models.
+TMD (TrueMap Data) processor package.
+
+This package provides utilities for reading, processing, and visualizing
+TMD files that contain height map data.
 """
 
-from .processor import TMDProcessor
+__version__ = '0.1.0'

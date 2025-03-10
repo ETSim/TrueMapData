@@ -1,0 +1,14 @@
+# Core dependencies
+numpy>=1.20.0
+matplotlib>=3.5.0,<4.0.0
+plotly>=5.10.0
+pillow>=9.0.0
+seaborn>=0.12.0
+scipy>=1.8.0
+
+# CLI tools
+rich>=12.0.0
+typer>=0.7.0
+
+# File formats and visualization
+pyvista>=0.37.0  # Optional for 3D visualization

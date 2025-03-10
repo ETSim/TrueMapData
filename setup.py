@@ -1,20 +1,15 @@
-from setuptools import setup, find_packages
+#!/usr/bin/env python3
+"""
+Setup configuration for the TMD Processor package.
+This setup.py file is maintained for backward compatibility with older tools.
+The primary build configuration is now in pyproject.toml.
+"""
+from setuptools import find_packages, setup
 
 setup(
-    name='tmdprocessor',
-    version='0.1.0',
-    description='A library for processing TMD files (TrueMap v6 and GelSight) and visualizing height maps.',
-    author='Antoine Boucher',
-    author_email='antoine@antoineboucher.info',
-    packages=find_packages(),
-    install_requires=[
-        'numpy',
-        'plotly',
-        'Pillow'
-    ],
-    entry_points={
-        'console_scripts': [
-            'tmdprocessor=tmdprocessor.cli:main'
-        ]
+    use_scm_version={
+        "write_to": "tmd/_version.py",
+        "version_scheme": "post-release",
+        "local_scheme": "no-local-version",
     },
 )

@@ -1,14 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "truemapdata"
-dynamic = ["version"]
+name = "tmd"
+version = "0.1.0"
 description = "A library for processing TMD files and visualizing height maps"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {file = "LICENSE"}
+license = {text = "MIT"}
 keywords = ["tmd", "heightmap", "3d", "visualization", "truemap", "gelsight"]
 authors = [
     {name = "Antoine Boucher", email = "antoine@antoineboucher.info"}
@@ -57,30 +57,27 @@ docs = [
     "mkdocs-material>=9.0.0",
     "mkdocstrings>=0.20.0",
     "mkdocstrings-python>=1.0.0",
+    "pymdown-extensions>=9.0",
+    "pygments>=2.13.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.0.0",
 ]
 full = [
-    "tmd-processor[dev,docs]",
+    "tmd[dev,docs]",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/tmd-processor"
-"Bug Tracker" = "https://github.com/yourusername/tmd-processor/issues"
-"Documentation" = "https://yourusername.github.io/tmd-processor"
+"Homepage" = "https://github.com/yourusername/tmd"
+"Bug Tracker" = "https://github.com/yourusername/tmd/issues"
+"Documentation" = "https://yourusername.github.io/tmd"
 
 [project.scripts]
 tmd-process = "tmd.cli:app"
 
 [tool.setuptools]
 packages = ["tmd"]
-package-dir = {"" = "."}
 
 [tool.setuptools.package-data]
 tmd = ["py.typed"]
-
-[tool.setuptools_scm]
-write_to = "tmd/_version.py"
-version_scheme = "post-release"
-local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

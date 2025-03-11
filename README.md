@@ -56,12 +56,9 @@ Std Dev: 0.188633993268013
 ![image](https://github.com/user-attachments/assets/f4a4b855-cf83-4971-ad15-f393fb52e03b)
 
 
-
-
 ## Installation
 
 ### Quick Install
-```
 
 Ensure you have Python 3.12+ installed. Then, install the required packages:
 

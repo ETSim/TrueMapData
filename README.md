@@ -21,7 +21,6 @@ A Python-based TMD file processor with visualization and export capabilities for
 
 ## Features
 
-- **Automatic Format Detection:** Auto-detects TMD file format and endianness
 - **Rich Visualizations:**
   - Interactive 3D surface plots with adjustable Z-scale
   - 2D heatmaps using Plotly, Matplotlib, or Seaborn
@@ -35,9 +34,6 @@ A Python-based TMD file processor with visualization and export capabilities for
   - Multi-channel maps (RGBE, RG formats)
   - STL files for 3D printing (ASCII or binary)
   - NumPy data formats (.npy, .npz)
-- **Modern CLI Interface:** Rich command line experience using Typer and Rich
-- **Well-Tested:** Comprehensive test suite with high coverage
-
 ---
 
 ## Installation
@@ -49,16 +45,6 @@ Ensure you have Python 3.12+ installed. Then, install the required packages:
 
 ```bash
 pip install numpy plotly pillow
-```
-
-Clone the repository and navigate into the project directory
-
-## Usage
-
-Run the main script to process TMD files:
-
-```bash
-python tmd_processor.py
 ```
 
 You can also run the provided Jupyter Notebook to see step-by-step examples.

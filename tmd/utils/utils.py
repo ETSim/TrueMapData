@@ -7,6 +7,10 @@ import struct
 import re
 import numpy as np
 from typing import Dict, Any, Tuple, Optional, List
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 def hexdump(
@@ -154,13 +158,17 @@ def process_tmd_file(
             if debug:
                 print("⚠️ Detected v2 file format. Reading metadata...")
             try:
-                comment_bytes = f.read(32)
-                comment = comment_bytes.decode('ascii', errors='ignore').strip('\0')
+                comment = f.read(24).decode('ascii').strip()
                 if debug and comment:
                     print(f"Comment: {comment}")
             except Exception:
                 comment = None
-                f.seek(32)  # Reset to read the rest of the data
+                try:
+                    f.read(24)
+                    f.seek(33)
+                except Exception:
+                    comment = None
+                    f.seek(33)
 
         # Read dimensions
         width_bytes = f.read(4)
@@ -176,6 +184,7 @@ def process_tmd_file(
                 # In TMD format, dimensions are stored as (width, height)
                 width = struct.unpack("<I", width_bytes)[0]
                 height = struct.unpack("<I", height_bytes)[0]
+                print(f"Width: {width}, Height: {height}")
             except Exception as e:
                 if debug:
                     print(f"Error parsing dimensions: {str(e)}")
@@ -184,10 +193,7 @@ def process_tmd_file(
         
         # Validate dimensions to avoid memory issues
         if width <= 0 or height <= 0 or width > 10000 or height > 10000:
-            if debug:
-                print(f"WARNING: Invalid dimensions detected: {width}x{height}. Using default dimensions.")
-            width = min(max(width, 1), 1000)
-            height = min(max(height, 1), 1000)
+            raise ValueError(f"Invalid dimensions: {width} x {height}")
         
         # Read spatial parameters
         x_length_bytes = f.read(4)
@@ -290,11 +296,10 @@ def process_tmd_file(
 
     return metadata, height_map
 
-
 def write_tmd_file(
     height_map: np.ndarray,
     output_path: str,
-    comment: str = "TMD file",
+    comment: str = "Created by TrueMap v6",
     x_length: float = 10.0,
     y_length: float = 10.0,
     x_offset: float = 0.0,
@@ -306,63 +311,66 @@ def write_tmd_file(
     Write a height map to a TMD file.
 
     Args:
-        height_map: 2D numpy array of height values
-        output_path: Path where to save the TMD file
-        comment: Comment to include in the file
-        x_length: Physical length in X direction
-        y_length: Physical length in Y direction
-        x_offset: X-axis offset
-        y_offset: Y-axis offset
-        version: TMD version (1 or 2)
-        debug: Whether to print debug information
+        height_map: 2D numpy array of height values.
+        output_path: Path where to save the TMD file.
+        comment: Comment to include in the file.
+        x_length: Physical length in X direction.
+        y_length: Physical length in Y direction.
+        x_offset: X-axis offset.
+        y_offset: Y-axis offset.
+        version: TMD version (1 or 2).
+        debug: Whether to print debug information.
 
     Returns:
-        Path to the created file
+        Path to the created file.
     """
     # Ensure output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-
-    # Get height map dimensions - TMD format expects (rows, cols) as (height, width)
-    # where width = columns (X) and height = rows (Y)
+    
+    # Get height map dimensions (rows, cols) = (height, width)
     height, width = height_map.shape
-
+    
     with open(output_path, "wb") as f:
-        # Write header
+        print(f"Writing TMD file v{version} to {output_path}")
         if version == 2:
-            header_str = "Binary TrueMap Data File v2.0"
-            header_bytes = header_str.encode("ascii") + b"\0"
-            f.write(header_bytes.ljust(32, b"\0"))
+            # Write the exact header format shown in the example
+            header = "Binary TrueMap Data File v2.0\n"
+            header_comment = "Created by TrueMap v6\n"
             
-            # Write comment (TMD v2 only)
-            if comment:
-                comment_bytes = comment.encode("ascii") + b"\0"
-                f.write(comment_bytes.ljust(32, b"\0"))
-        else:
-            # v1 format
-            header_str = "TrueMap Data File v1.0"
-            header_bytes = header_str.encode("ascii") + b"\0"
-            f.write(header_bytes.ljust(28, b"\0"))
+            # Write header and pad to 32 bytes with nulls if needed
+            header_bytes = header.encode('ascii')
+            remaining_header = 32 - len(header_bytes)
+            logger.info(f"Remaining header: {remaining_header}")
+            print(f"Remaining header: {remaining_header}")
+            if remaining_header > 0:
+                header_bytes += b'\0' * remaining_header
+            f.write(header_bytes[:32])  # Truncate if too long
             
-            # Write 4 reserved bytes (TMD v1 only)
-            f.write(b"\0\0\0\0")
-
-        # Write dimensions - NOTE: TMD order is width, height
-        # Make sure to use width (columns) first, then height (rows)
-        f.write(struct.pack("<II", width, height))
+            # Write comment and pad to 24 bytes
+            comment_bytes = header_comment.encode('ascii')
+            remaining_comment = 24 - len(comment_bytes)
+            logger.info(f"Remaining comment: {remaining_comment}")
+            print(f"Remaining comment: {remaining_comment}")
+            if remaining_comment > 0:
+                comment_bytes += b'\0' * remaining_comment
+            f.write(comment_bytes[:24])
         
-        # Write spatial parameters
-        f.write(struct.pack("<ffff", x_length, y_length, x_offset, y_offset))
+        # Write dimensions: width and height (4 bytes each, little-endian)
+        f.write(struct.pack('<II', width, height))
         
-        # Write height map data as 32-bit floats
+        # Write spatial info: x_length, y_length, x_offset, y_offset (each as 4-byte float)
+        f.write(struct.pack('<ffff', x_length, y_length, x_offset, y_offset))
+        
+        # Write the height map data (float32 values)
         height_map_flat = height_map.astype(np.float32).flatten()
         f.write(height_map_flat.tobytes())
-
+    
     if debug:
         print(f"Writing TMD file v{version} to {output_path}")
-        print(f"Dimensions: {width}x{height}, Spatial info: {x_length},{y_length},{x_offset},{y_offset}")
+        print(f"Dimensions: {width} x {height}, Spatial info: {x_length}, {y_length}, {x_offset}, {y_offset}")
         print(f"Successfully wrote TMD file: {output_path}")
         print(f"File size: {os.path.getsize(output_path)} bytes")
-
+    
     return output_path
 
 
@@ -430,7 +438,7 @@ def generate_synthetic_tmd(
     width: int = 100,
     height: int = 100,
     pattern: str = "combined",
-    comment: str = "Synthetic TMD File",
+    comment: str = "Created by TrueMap v6",
     version: int = 2,
 ) -> str:
     """

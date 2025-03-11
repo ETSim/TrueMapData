@@ -63,7 +63,16 @@ Std Dev: 0.188633993268013
 Ensure you have Python 3.12+ installed. Then, install the required packages:
 
 ```bash
-pip install numpy plotly pillow
+pip install -r requirements.txt
+pip install -e .
+```
+
+```
+from tmd import TMD
+data = TMD('Dime.tmd')
+height_map = data.height_map()
+metadata = data.metadata()
+data.plot_3D()
 ```
 
 You can also run the provided Jupyter Notebook to see step-by-step examples.

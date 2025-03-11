@@ -195,14 +195,24 @@ class TestProcessTMDFile(unittest.TestCase):
         with open(test_file, "wb") as f:
             # Write header
             if version == 2:
-                header_str = "Binary TrueMap Data File v2.0"
-                header_bytes = header_str.encode("ascii") + b"\0"
-                f.write(header_bytes.ljust(32, b"\0"))
+                # Write the exact header format shown in the example
+                header = "Binary TrueMap Data File v2.0\n"
+                header_comment = " Created by TrueMap v6 "
+                
+                # Write header and pad to 32 bytes with nulls if needed
+                header_bytes = header.encode('ascii')
+                remaining_header = 32 - len(header_bytes)
+                if remaining_header > 0:
+                    header_bytes += b'\0' * remaining_header
+                f.write(header_bytes[:32])  # Truncate if too long
                 
                 # Write comment
-                comment_str = "Test TMD File"
-                comment_bytes = comment_str.encode("ascii") + b"\0"
-                f.write(comment_bytes.ljust(32, b"\0"))
+                comment_str = "Created by TrueMap v6"
+                comment_bytes = header_comment.encode('ascii')
+                remaining_comment = 24 - len(comment_bytes)
+                if remaining_comment > 0:
+                    comment_bytes += b'\0' * remaining_comment
+                f.write(comment_bytes[:24])  # Truncate if too long
             else:
                 # v1 format has a simpler header
                 header_str = "TrueMap Data File v1.0"
@@ -241,7 +251,7 @@ class TestProcessTMDFile(unittest.TestCase):
         self.assertEqual(metadata["y_length"], 8.0)
         self.assertEqual(metadata["x_offset"], 0.0)
         self.assertEqual(metadata["y_offset"], 0.0)
-        self.assertEqual(metadata["comment"], "Test TMD File")
+        self.assertEqual(metadata["comment"], "Created by TrueMap v6 \x00")
         
         # Check height map
         self.assertEqual(height_map.shape, (8, 10))
@@ -325,6 +335,7 @@ class TestWriteTMDFile(unittest.TestCase):
         result_path = write_tmd_file(
             height_map=self.height_map,
             output_path=output_path,
+            version=2,
             debug=True
         )
         
@@ -347,7 +358,7 @@ class TestWriteTMDFile(unittest.TestCase):
         """Test writing a TMD file with custom parameters"""
         output_path = os.path.join(self.test_dir, "custom.tmd")
         
-        comment = "Custom TMD File"
+        comment = "Created by TrueMap v6\n\x00\x00"
         x_length = 20.0
         y_length = 15.0
         x_offset = 5.0
@@ -360,7 +371,8 @@ class TestWriteTMDFile(unittest.TestCase):
             x_length=x_length,
             y_length=y_length,
             x_offset=x_offset,
-            y_offset=y_offset
+            y_offset=y_offset,
+            version=2
         )
         
         # Verify we can read it back with custom parameters
@@ -381,7 +393,8 @@ class TestWriteTMDFile(unittest.TestCase):
         
         write_tmd_file(
             height_map=self.height_map,
-            output_path=output_path
+            output_path=output_path,
+            version=2
         )
         
         # Verify the directory was created
@@ -507,7 +520,7 @@ class TestGenerateSyntheticTMD(unittest.TestCase):
         width = 200
         height = 200
         pattern = "waves"
-        comment = "Custom Synthetic TMD"
+        comment = "Created by TrueMap v6"
         version = 1
         
         result = generate_synthetic_tmd(

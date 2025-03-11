@@ -1,0 +1,21 @@
+TMD File Metadata
+================
+
+file_path: output\sample.tmd
+version: 2
+header: 
+comment: eated by TrueMap v6
+width: 200
+height: 200
+x_length: 10.0
+y_length: 10.0
+x_offset: 0.0
+y_offset: 0.0
+
+Height Map Statistics
+====================
+Shape: (200, 200)
+Min: 0.0
+Max: 1.0
+Mean: 0.41760489344596863
+Std Dev: 0.18928591907024384

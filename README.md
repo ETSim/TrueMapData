@@ -36,6 +36,28 @@ A Python-based TMD file processor with visualization and export capabilities for
   - NumPy data formats (.npy, .npz)
 ---
 
+Height Map Statistics
+====================
+Shape: (200, 200)
+Min: 0.0
+Max: 1.0
+Mean: 0.4120621979236603
+Std Dev: 0.188633993268013
+
+![height_map_3d_matplotlib](https://github.com/user-attachments/assets/faa4db7d-62ee-47e9-8883-4b8d4af13eb9)
+![x_cross_section](https://github.com/user-attachments/assets/fcf95e3c-5810-4dfd-93f0-06e98297490b)
+![displacement_map](https://github.com/user-attachments/assets/0a89659c-5af0-4a53-969b-9a96f04dac0a)
+![profile_75_percent](https://github.com/user-attachments/assets/d48e4158-76ba-42fa-8399-7ceb60241925)
+![image](https://github.com/user-attachments/assets/885b363a-10da-44b8-a574-bcd4848c2837)
+
+![image](https://github.com/user-attachments/assets/f00dcec9-6a2c-4080-b643-cb42ee5f3193)
+
+![image](https://github.com/user-attachments/assets/2cb7d052-6b63-4435-af7b-04becaf1a594)
+![image](https://github.com/user-attachments/assets/f4a4b855-cf83-4971-ad15-f393fb52e03b)
+
+
+
+
 ## Installation
 
 ### Quick Install

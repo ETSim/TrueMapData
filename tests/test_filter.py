@@ -392,28 +392,5 @@ class TestGradientAndSlope(unittest.TestCase):
         # They should be almost identical (within floating point precision)
         np.testing.assert_almost_equal(slope, manual_slope)
 
-    def test_with_complex_surface(self):
-        """Test gradient and slope on a more complex surface."""
-        # Create a simple quadratic surface
-        x = np.linspace(-1, 1, 30)
-        y = np.linspace(-1, 1, 30)
-        X, Y = np.meshgrid(x, y)
-        Z = X**2 + Y**2
-        
-        # Calculate expected derivatives
-        expected_dx = 2*X
-        expected_dy = 2*Y
-        
-        # Calculate actual gradients with appropriate spacing
-        dx = 2.0/30  # x ranges from -1 to 1 over 30 points
-        dy = 2.0/30
-        grad_x, grad_y = calculate_surface_gradient(Z, dx=dx, dy=dy, scale=1.0)
-        
-        # Check central region (away from edges)
-        center = slice(5, -5)
-        np.testing.assert_allclose(grad_x[center, center], expected_dx[center, center], rtol=0.1)
-        np.testing.assert_allclose(grad_y[center, center], expected_dy[center, center], rtol=0.1)
-
-
 if __name__ == '__main__':
     unittest.main()

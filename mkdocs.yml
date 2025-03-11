@@ -25,8 +25,6 @@ plugins:
         python:
           rendering:
             show_source: true
-  - git-revision-date-localized:
-      enable_creation_date: true
 
 markdown_extensions:
   - pymdownx.highlight
@@ -40,8 +38,8 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - toc:
       permalink: true
 

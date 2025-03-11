@@ -70,9 +70,11 @@ def rotate_height_map(
     Returns:
         Rotated height map as a 2D numpy array
     """
+    # SciPy's rotate goes counterclockwise, but we want clockwise rotation
+    # to match the test expectation
     return ndimage.rotate(
         height_map,
-        angle,
+        -angle,  # Negated angle to match test expectation
         reshape=reshape,
         order=interpolation_order,
         mode="constant",
@@ -254,11 +256,13 @@ def extract_profile_at_percentage(
         Extracted height profile as a 1D numpy array.
     """
     rows, cols = height_map.shape
-    percentage = np.clip(percentage, 0, 100)  # Ensure valid percentage range
+    # Ensure percentage is between 0 and 100
+    percentage = np.clip(percentage, 0, 100)
 
     if axis.lower() == "x":
-        # Extract row at the given percentage along the Y-axis
-        row_idx = int((percentage / 100) * (rows - 1))
+        # For X-axis profiles, we need a row index
+        # Percentage 0 = row 0, 100% = last row (rows-1)
+        row_idx = int((percentage / 100.0) * (rows - 1) + 0.5)
         profile = height_map[row_idx, :].copy()
 
         # Generate X positions based on metadata
@@ -272,8 +276,9 @@ def extract_profile_at_percentage(
             positions = np.arange(cols)
 
     elif axis.lower() == "y":
-        # Extract column at the given percentage along the X-axis
-        col_idx = int((percentage / 100) * (cols - 1))
+        # For Y-axis profiles, we need a column index
+        # Percentage 0 = column 0, 100% = last column (cols-1)
+        col_idx = int((percentage / 100.0) * (cols - 1) + 0.5)
         profile = height_map[:, col_idx].copy()
 
         # Generate Y positions based on metadata

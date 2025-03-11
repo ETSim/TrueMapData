@@ -37,8 +37,9 @@ def convert_heightmap_to_stl(
         print("Height map too small to generate STL.")
         return
 
-    x_scale = x_length / (cols - 1)
-    y_scale = y_length / (rows - 1)
+    # Ensure we don't divide by zero
+    x_scale = x_length / max(1, cols - 1)
+    y_scale = y_length / max(1, rows - 1)
     vertices = np.zeros((rows, cols, 3))
 
     # Generate vertices
@@ -84,8 +85,8 @@ def _write_ascii_stl(vertices, filename):
             v0, v1, v2 = tri
             n = np.cross(v1 - v0, v2 - v0)
             norm_val = np.linalg.norm(n)
-            if norm_val == 0:
-                n = np.array([0, 0, 0])
+            if norm_val < 1e-10:  # Avoid division by zero
+                n = np.array([0, 0, 1.0])  # Default to upward normal
             else:
                 n = n / norm_val
             f.write(f"  facet normal {n[0]:.6e} {n[1]:.6e} {n[2]:.6e}\n")

@@ -1,6 +1,4 @@
 """
-filter.py
-
 This module provides filtering functions for processing TMD height maps.
 It includes functions for Gaussian smoothing, and for extracting the 
 waviness (low-frequency) and roughness (high-frequency) components of a height map.
@@ -30,7 +28,8 @@ def apply_gaussian_filter(height_map: np.ndarray, sigma: float = 1.0) -> np.ndar
     Returns:
         np.ndarray: Smoothed height map.
     """
-    return ndimage.gaussian_filter(height_map, sigma=sigma)
+    # Create a copy to ensure we don't modify the original
+    return ndimage.gaussian_filter(height_map.copy(), sigma=sigma)
 
 def extract_waviness(height_map: np.ndarray, sigma: float = 10.0) -> np.ndarray:
     """
@@ -45,6 +44,7 @@ def extract_waviness(height_map: np.ndarray, sigma: float = 10.0) -> np.ndarray:
     Returns:
         np.ndarray: The low-frequency (waviness) component.
     """
+    # Larger sigma should extract lower frequency features
     return apply_gaussian_filter(height_map, sigma=sigma)
 
 def extract_roughness(height_map: np.ndarray, sigma: float = 10.0) -> np.ndarray:
@@ -63,7 +63,7 @@ def extract_roughness(height_map: np.ndarray, sigma: float = 10.0) -> np.ndarray
         np.ndarray: The high-frequency (roughness) component.
     """
     waviness = extract_waviness(height_map, sigma=sigma)
-    return height_map - waviness
+    return height_map.copy() - waviness
 
 def calculate_rms_roughness(height_map: np.ndarray, sigma: float = 10.0) -> float:
     """
@@ -98,28 +98,54 @@ def calculate_rms_waviness(height_map: np.ndarray, sigma: float = 10.0) -> float
     waviness = extract_waviness(height_map, sigma=sigma)
     return np.sqrt(np.mean(waviness**2))
 
-def calculate_surface_gradient(height_map: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def calculate_surface_gradient(height_map: np.ndarray, dx: float = 1.0, dy: float = 1.0, scale: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate the gradient of the height map in the x and y directions.
     
     Args:
         height_map (np.ndarray): 2D array of height values.
+        dx (float): Grid spacing in x direction.
+        dy (float): Grid spacing in y direction.
+        scale_factor (float): Scale factor to apply to gradients.
         
     Returns:
         Tuple[np.ndarray, np.ndarray]: Gradients in the x and y directions.
     """
-    grad_y, grad_x = np.gradient(height_map)
+    # Calculate the gradients using the central difference method
+    # Instead of using np.gradient, we'll do the calculation explicitly to make scaling more controllable
+    rows, cols = height_map.shape
+    
+    # Preallocate gradient arrays
+    grad_x = np.zeros_like(height_map)
+    grad_y = np.zeros_like(height_map)
+    
+    # Calculate gradient in x direction (central differences for interior, forward/backward at edges)
+    grad_x[:, 1:-1] = (height_map[:, 2:] - height_map[:, :-2]) / (2 * dx)
+    grad_x[:, 0] = (height_map[:, 1] - height_map[:, 0]) / dx  # Forward difference at left edge
+    grad_x[:, -1] = (height_map[:, -1] - height_map[:, -2]) / dx  # Backward difference at right edge
+    
+    # Calculate gradient in y direction (central differences for interior, forward/backward at edges)
+    grad_y[1:-1, :] = (height_map[2:, :] - height_map[:-2, :]) / (2 * dy)
+    grad_y[0, :] = (height_map[1, :] - height_map[0, :]) / dy  # Forward difference at top edge
+    grad_y[-1, :] = (height_map[-1, :] - height_map[-2, :]) / dy  # Backward difference at bottom edge
+    
+    # Apply scale factor
+    grad_x = grad_x * scale
+    grad_y = grad_y * scale
+    
     return grad_x, grad_y
 
-def calculate_slope(height_map: np.ndarray) -> np.ndarray:
+def calculate_slope(height_map: np.ndarray, scale: float = 1.0) -> np.ndarray:
     """
     Calculate the slope of the height map, defined as the magnitude of the gradient.
     
     Args:
         height_map (np.ndarray): 2D array of height values.
+        scale_factor (float): Scale factor to apply to gradients.
     
     Returns:
         np.ndarray: Array of slope values.
     """
-    grad_x, grad_y = calculate_surface_gradient(height_map)
+    # Use same scale factor for consistency
+    grad_x, grad_y = calculate_surface_gradient(height_map, scale=scale)
     return np.sqrt(grad_x**2 + grad_y**2)

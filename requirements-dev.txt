@@ -13,12 +13,6 @@ mypy>=1.0.0
 tox>=4.0.0
 pre-commit>=3.0.0
 
-# Documentation
-mkdocs>=1.4.0
-mkdocs-material>=9.0.0
-mkdocstrings>=0.20.0
-mkdocstrings-python>=1.0.0
-
 # Development tools
 ipython>=8.0.0
 jupyter>=1.0.0

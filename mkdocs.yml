@@ -1,0 +1,75 @@
+site_name: TMD - TrueMap Data Library
+site_description: A Python library for processing and analyzing TrueMap Data files
+site_author: Antoine
+
+repo_url: https://github.com/yourusername/tmd
+edit_uri: ""
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          rendering:
+            show_source: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - User Guide:
+    - Getting Started: user-guide/getting-started.md
+    - File Formats: user-guide/file-formats.md
+    - Basic Usage: user-guide/basic-usage.md
+    - Exporting Data: user-guide/exporting.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Data Flow: architecture/data-flow.md
+    - Component Diagram: architecture/component-diagram.md
+  - API Reference:
+    - Processor: api/processor.md
+    - Filters: api/filter.md
+    - Utilities: api/utils.md
+    - Exporters: 
+      - STL Export: api/exporters/stl.md
+      - NumPy Export: api/exporters/numpy.md
+      - Image Export: api/exporters/image.md
+    - Plotters:
+      - Matplotlib: api/plotters/matplotlib.md
+  - Examples:
+    - Basic Processing: examples/basic-processing.md
+    - Height Map Visualization: examples/visualization.md
+    - Surface Analysis: examples/surface-analysis.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

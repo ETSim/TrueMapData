@@ -4,10 +4,6 @@ TrueMap & GelSight TMD Processor package.
 A Python-based TMD file processor with visualization and export capabilities for height maps.
 """
 
-from ._version import __version__
-
-__all__ = ["__version__", "TMDProcessor", "load_tmd"]
-
 # Import commonly used classes and functions for easy access
 from .processor import TMDProcessor
 

@@ -6,17 +6,19 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A Python library for processing and analyzing TrueMap Data files">
+        <meta name="description" content="TrueMap Data (TMD) file processing library">
       
       
-        <meta name="author" content="Antoine">
+        <meta name="author" content="Antoine Gagnon">
       
       
+        <link rel="canonical" href="https://github.com/ETSTribology/TrueMapData/architecture/component-diagram/">
       
-        <link rel="prev" href="../data-flow/">
+      
+        <link rel="prev" href="../overview/">
       
       
-        <link rel="next" href="../../api/filter/">
+        <link rel="next" href="../data-flow/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -24,7 +26,7 @@
     
     
       
-        <title>Component Diagram - TMD - TrueMap Data Library</title>
+        <title>Component Diagram - TMD Library</title>
       
     
     
@@ -67,7 +69,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="teal">
   
     
     
@@ -77,7 +79,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#tmd-component-diagram" class="md-skip">
+        <a href="#tmd-architecture-component-diagram" class="md-skip">
           Skip to content
         </a>
       
@@ -89,9 +91,11 @@
     
       
 
-<header class="md-header" data-md-component="header">
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="TMD - TrueMap Data Library" class="md-header__button md-logo" aria-label="TMD - TrueMap Data Library" data-md-component="logo">
+    <a href="../.." title="TMD Library" class="md-header__button md-logo" aria-label="TMD Library" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -105,7 +109,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            TMD - TrueMap Data Library
+            TMD Library
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -163,13 +167,13 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/yourusername/tmd" title="Go to repository" class="md-source" data-md-component="source">
+        <a href="https://github.com/ETSTribology/TrueMapData" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
   </div>
   <div class="md-source__repository">
-    GitHub
+    ETSTribology/TrueMapData
   </div>
 </a>
       </div>
@@ -182,157 +186,6 @@
       
       
         
-          
-            
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../.." class="md-tabs__link">
-        
-  
-    
-  
-  Home
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../installation/" class="md-tabs__link">
-        
-  
-    
-  
-  Installation
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../user-guide/getting-started/" class="md-tabs__link">
-          
-  
-  User Guide
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-    
-  
-  
-    
-    
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../overview/" class="md-tabs__link">
-          
-  
-  Architecture
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../api/processor.md" class="md-tabs__link">
-          
-  
-  API Reference
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../examples/basic-processing.md" class="md-tabs__link">
-          
-  
-  Examples
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../contributing.md" class="md-tabs__link">
-        
-  
-    
-  
-  Contributing
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../changelog.md" class="md-tabs__link">
-        
-  
-    
-  
-  Changelog
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
           
         
       
@@ -347,28 +200,26 @@
                     
 
 
-  
 
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="TMD - TrueMap Data Library" class="md-nav__button md-logo" aria-label="TMD - TrueMap Data Library" data-md-component="logo">
+    <a href="../.." title="TMD Library" class="md-nav__button md-logo" aria-label="TMD Library" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
 
     </a>
-    TMD - TrueMap Data Library
+    TMD Library
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/yourusername/tmd" title="Go to repository" class="md-source" data-md-component="source">
+      <a href="https://github.com/ETSTribology/TrueMapData" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
   </div>
   <div class="md-source__repository">
-    GitHub
+    ETSTribology/TrueMapData
   </div>
 </a>
     </div>
@@ -401,8 +252,53 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    User Guide
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="../../installation/" class="md-nav__link">
+      <a href="../../user-guide/installation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -414,46 +310,7 @@
     </li>
   
 
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
-      
-      
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
-            
-  
-  <span class="md-ellipsis">
-    User Guide
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            User Guide
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
+              
             
               
                 
@@ -467,69 +324,6 @@
   
   <span class="md-ellipsis">
     Getting Started
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../user-guide/file-formats.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    File Formats
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../user-guide/basic-usage.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Basic Usage
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../user-guide/exporting.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Exporting Data
   </span>
   
 
@@ -556,21 +350,26 @@
   
     
     
-    
-    
-    
       
+        
+      
+        
+      
+        
       
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -581,8 +380,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             Architecture
           </label>
@@ -600,27 +399,6 @@
   
   <span class="md-ellipsis">
     Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../data-flow/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Data Flow
   </span>
   
 
@@ -683,36 +461,18 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-components" class="md-nav__link">
+  <a href="#component-overview" class="md-nav__link">
     <span class="md-ellipsis">
-      Core Components
+      Component Overview
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#component-dependencies" class="md-nav__link">
+  <a href="#data-flow-diagram" class="md-nav__link">
     <span class="md-ellipsis">
-      Component Dependencies
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#physical-component-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      Physical Component Structure
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#component-interfaces" class="md-nav__link">
-    <span class="md-ellipsis">
-      Component Interfaces
+      Data Flow Diagram
     </span>
   </a>
   
@@ -727,10 +487,82 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#component-descriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Component Descriptions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Component Descriptions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#processing-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualization-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visualization Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Export Components
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-flow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Data Flow
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -751,21 +583,32 @@
   
     
     
-    
-    
-    
       
+        
+      
+        
+      
+        
+      
+        
+      
+        
       
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -776,8 +619,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             API Reference
           </label>
@@ -790,7 +633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/processor.md" class="md-nav__link">
+      <a href="../../api/processor/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -815,7 +658,7 @@
         
   
   <span class="md-ellipsis">
-    Filters
+    Filter Module
   </span>
   
 
@@ -832,11 +675,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/utils.md" class="md-nav__link">
+      <a href="../../api/processing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Utilities
+    Processing Module
   </span>
   
 
@@ -854,21 +697,28 @@
   
     
     
-    
-    
-    
       
+        
+      
+        
+      
+        
       
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
         
           
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -879,8 +729,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_4">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
             <span class="md-nav__icon md-icon"></span>
             Exporters
           </label>
@@ -893,53 +743,53 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/exporters/stl/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    STL Export
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/exporters/numpy.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    NumPy Export
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../api/exporters/image/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Image Export
+    Image Exporter
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/model/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    3D Model Exporter
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/compression/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Compression
   </span>
   
 
@@ -963,170 +813,12 @@
   
   
   
-    
-    
-    
-    
-    
-      
-      
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
-            
-  
-  <span class="md-ellipsis">
-    Plotters
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_5">
-            <span class="md-nav__icon md-icon"></span>
-            Plotters
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
     <li class="md-nav__item">
-      <a href="../../api/plotters/matplotlib.md" class="md-nav__link">
+      <a href="../../api/visualization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Matplotlib
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
-      
-      
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
-            
-  
-  <span class="md-ellipsis">
-    Examples
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
-            <span class="md-nav__icon md-icon"></span>
-            Examples
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/basic-processing.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Basic Processing
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/visualization.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Height Map Visualization
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/surface-analysis.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Surface Analysis
+    Visualization
   </span>
   
 
@@ -1150,31 +842,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing.md" class="md-nav__link">
+      <a href="https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Contributing
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../changelog.md" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Changelog
+    License
   </span>
   
 
@@ -1210,36 +882,18 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-components" class="md-nav__link">
+  <a href="#component-overview" class="md-nav__link">
     <span class="md-ellipsis">
-      Core Components
+      Component Overview
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#component-dependencies" class="md-nav__link">
+  <a href="#data-flow-diagram" class="md-nav__link">
     <span class="md-ellipsis">
-      Component Dependencies
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#physical-component-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      Physical Component Structure
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#component-interfaces" class="md-nav__link">
-    <span class="md-ellipsis">
-      Component Interfaces
+      Data Flow Diagram
     </span>
   </a>
   
@@ -1251,6 +905,57 @@
       Processing Sequence
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#component-descriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Component Descriptions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Component Descriptions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#processing-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualization-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visualization Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      Export Components
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1268,221 +973,166 @@
                 
                   
 
+  
+  
 
-<h1 id="tmd-component-diagram">TMD Component Diagram<a class="headerlink" href="#tmd-component-diagram" title="Permanent link">&para;</a></h1>
-<p>This page shows the relationships between various components of the TMD library.</p>
-<h2 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">&para;</a></h2>
-<p>The TMD library consists of several core components that work together to provide a complete workflow for processing and analyzing TMD files.</p>
-<pre class="mermaid"><code>graph TB
-    subgraph Core
-    TMDProcessor[TMDProcessor]
-    end
 
-    subgraph Utils
-    FileUtils[File Utilities]
-    ProcessingUtils[Processing Utilities]
-    MetadataUtils[Metadata Utilities]
-    end
-
-    subgraph Analysis
-    Filter[Filtering Module]
-    Stats[Statistics Module]
-    Gradient[Gradient Analysis]
-    end
-
-    subgraph Output
-    ExportSTL[STL Exporter]
-    ExportNPY[NumPy Exporter]
-    ExportImage[Image Exporter]
-    PlotterMatplotlib[Matplotlib Plotter]
-    end
-
-    TMDProcessor --&gt; FileUtils
-    TMDProcessor --&gt; ProcessingUtils
-    TMDProcessor --&gt; MetadataUtils
-    TMDProcessor --&gt; Filter
-    TMDProcessor --&gt; Stats
-    TMDProcessor --&gt; Gradient
-    TMDProcessor --&gt; ExportSTL
-    TMDProcessor --&gt; ExportNPY
-    TMDProcessor --&gt; ExportImage
-    TMDProcessor --&gt; PlotterMatplotlib
-
-    FileUtils --&gt; ProcessingUtils
-    Stats --&gt; Filter
-    Filter --&gt; Gradient
-
-    classDef core fill:#f96,stroke:#333,stroke-width:2px;
-    classDef util fill:#9cf,stroke:#333,stroke-width:1px;
-    classDef analysis fill:#fcf,stroke:#333,stroke-width:1px;
-    classDef output fill:#cf9,stroke:#333,stroke-width:1px;
-
-    class TMDProcessor core;
-    class FileUtils,ProcessingUtils,MetadataUtils util;
-    class Filter,Stats,Gradient analysis;
-    class ExportSTL,ExportNPY,ExportImage,PlotterMatplotlib output;</code></pre>
-<h2 id="component-dependencies">Component Dependencies<a class="headerlink" href="#component-dependencies" title="Permanent link">&para;</a></h2>
-<p>This diagram shows the dependencies between different components:</p>
-<pre class="mermaid"><code>flowchart TD
-    subgraph Core
-    A[TMDProcessor]
-    end
-
-    subgraph External Dependencies
-    B1[NumPy]
-    B2[SciPy]
-    B3[Matplotlib]
-    end
-
-    subgraph TMD Modules
-    C1[tmd.utils]
-    C2[tmd.filters]
-    C3[tmd.exporters]
-    C4[tmd.plotters]
-    end
-
-    A --&gt; C1
-    A --&gt; C2
-    A --&gt; C3
-    A --&gt; C4
-
-    C1 --&gt; B1
-    C1 --&gt; B2
-    C2 --&gt; B1
-    C2 --&gt; B2
-    C3 --&gt; B1
-    C4 --&gt; B1
-    C4 --&gt; B3
-
-    classDef core fill:#f96,stroke:#333,stroke-width:2px;
-    classDef external fill:#9cf,stroke:#333,stroke-width:1px;
-    classDef module fill:#fcf,stroke:#333,stroke-width:1px;
-
-    class A core;
-    class B1,B2,B3 external;
-    class C1,C2,C3,C4 module;</code></pre>
-<h2 id="physical-component-structure">Physical Component Structure<a class="headerlink" href="#physical-component-structure" title="Permanent link">&para;</a></h2>
-<p>This diagram shows the physical file structure of the library:</p>
-<pre class="mermaid"><code>graph TD
-    A[tmd Package] --&gt; B1[__init__.py]
-    A --&gt; B2[processor.py]
-    A --&gt; B3[_version.py]
-
-    A --&gt; C[utils Module]
-    C --&gt; C1[__init__.py]
-    C --&gt; C2[utils.py]
-    C --&gt; C3[filter.py]
-    C --&gt; C4[processing.py]
-    C --&gt; C5[metadata.py]
-
-    A --&gt; D[exporters Module]
-    D --&gt; D1[__init__.py]
-    D --&gt; D2[stl.py]
-    D --&gt; D3[numpy.py]
-    D --&gt; D4[image.py]
-
-    A --&gt; E[plotters Module]
-    E --&gt; E1[__init__.py]
-    E --&gt; E2[matplotlib.py]
-    E --&gt; E3[plotly.py]
-    E --&gt; E4[seaborn.py]
-
-    classDef folder fill:#f9d,stroke:#333,stroke-width:2px;
-    classDef file fill:#ddf,stroke:#333,stroke-width:1px;
-
-    class A,C,D,E folder;
-    class B1,B2,B3,C1,C2,C3,C4,C5,D1,D2,D3,D4,E1,E2,E3,E4 file;</code></pre>
-<h2 id="component-interfaces">Component Interfaces<a class="headerlink" href="#component-interfaces" title="Permanent link">&para;</a></h2>
-<p>This diagram shows the main interfaces between components:</p>
-<pre class="mermaid"><code>classDiagram
-    class TMDProcessor {
-        +file_path: str
-        +data: Dict
-        +debug: bool
-        +process()
-        +get_height_map()
-        +get_metadata()
-        +get_stats()
-        +export_metadata()
-    }
-
-    class FileReader {
-        &lt;&lt;Interface&gt;&gt;
-        +read_file(path: str)
-        +parse_header()
-        +parse_data()
-    }
-
-    class Exporter {
-        &lt;&lt;Interface&gt;&gt;
-        +export(data, path: str)
-    }
-
-    class STLExporter {
-        +convert_heightmap_to_stl()
-    }
-
-    class NPYExporter {
-        +export_to_npy()
-        +export_to_npz()
-    }
-
-    class ImageExporter {
-        +export_to_png()
-        +export_to_jpg()
-    }
-
-    class Plotter {
-        &lt;&lt;Interface&gt;&gt;
-        +plot(data)
-        +save(path: str)
-    }
-
-    class MatplotlibPlotter {
-        +plot_height_map_matplotlib()
-        +plot_2d_heatmap_matplotlib()
-    }
-
-    FileReader &lt;|-- TMDProcessor
-    Exporter &lt;|.. STLExporter
-    Exporter &lt;|.. NPYExporter
-    Exporter &lt;|.. ImageExporter
-    Plotter &lt;|.. MatplotlibPlotter
-    TMDProcessor --&gt; Exporter
-    TMDProcessor --&gt; Plotter</code></pre>
+<h1 id="tmd-architecture-component-diagram">TMD Architecture: Component Diagram<a class="headerlink" href="#tmd-architecture-component-diagram" title="Permanent link">&para;</a></h1>
+<p>This document provides a visual representation of the TMD library's architecture, showing the key components and their relationships.</p>
+<h2 id="component-overview">Component Overview<a class="headerlink" href="#component-overview" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>graph TD
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    User[User/Application] --&gt; Processor
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    subgraph Core
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        Processor[TMDProcessor]
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        Utils[FileUtils]
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    end
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    subgraph Processing
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        Filter[FilterModule]
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        Processing[ProcessingModule]
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    end
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    subgraph Visualization
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        MatPlotLib[MatplotlibPlotter]
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        Plotly[PlotlyPlotter]
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    end
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    subgraph Export
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        ImageExporter[ImageExporter]
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        ModelExporter[3DModelExporter]
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>        CompressionExporter[CompressionExporter]
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    end
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    Processor --&gt; Utils
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    Processor --&gt; Processing
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    Processor --&gt; Filter
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    Processing --&gt; Filter
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>    Processor --&gt; MatPlotLib
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>    Processor --&gt; Plotly
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>    Processor --&gt; ImageExporter
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>    Processor --&gt; ModelExporter
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>    Processor --&gt; CompressionExporter
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>
+</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>    classDef core fill:#f96,stroke:#333,stroke-width:2px;
+</span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>    classDef processing fill:#9cf,stroke:#333,stroke-width:2px;
+</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>    classDef visualization fill:#f9f,stroke:#333,stroke-width:2px;
+</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>    classDef export fill:#9f9,stroke:#333,stroke-width:2px;
+</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>
+</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>    class Processor,Utils core;
+</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>    class Filter,Processing processing;
+</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>    class MatPlotLib,Plotly visualization;
+</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>    class ImageExporter,ModelExporter,CompressionExporter export;
+</span></code></pre></div>
+<h2 id="data-flow-diagram">Data Flow Diagram<a class="headerlink" href="#data-flow-diagram" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>flowchart TD
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    subgraph Input
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        TMDFile[TMD File]
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    end
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    subgraph Processing
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        Processor[TMD Processor]
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        HeightMap[Height Map Extraction]
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        Filtering[Filtering &amp; Analysis]
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        Manipulation[Manipulation Operations]
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    end
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    subgraph Output
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        VisualizationOutput[Visualization]
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>        ExportOutput[Export Formats]
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    end
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    TMDFile --&gt; Processor
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    Processor --&gt; HeightMap
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    HeightMap --&gt; Filtering
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    HeightMap --&gt; Manipulation
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>    Filtering --&gt; VisualizationOutput
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>    Manipulation --&gt; VisualizationOutput
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>    HeightMap --&gt; ExportOutput
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>    Filtering --&gt; ExportOutput
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>    Manipulation --&gt; ExportOutput
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>    classDef input fill:#ffd, stroke:#333, stroke-width:2px;
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>    classDef process fill:#dff, stroke:#333, stroke-width:2px;
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>    classDef output fill:#dfd, stroke:#333, stroke-width:2px;
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>    class TMDFile input;
+</span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>    class Processor,HeightMap,Filtering,Manipulation process;
+</span><span id="__span-1-36"><a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a>    class VisualizationOutput,ExportOutput output;
+</span></code></pre></div>
 <h2 id="processing-sequence">Processing Sequence<a class="headerlink" href="#processing-sequence" title="Permanent link">&para;</a></h2>
-<p>This sequence diagram shows the process of loading and analyzing a TMD file:</p>
-<pre class="mermaid"><code>sequenceDiagram
-    actor User
-    participant Processor as TMDProcessor
-    participant Utils as FileUtils
-    participant Filter as FilterModule
-    participant Export as Exporter
-
-    User-&gt;&gt;Processor: Create processor(file_path)
-    User-&gt;&gt;Processor: process()
-    activate Processor
-    Processor-&gt;&gt;Utils: process_tmd_file(file_path)
-    activate Utils
-    Utils--&gt;&gt;Processor: metadata, height_map
-    deactivate Utils
-    Processor-&gt;&gt;Processor: store data
-    deactivate Processor
-
-    User-&gt;&gt;Processor: get_height_map()
-    Processor--&gt;&gt;User: height_map
-
-    User-&gt;&gt;Filter: calculate_rms_roughness(height_map)
-    activate Filter
-    Filter-&gt;&gt;Filter: extract_roughness(height_map)
-    Filter--&gt;&gt;User: roughness_value
-    deactivate Filter
-
-    User-&gt;&gt;Export: convert_heightmap_to_stl(height_map)
-    activate Export
-    Export--&gt;&gt;User: stl_file_path
-    deactivate Export</code></pre>
-<p>These diagrams provide a comprehensive view of the TMD library's architecture and component relationships, helping developers understand how the different parts work together.</p>
+<p>This sequence diagram shows the complete process flow when using the TMD library:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>sequenceDiagram
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    actor User
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    participant Processor as TMDProcessor
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    participant Utils as FileUtils
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    participant Filter as FilterModule
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    participant Manipulation as Processing
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    participant Export as Exporters
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    participant Viz as Visualization
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    User-&gt;&gt;Processor: 1. Create processor(file_path)
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    User-&gt;&gt;Processor: 2. process()
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    activate Processor
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    Processor-&gt;&gt;Utils: 3. process_tmd_file()
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    activate Utils
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    Utils--&gt;&gt;Processor: 4. return metadata, height_map
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    deactivate Utils
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    Processor--&gt;&gt;User: 5. return processed data
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    deactivate Processor
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    User-&gt;&gt;Manipulation: 6. manipulate height map
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    activate Manipulation
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    Note over Manipulation: crop, rotate, threshold, etc.
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    Manipulation--&gt;&gt;User: 7. return modified height map
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    deactivate Manipulation
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    User-&gt;&gt;Filter: 8. apply filters to height map
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    activate Filter
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>    Note over Filter: gaussian, waviness, roughness, etc.
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>    Filter--&gt;&gt;User: 9. return filtered height map
+</span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>    deactivate Filter
+</span><span id="__span-2-32"><a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>
+</span><span id="__span-2-33"><a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>    User-&gt;&gt;Viz: 10. visualize height map
+</span><span id="__span-2-34"><a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>    activate Viz
+</span><span id="__span-2-35"><a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>    Note over Viz: 2D/3D plots, cross-sections, etc.
+</span><span id="__span-2-36"><a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>    Viz--&gt;&gt;User: 11. return visualization
+</span><span id="__span-2-37"><a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>    deactivate Viz
+</span><span id="__span-2-38"><a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>
+</span><span id="__span-2-39"><a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a>    User-&gt;&gt;Export: 12. export to various formats
+</span><span id="__span-2-40"><a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>    activate Export
+</span><span id="__span-2-41"><a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a>    Note over Export: images, 3D models, NumPy arrays
+</span><span id="__span-2-42"><a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a>    Export--&gt;&gt;User: 13. export files
+</span><span id="__span-2-43"><a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a>    deactivate Export
+</span></code></pre></div>
+<h2 id="component-descriptions">Component Descriptions<a class="headerlink" href="#component-descriptions" title="Permanent link">&para;</a></h2>
+<h3 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>TMDProcessor</strong>: Main class for loading and processing TMD files</li>
+<li><strong>FileUtils</strong>: Handles file I/O operations and TMD format parsing</li>
+</ul>
+<h3 id="processing-components">Processing Components<a class="headerlink" href="#processing-components" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>FilterModule</strong>: Implements various filters and analysis algorithms</li>
+<li><strong>ProcessingModule</strong>: Provides tools for manipulating height maps</li>
+</ul>
+<h3 id="visualization-components">Visualization Components<a class="headerlink" href="#visualization-components" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>MatplotlibPlotter</strong>: Creates static visualizations using Matplotlib</li>
+<li><strong>PlotlyPlotter</strong>: Creates interactive visualizations using Plotly</li>
+</ul>
+<h3 id="export-components">Export Components<a class="headerlink" href="#export-components" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>ImageExporter</strong>: Exports height maps to various image formats</li>
+<li><strong>ModelExporter</strong>: Exports height maps to 3D model formats (STL, OBJ, PLY)</li>
+<li><strong>CompressionExporter</strong>: Exports height maps to NumPy formats</li>
+</ul>
 
 
 
@@ -1519,6 +1169,18 @@
   
 </div>
       
+        <div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/ETSTribology" target="_blank" rel="noopener" title="ETSTribology on GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+</div>
+      
     </div>
   </div>
 </footer>
@@ -1529,7 +1191,7 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.expand", "navigation.indexes", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.cd18aaf1.min.js"></script>

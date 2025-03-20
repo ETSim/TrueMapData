@@ -103,13 +103,9 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 |-------------|----------------------|
 | <img src="https://github.com/user-attachments/assets/2cb7d052-6b63-4435-af7b-04becaf1a594" width="400"> | <img src="https://github.com/user-attachments/assets/f4a4b855-cf83-4971-ad15-f393fb52e03b" width="400"> |
 
-| **Bump maps** | **HeightMap** |
+| **Bump maps** | **SmoothingHeightMap** |
 |-------------|----------------------|
-| <img src="[https://github.com/user-attachments/assets/2cb7d052-6b63-4435-af7b-04becaf1a594](https://github.com/user-attachments/assets/cf1cc89a-0a35-4f6c-966c-22ea193e0a70)" width="400"> | <img src="https://github.com/user-attachments/assets/f4a4b855-cf83-4971-ad15-f393fb52e03b" width="400"> |
-
-
-
-
+| <img src="[https://github.com/user-attachments/assets/2cb7d052-6b63-4435-af7b-04becaf1a594](https://github.com/user-attachments/assets/cf1cc89a-0a35-4f6c-966c-22ea193e0a70)" width="400"> | <img src="https://github.com/user-attachments/assets/d227f561-6d39-45fb-94eb-0a94d66fc948" width="400"> |
 
 ---
 

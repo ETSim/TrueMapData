@@ -2,7 +2,7 @@ site_name: TMD - TrueMap Data Library
 site_description: A Python library for processing and analyzing TrueMap Data files
 site_author: Antoine
 
-repo_url: https://github.com/yourusername/tmd
+repo_url: https://github.com/ETSTribology/TrueMapData
 edit_uri: ""
 
 theme:
@@ -56,19 +56,3 @@ nav:
     - Overview: architecture/overview.md
     - Data Flow: architecture/data-flow.md
     - Component Diagram: architecture/component-diagram.md
-  - API Reference:
-    - Processor: api/processor.md
-    - Filters: api/filter.md
-    - Utilities: api/utils.md
-    - Exporters:
-      - STL Export: api/exporters/stl.md
-      - NumPy Export: api/exporters/numpy.md
-      - Image Export: api/exporters/image.md
-    - Plotters:
-      - Matplotlib: api/plotters/matplotlib.md
-  - Examples:
-    - Basic Processing: examples/basic-processing.md
-    - Height Map Visualization: examples/visualization.md
-    - Surface Analysis: examples/surface-analysis.md
-  - Contributing: contributing.md
-  - Changelog: changelog.md

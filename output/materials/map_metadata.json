@@ -1,0 +1,29 @@
+{
+  "physical_dimensions": {
+    "width": 10.0,
+    "height": 10.0,
+    "units": "\u00b5m",
+    "pixel_size_x": 0.04975124378109453,
+    "pixel_size_y": 0.05
+  },
+  "roughness": {
+    "rms": 0.04195423796772957
+  },
+  "slope": {
+    "max_angle": 89.09918975830078
+  },
+  "terrain_type": "generic",
+  "generated_maps": [
+    "displacement",
+    "normal",
+    "bump",
+    "roughness",
+    "ambient_occlusion",
+    "base_color",
+    "slope",
+    "orm",
+    "edge",
+    "smoothness",
+    "terrain_type"
+  ]
+}

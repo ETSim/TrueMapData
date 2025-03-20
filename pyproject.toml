@@ -71,9 +71,9 @@ full = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/tmd"
-"Bug Tracker" = "https://github.com/yourusername/tmd/issues"
-"Documentation" = "https://yourusername.github.io/tmd"
+"Homepage" = "https://github.com/ETSTribology/TrueMapData"
+"Bug Tracker" = "https://github.com/ETSTribology/TrueMapData/issues"
+"Documentation" = "https://etstribology.github.io/TrueMapData/"
 
 [project.scripts]
 tmd-process = "tmd.cli:app"

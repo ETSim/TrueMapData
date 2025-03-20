@@ -54,6 +54,8 @@ Std Dev: 0.188633993268013
 
 ![image](https://github.com/user-attachments/assets/2cb7d052-6b63-4435-af7b-04becaf1a594)
 ![image](https://github.com/user-attachments/assets/f4a4b855-cf83-4971-ad15-f393fb52e03b)
+![normal_map](https://github.com/user-attachments/assets/945ad57b-3d63-48fe-a6f1-26dab1d88182)
+![smoothed_height_map](https://github.com/user-attachments/assets/c910b8ae-cee5-4740-92db-04a548241c25)
 
 
 ## Installation

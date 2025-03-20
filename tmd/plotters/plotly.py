@@ -213,3 +213,92 @@ def plot_height_map_2d(
         print(f"Saved 2D height map plot as {filename}")
 
     return filename
+
+
+def plot_cross_section_plotly(
+    x_positions, 
+    heights, 
+    title="Surface Cross-Section", 
+    filename="cross_section.html"
+):
+    """
+    Create an interactive cross-section plot using Plotly.
+    
+    Args:
+        x_positions: Array of x-axis positions for the cross-section
+        heights: Array of height values at each position
+        title: Title for the plot
+        filename: Output filename for the interactive HTML
+        
+    Returns:
+        Plotly figure object
+    """
+    try:
+        import plotly.graph_objects as go
+    except ImportError:
+        raise ImportError("Plotly is required for this function. Install with: pip install plotly")
+        
+    fig = go.Figure()
+    
+    # Add the profile line
+    fig.add_trace(
+        go.Scatter(
+            x=x_positions,
+            y=heights,
+            mode="lines",
+            name="Surface Profile",
+            line=dict(color="blue", width=2)
+        )
+    )
+    
+    # Add filled area beneath the profile
+    fig.add_trace(
+        go.Scatter(
+            x=x_positions,
+            y=[0] * len(x_positions),
+            mode="lines",
+            name="Base",
+            line=dict(width=0),
+            showlegend=False
+        )
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=x_positions,
+            y=heights,
+            mode="lines",
+            fill="tonexty",
+            name="Profile Area",
+            line=dict(width=0),
+            fillcolor="rgba(0, 0, 255, 0.2)",
+            showlegend=False
+        )
+    )
+    
+    # Configure layout
+    fig.update_layout(
+        title=title,
+        xaxis_title="Position",
+        yaxis_title="Height",
+        hovermode="closest",
+        template="plotly_white",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    # Add grid lines
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
+    
+    # Save to file if filename is provided
+    if filename:
+        fig.write_html(filename)
+        print(f"Interactive cross-section plot saved to {filename}")
+    
+    return fig

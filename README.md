@@ -9,6 +9,7 @@ A Python-based TMD file processor with visualization and export capabilities for
 ---
 
 ## **Table of Contents**
+
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -21,6 +22,7 @@ A Python-based TMD file processor with visualization and export capabilities for
 ---
 
 ## **Features**
+
 | Feature | Description |
 |---------|------------|
 | **Rich Visualizations** | Interactive 3D surface plots, 2D heatmaps, X-profile cross-section plots |
@@ -31,6 +33,7 @@ A Python-based TMD file processor with visualization and export capabilities for
 ---
 
 ## **Installation**
+
 Ensure you have Python **3.12+** installed, then install dependencies:
 
 ```bash
@@ -41,6 +44,7 @@ pip install -e .
 ---
 
 ## **Usage**
+
 ```python
 from tmd import TMD
 data = TMD('Dime.tmd')
@@ -56,6 +60,7 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 ## **TMD File Format**
 
 ### **TrueMap v6 Format**
+
 | **Field** | **Description** |
 |-----------|----------------|
 | **Header (32 bytes)** | `"Binary TrueMap Data File v2.0"` |
@@ -65,6 +70,7 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 | **Height Map Data** | Float32 array forming a `height x width` 2D grid |
 
 ### **GelSight Format**
+
 | **Field** | **Description** |
 |-----------|----------------|
 | **Header (32 bytes)** | Same as TrueMap: `"Binary TrueMap Data File v2.0"` |
@@ -78,6 +84,7 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 ## **Visual Examples**
 
 ### **1. Height Map Statistics**
+
 | Metric | Value |
 |--------|-------|
 | **Shape** | (200, 200) |
@@ -87,6 +94,7 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 | **Std Dev** | 0.18863 |
 
 ### **Image Visualizations**
+
 | **3D Surface Plot** | **X-Cross Section** |
 |---------------------|---------------------|
 | <img src="https://github.com/user-attachments/assets/faa4db7d-62ee-47e9-8883-4b8d4af13eb9" width="400"> | <img src="https://github.com/user-attachments/assets/fcf95e3c-5810-4dfd-93f0-06e98297490b" width="400"> |
@@ -106,7 +114,6 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 | **Bump maps** | **SmoothingHeightMap** |
 |-------------|----------------------|
 | <img src="https://github.com/user-attachments/assets/cf1cc89a-0a35-4f6c-966c-22ea193e0a70" width="400"> | <img src="https://github.com/user-attachments/assets/d227f561-6d39-45fb-94eb-0a94d66fc948" width="400"> |
-
 
 ## Installation
 

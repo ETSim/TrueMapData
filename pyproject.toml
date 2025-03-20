@@ -65,9 +65,18 @@ docs = [
 ]
 viz = [
     "pyvista>=0.37.0",
+    "plotly>=5.0.0",
+    "seaborn>=0.11.0",
 ]
 full = [
     "truemapdata[dev,docs,viz]",
+    "plotly>=5.0.0",
+    "seaborn>=0.11.0",
+    "meshio>=5.0.0",
+    "pyvista>=0.34.0",
+    "pandas>=1.3.0",
+    "nbformat>=5.1.0",
+    "ipywidgets>=7.6.0",
 ]
 
 [project.urls]

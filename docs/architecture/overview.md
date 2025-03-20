@@ -1,155 +1,80 @@
-# TMD Architecture Overview
+# TMD Library Architecture Overview
 
-This page provides a high-level overview of the TMD library architecture and its major components.
+This document provides a high-level overview of the TMD library's architecture, explaining the core design principles and components.
 
-## Overall Architecture
+## Design Philosophy
 
-The TMD library is organized into several layers, from low-level file processing to high-level visualization and analysis tools.
+The TMD library is designed with the following principles in mind:
 
-```mermaid
-graph TD
-    A[TMD Files] --> B[File Processing Layer]
-    B --> C[Core Processing Layer]
-    C --> D1[Analysis Tools]
-    C --> D2[Visualization Tools]
-    C --> D3[Export Tools]
-    D1 --> E[Results/Insights]
-    D2 --> E
-    D3 --> F[Output Files]
+1. **Modularity**: Separate components with clear responsibilities
+2. **Extensibility**: Easy to add new functionality without modifying existing code
+3. **Usability**: Simple, intuitive API for common operations
+4. **Performance**: Efficient handling of large height map data
 
-    classDef core fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef input fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef output fill:#bfb,stroke:#333,stroke-width:1px;
-    class B,C core;
-    class A input;
-    class E,F output;
+## Core Components
+
+The TMD library is organized into several core components:
+
+### 1. TMD Processor
+
+The central component that handles loading and parsing TMD files. It serves as the entry point for most operations and manages the extraction of height maps and metadata.
+
+```python
+from tmd.processor import TMDProcessor
+
+processor = TMDProcessor("example.tmd")
+data = processor.process()
 ```
 
-## Key Components
+### 2. Utility Modules
 
-The library consists of several key components that work together to process and analyze TMD files:
+A collection of utility modules that provide core functionality:
 
-```mermaid
-graph LR
-    TMDProcessor[TMDProcessor] --> Utils[Utils Module]
-    TMDProcessor --> Filter[Filter Module]
-    TMDProcessor --> Plotters[Plotters Module]
-    TMDProcessor --> Exporters[Exporters Module]
+- **Processing**: Functions for manipulating height maps (crop, rotate, threshold)
+- **Filter**: Functions for filtering and analyzing height maps
+- **Metadata**: Tools for handling metadata extraction and storage
 
-    Utils --> ProcessingUtils[Processing Utils]
-    Utils --> FileUtils[File Utils]
+### 3. Exporters
 
-    Filter --> WavinessFilter[Waviness/Roughness]
-    Filter --> SlopeCalculation[Gradient/Slope]
+Modules for exporting height maps to various formats:
 
-    Plotters --> MatplotlibPlotter[Matplotlib]
-    Plotters --> OtherPlotters[Other Plotters]
+- **Image Exporter**: Converts to image formats (PNG, normal maps, displacement maps)
+- **3D Model Exporter**: Exports to 3D model formats (STL, OBJ, PLY)
+- **Compression Exporter**: Saves to NumPy formats (NPY, NPZ)
 
-    Exporters --> STLExporter[STL Export]
-    Exporters --> NPYExporter[NumPy Export]
-    Exporters --> ImageExporter[Image Export]
+### 4. Visualizers
 
-    classDef main fill:#f96,stroke:#333,stroke-width:2px;
-    classDef module fill:#9cf,stroke:#333,stroke-width:1px;
-    classDef submodule fill:#fcf,stroke:#333,stroke-width:1px;
-    class TMDProcessor main;
-    class Utils,Filter,Plotters,Exporters module;
-    class ProcessingUtils,FileUtils,WavinessFilter,SlopeCalculation,MatplotlibPlotter,OtherPlotters,STLExporter,NPYExporter,ImageExporter submodule;
-```
+Components for creating visualizations:
 
-## Processing Pipeline
+- **Matplotlib Plotter**: Static 2D/3D visualizations
+- **Plotly Plotter**: Interactive 3D visualizations in web browsers
+- **Seaborn Plotter**: Statistical visualizations
 
-The TMD file processing pipeline consists of several stages from input to output:
+## Data Flow
 
-```mermaid
-flowchart TD
-    A[Input TMD File] --> B[File Reading]
-    B --> C[Metadata Extraction]
-    B --> D[Height Map Extraction]
-    C --> E[Data Validation]
-    D --> E
-    E --> F{Processing Required?}
-    F -->|Yes| G[Apply Filters/Processing]
-    F -->|No| H[Analysis]
-    G --> H
-    H --> I[Visualization/Export]
+The typical data flow in the TMD library:
 
-    classDef process fill:#d1c7ff,stroke:#333,stroke-width:1px;
-    classDef decision fill:#ffcccc,stroke:#333,stroke-width:1px;
-    classDef output fill:#ccffcc,stroke:#333,stroke-width:1px;
+1. A TMD file is loaded by the `TMDProcessor`
+2. The processor extracts the height map and metadata
+3. The height map can be processed using utility functions
+4. The processed data can be visualized or exported
 
-    class A,B,C,D,E,G,H process;
-    class F decision;
-    class I output;
-```
+## Integration Points
 
-## Class Relationships
+The library is designed to integrate well with:
 
-The following diagram shows the key classes and their relationships:
+- **NumPy/SciPy** ecosystem for scientific computing
+- **3D modeling** software via STL, OBJ exports
+- **Game engines** via material map generation
+- **Jupyter notebooks** for interactive analysis
 
-```mermaid
-classDiagram
-    class TMDProcessor {
-        +file_path: str
-        +data: dict
-        +process()
-        +get_height_map()
-        +get_metadata()
-        +get_stats()
-    }
+## Extensibility
 
-    class HeightMap {
-        +array: ndarray
-        +metadata: dict
-        +apply_filter()
-        +calculate_stats()
-    }
+New functionality can be added by:
 
-    class FilterUtils {
-        +extract_waviness()
-        +extract_roughness()
-        +calculate_gradient()
-    }
+1. Creating new processing functions in the utility modules
+2. Adding new exporters for additional file formats
+3. Implementing new visualization methods
+4. Extending the processor to handle additional file formats
 
-    class ExportTools {
-        +export_to_stl()
-        +export_to_npy()
-        +export_to_image()
-    }
-
-    class VisualizationTools {
-        +plot_3d()
-        +plot_heatmap()
-        +plot_profile()
-    }
-
-    TMDProcessor --> HeightMap: creates
-    HeightMap --> FilterUtils: uses
-    HeightMap --> ExportTools: uses
-    HeightMap --> VisualizationTools: uses
-```
-
-## File Format Structure
-
-The TMD file format consists of a header section and a data section:
-
-```mermaid
-graph TD
-    subgraph "TMD File Structure"
-    A[File Header] --> A1[Version Identifier]
-    A --> A2[Comment Section]
-    A --> A3[Dimensions]
-    A --> A4[Spatial Parameters]
-
-    B[Data Section] --> B1[Height Map Data]
-    B1 --> B2[Row-major Float32 Array]
-    end
-
-    classDef header fill:#ffddaa,stroke:#333,stroke-width:1px;
-    classDef data fill:#aaddff,stroke:#333,stroke-width:1px;
-
-    class A,A1,A2,A3,A4 header;
-    class B,B1,B2 data;
-```
-
-This overview provides a foundation for understanding how the TMD library is structured and how its components interact with each other.
+For more detailed information about the components and their relationships, see the [Component Diagram](component-diagram.md) and [Data Flow](data-flow.md) documentation.

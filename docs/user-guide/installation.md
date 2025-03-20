@@ -43,32 +43,13 @@ To install from source (e.g., for development):
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/tmd.git
+git clone https://github.com/ETSTribology/TrueMapData
 cd tmd
 
 # Install in development mode
 pip install -e .
 
 # Install development dependencies
-pip install -r requirements-dev.txt
-```
-
-### Method 3: Using Requirements Files
-
-You can also install using the provided requirements files:
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/tmd.git
-cd tmd
-
-# Install core requirements
-pip install -r requirements.txt
-
-# For documentation
-pip install -r requirements-docs.txt
-
-# For development
 pip install -r requirements-dev.txt
 ```
 
@@ -87,23 +68,6 @@ python -m venv venv
 venv\Scripts\activate
 # On macOS/Linux:
 source venv/bin/activate
-
-# Install the library
-pip install truemapdata
-```
-
-### Using Conda
-
-If you prefer Conda:
-
-```bash
-# Create a conda environment
-conda create -n tmd python=3.10
-conda activate tmd
-
-# Install primary dependencies
-conda install numpy matplotlib pillow
-conda install -c conda-forge opencv
 
 # Install the library
 pip install truemapdata

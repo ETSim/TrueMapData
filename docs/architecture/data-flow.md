@@ -1,90 +1,90 @@
-# Data Flow in the TMD Library
+# TMD Data Flow
 
-This document illustrates how data flows through the TMD library during different operations.
+This document outlines the data flow through the TMD library, showing how data moves between different components during typical operations.
 
-## Basic Processing Flow
+## Core Data Flow Sequence
 
-The following diagram shows the basic flow of data when processing a TMD file:
-
-```mermaid
-flowchart TD
-    A[TMD File] -->|Read| B[Binary Data]
-    B -->|Parse Header| C[Metadata]
-    B -->|Parse Data Section| D[Raw Height Data]
-    D -->|Reshape| E[Height Map Array]
-    C --> F[Processor Data Dictionary]
-    E --> F
-    F -->|Get Height Map| G[Height Map for Analysis]
-    F -->|Get Stats| H[Statistical Summary]
-    G -->|Apply Filters| I[Processed Height Map]
-    I -->|Export| J[Output Files]
-    I -->|Visualize| K[Plots/Graphs]
-```
-
-## Waviness and Roughness Separation
-
-This diagram illustrates how a height map is separated into waviness and roughness components:
-
-```mermaid
-flowchart LR
-    A[Height Map] -->|Gaussian Filter| B[Waviness Component]
-    A -->|Subtraction| C{Difference}
-    B --> C
-    C -->|Result| D[Roughness Component]
-
-    subgraph "Parameters"
-    P[Sigma Value] -.->|Controls Filter| B
-    end
-
-    B -->|RMS Calculation| E[RMS Waviness]
-    D -->|RMS Calculation| F[RMS Roughness]
-```
-
-## Export Process Flow
-
-The following diagram shows the data flow during the export process:
+The standard data flow through the TMD library follows this sequence:
 
 ```mermaid
 flowchart TD
-    A[Height Map] -->|STL Export| B[3D Mesh Generation]
-    B -->|Add Base| C[Complete 3D Model]
-    C -->|Write File| D[STL File]
-
-    A -->|Image Export| E[Color Mapping]
-    E -->|Add Colorbar| F[Visualization]
-    F -->|Write File| G[Image File]
-
-    A -->|NumPy Export| H[Serialize Data]
-    H -->|Write File| I[NPY/NPZ File]
-
-    subgraph "Export Parameters"
-    P1[Scale Factors] -.->|Adjust| B
-    P2[Color Maps] -.->|Configure| E
-    P3[Compression] -.->|Configure| H
-    end
+    TMDFile[TMD File] --> Processor
+    Processor --> HeightMap
+    Processor --> Metadata
+    
+    HeightMap --> Processing[Processing Operations]
+    HeightMap --> Filtering[Filtering Operations]
+    HeightMap --> Analysis[Analysis Operations]
+    
+    Processing --> ProcessedMap[Processed Height Map]
+    Filtering --> FilteredMap[Filtered Height Map]
+    Analysis --> AnalysisResults[Analysis Results]
+    
+    ProcessedMap --> Visualization
+    FilteredMap --> Visualization
+    AnalysisResults --> Visualization
+    
+    ProcessedMap --> Export
+    FilteredMap --> Export
+    AnalysisResults --> Export
+    
+    Export --> ImageFormats[Image Formats]
+    Export --> ModelFormats[3D Model Formats]
+    Export --> DataFormats[Data Formats]
+    
+    Visualization --> StaticViz[Static Visualizations]
+    Visualization --> InteractiveViz[Interactive Visualizations]
 ```
 
-## Processing Pipeline for Surface Analysis
+## Key Data Objects
 
-This diagram shows the data flow for surface analysis operations:
+### TMD File
 
-```mermaid
-flowchart TD
-    A[Height Map] -->|Gradient Calculation| B[X & Y Gradients]
-    B -->|Magnitude Calculation| C[Slope Map]
+The starting point - a binary file containing:
+- Height map data
+- Metadata about physical dimensions
+- File format information
 
-    A -->|Extract Cross-Section| D[Height Profile]
-    D -->|Plot| E[Profile Graph]
+### Processed Data
 
-    A -->|Threshold| F[Thresholded Map]
-    F -->|Region Selection| G[ROI Analysis]
+After parsing the TMD file, the data is represented as:
 
-    A -->|Apply Filter| H[Filtered Map]
-    H -->|Statistical Analysis| I[RMS/Roughness Values]
+1. **Height Map**: A 2D NumPy array of floating-point values representing surface heights
+2. **Metadata**: A dictionary containing information like:
+   - Physical dimensions (width, height)
+   - Units (µm, nm, etc.)
+   - Comments from the original file
+   - File format version
 
-    subgraph "Analysis Parameters"
-    P1[Filter Parameters] -.->|Configure| H
-    P2[Threshold Values] -.->|Configure| F
+## Processing Pipeline
+
+A typical processing pipeline looks like this:
+
+1. **Load TMD File**: The processor loads and parses the binary TMD file
+2. **Extract Height Map**: The height map is extracted and converted to a NumPy array
+3. **Process/Filter**: Various operations can be applied to the height map
+   - Gaussian filtering for smoothing
+   - Thresholding for outlier removal
+   - Cropping for region-of-interest analysis
+4. **Analysis**: Calculate metrics like roughness or extract cross-sections
+5. **Visualization**: Create visual representations of the data
+6. **Export**: Save the results in various formats
+
+## Data Transformations
+
+Throughout the pipeline, the height map undergoes various transformations:
+
+1. **Initial Processing**:
+   - Raw binary data → NumPy array
+   - Metadata extraction
+
+2. **Height Map Operations**:
+   - Filtering (Gaussian, median, etc.)
+   - Geometric operations (crop, rotate)
+   - Statistical operations (normalize, threshold)
+
+3. **Export Transformations**:
+   - Height map → Displacement map (grayscale image)
     P3[Section Location] -.->|Configure| D
     end
 ```

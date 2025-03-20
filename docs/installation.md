@@ -20,7 +20,7 @@ pip install tmd
 Clone the repository and install the package:
 
 ```bash
-git clone https://github.com/yourusername/tmd.git
+git clone https://github.com/ETSTribology/TrueMapData
 cd tmd
 pip install -e .
 ```

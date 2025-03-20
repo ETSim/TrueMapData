@@ -1,209 +1,102 @@
-# TMD Component Diagram
+# TMD Architecture: Component Diagram
 
-This page shows the relationships between various components of the TMD library.
+This document provides a visual representation of the TMD library's architecture, showing the key components and their relationships.
 
-## Core Components
-
-The TMD library consists of several core components that work together to provide a complete workflow for processing and analyzing TMD files.
-
-```mermaid
-graph TB
-    subgraph Core
-    TMDProcessor[TMDProcessor]
-    end
-
-    subgraph Utils
-    FileUtils[File Utilities]
-    ProcessingUtils[Processing Utilities]
-    MetadataUtils[Metadata Utilities]
-    end
-
-    subgraph Analysis
-    Filter[Filtering Module]
-    Stats[Statistics Module]
-    Gradient[Gradient Analysis]
-    end
-
-    subgraph Output
-    ExportSTL[STL Exporter]
-    ExportNPY[NumPy Exporter]
-    ExportImage[Image Exporter]
-    PlotterMatplotlib[Matplotlib Plotter]
-    end
-
-    TMDProcessor --> FileUtils
-    TMDProcessor --> ProcessingUtils
-    TMDProcessor --> MetadataUtils
-    TMDProcessor --> Filter
-    TMDProcessor --> Stats
-    TMDProcessor --> Gradient
-    TMDProcessor --> ExportSTL
-    TMDProcessor --> ExportNPY
-    TMDProcessor --> ExportImage
-    TMDProcessor --> PlotterMatplotlib
-
-    FileUtils --> ProcessingUtils
-    Stats --> Filter
-    Filter --> Gradient
-
-    classDef core fill:#f96,stroke:#333,stroke-width:2px;
-    classDef util fill:#9cf,stroke:#333,stroke-width:1px;
-    classDef analysis fill:#fcf,stroke:#333,stroke-width:1px;
-    classDef output fill:#cf9,stroke:#333,stroke-width:1px;
-
-    class TMDProcessor core;
-    class FileUtils,ProcessingUtils,MetadataUtils util;
-    class Filter,Stats,Gradient analysis;
-    class ExportSTL,ExportNPY,ExportImage,PlotterMatplotlib output;
-```
-
-## Component Dependencies
-
-This diagram shows the dependencies between different components:
-
-```mermaid
-flowchart TD
-    subgraph Core
-    A[TMDProcessor]
-    end
-
-    subgraph External Dependencies
-    B1[NumPy]
-    B2[SciPy]
-    B3[Matplotlib]
-    end
-
-    subgraph TMD Modules
-    C1[tmd.utils]
-    C2[tmd.filters]
-    C3[tmd.exporters]
-    C4[tmd.plotters]
-    end
-
-    A --> C1
-    A --> C2
-    A --> C3
-    A --> C4
-
-    C1 --> B1
-    C1 --> B2
-    C2 --> B1
-    C2 --> B2
-    C3 --> B1
-    C4 --> B1
-    C4 --> B3
-
-    classDef core fill:#f96,stroke:#333,stroke-width:2px;
-    classDef external fill:#9cf,stroke:#333,stroke-width:1px;
-    classDef module fill:#fcf,stroke:#333,stroke-width:1px;
-
-    class A core;
-    class B1,B2,B3 external;
-    class C1,C2,C3,C4 module;
-```
-
-## Physical Component Structure
-
-This diagram shows the physical file structure of the library:
+## Component Overview
 
 ```mermaid
 graph TD
-    A[tmd Package] --> B1[__init__.py]
-    A --> B2[processor.py]
-    A --> B3[_version.py]
-
-    A --> C[utils Module]
-    C --> C1[__init__.py]
-    C --> C2[utils.py]
-    C --> C3[filter.py]
-    C --> C4[processing.py]
-    C --> C5[metadata.py]
-
-    A --> D[exporters Module]
-    D --> D1[__init__.py]
-    D --> D2[stl.py]
-    D --> D3[numpy.py]
-    D --> D4[image.py]
-
-    A --> E[plotters Module]
-    E --> E1[__init__.py]
-    E --> E2[matplotlib.py]
-    E --> E3[plotly.py]
-    E --> E4[seaborn.py]
-
-    classDef folder fill:#f9d,stroke:#333,stroke-width:2px;
-    classDef file fill:#ddf,stroke:#333,stroke-width:1px;
-
-    class A,C,D,E folder;
-    class B1,B2,B3,C1,C2,C3,C4,C5,D1,D2,D3,D4,E1,E2,E3,E4 file;
+    User[User/Application] --> Processor
+    
+    subgraph Core
+        Processor[TMDProcessor]
+        Utils[FileUtils]
+    end
+    
+    subgraph Processing
+        Filter[FilterModule]
+        Processing[ProcessingModule]
+    end
+    
+    subgraph Visualization
+        MatPlotLib[MatplotlibPlotter]
+        Plotly[PlotlyPlotter]
+    end
+    
+    subgraph Export
+        ImageExporter[ImageExporter]
+        ModelExporter[3DModelExporter]
+        CompressionExporter[CompressionExporter]
+    end
+    
+    Processor --> Utils
+    Processor --> Processing
+    Processor --> Filter
+    
+    Processing --> Filter
+    
+    Processor --> MatPlotLib
+    Processor --> Plotly
+    
+    Processor --> ImageExporter
+    Processor --> ModelExporter
+    Processor --> CompressionExporter
+    
+    classDef core fill:#f96,stroke:#333,stroke-width:2px;
+    classDef processing fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef visualization fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef export fill:#9f9,stroke:#333,stroke-width:2px;
+    
+    class Processor,Utils core;
+    class Filter,Processing processing;
+    class MatPlotLib,Plotly visualization;
+    class ImageExporter,ModelExporter,CompressionExporter export;
 ```
 
-## Component Interfaces
-
-This diagram shows the main interfaces between components:
+## Data Flow Diagram
 
 ```mermaid
-classDiagram
-    class TMDProcessor {
-        +file_path: str
-        +data: Dict
-        +debug: bool
-        +process()
-        +get_height_map()
-        +get_metadata()
-        +get_stats()
-        +export_metadata()
-    }
-
-    class FileReader {
-        <<Interface>>
-        +read_file(path: str)
-        +parse_header()
-        +parse_data()
-    }
-
-    class Exporter {
-        <<Interface>>
-        +export(data, path: str)
-    }
-
-    class STLExporter {
-        +convert_heightmap_to_stl()
-    }
-
-    class NPYExporter {
-        +export_to_npy()
-        +export_to_npz()
-    }
-
-    class ImageExporter {
-        +export_to_png()
-        +export_to_jpg()
-    }
-
-    class Plotter {
-        <<Interface>>
-        +plot(data)
-        +save(path: str)
-    }
-
-    class MatplotlibPlotter {
-        +plot_height_map_matplotlib()
-        +plot_2d_heatmap_matplotlib()
-    }
-
-    FileReader <|-- TMDProcessor
-    Exporter <|.. STLExporter
-    Exporter <|.. NPYExporter
-    Exporter <|.. ImageExporter
-    Plotter <|.. MatplotlibPlotter
-    TMDProcessor --> Exporter
-    TMDProcessor --> Plotter
+flowchart TD
+    subgraph Input
+        TMDFile[TMD File]
+    end
+    
+    subgraph Processing
+        Processor[TMD Processor]
+        HeightMap[Height Map Extraction]
+        Filtering[Filtering & Analysis]
+        Manipulation[Manipulation Operations]
+    end
+    
+    subgraph Output
+        VisualizationOutput[Visualization]
+        ExportOutput[Export Formats]
+    end
+    
+    TMDFile --> Processor
+    Processor --> HeightMap
+    HeightMap --> Filtering
+    HeightMap --> Manipulation
+    
+    Filtering --> VisualizationOutput
+    Manipulation --> VisualizationOutput
+    
+    HeightMap --> ExportOutput
+    Filtering --> ExportOutput
+    Manipulation --> ExportOutput
+    
+    classDef input fill:#ffd, stroke:#333, stroke-width:2px;
+    classDef process fill:#dff, stroke:#333, stroke-width:2px;
+    classDef output fill:#dfd, stroke:#333, stroke-width:2px;
+    
+    class TMDFile input;
+    class Processor,HeightMap,Filtering,Manipulation process;
+    class VisualizationOutput,ExportOutput output;
 ```
 
 ## Processing Sequence
 
-This sequence diagram shows the process of loading and analyzing a TMD file:
+This sequence diagram shows the complete process flow when using the TMD library:
 
 ```mermaid
 sequenceDiagram
@@ -211,31 +104,61 @@ sequenceDiagram
     participant Processor as TMDProcessor
     participant Utils as FileUtils
     participant Filter as FilterModule
-    participant Export as Exporter
-
-    User->>Processor: Create processor(file_path)
-    User->>Processor: process()
+    participant Manipulation as Processing
+    participant Export as Exporters
+    participant Viz as Visualization
+    
+    User->>Processor: 1. Create processor(file_path)
+    User->>Processor: 2. process()
+    
     activate Processor
-    Processor->>Utils: process_tmd_file(file_path)
+    Processor->>Utils: 3. process_tmd_file()
     activate Utils
-    Utils-->>Processor: metadata, height_map
+    Utils-->>Processor: 4. return metadata, height_map
     deactivate Utils
-    Processor->>Processor: store data
+    Processor-->>User: 5. return processed data
     deactivate Processor
-
-    User->>Processor: get_height_map()
-    Processor-->>User: height_map
-
-    User->>Filter: calculate_rms_roughness(height_map)
+    
+    User->>Manipulation: 6. manipulate height map
+    activate Manipulation
+    Note over Manipulation: crop, rotate, threshold, etc.
+    Manipulation-->>User: 7. return modified height map
+    deactivate Manipulation
+    
+    User->>Filter: 8. apply filters to height map
     activate Filter
-    Filter->>Filter: extract_roughness(height_map)
-    Filter-->>User: roughness_value
+    Note over Filter: gaussian, waviness, roughness, etc.
+    Filter-->>User: 9. return filtered height map
     deactivate Filter
-
-    User->>Export: convert_heightmap_to_stl(height_map)
+    
+    User->>Viz: 10. visualize height map
+    activate Viz
+    Note over Viz: 2D/3D plots, cross-sections, etc.
+    Viz-->>User: 11. return visualization
+    deactivate Viz
+    
+    User->>Export: 12. export to various formats
     activate Export
-    Export-->>User: stl_file_path
+    Note over Export: images, 3D models, NumPy arrays
+    Export-->>User: 13. export files
     deactivate Export
 ```
 
-These diagrams provide a comprehensive view of the TMD library's architecture and component relationships, helping developers understand how the different parts work together.
+## Component Descriptions
+
+### Core Components
+- **TMDProcessor**: Main class for loading and processing TMD files
+- **FileUtils**: Handles file I/O operations and TMD format parsing
+
+### Processing Components
+- **FilterModule**: Implements various filters and analysis algorithms
+- **ProcessingModule**: Provides tools for manipulating height maps
+
+### Visualization Components
+- **MatplotlibPlotter**: Creates static visualizations using Matplotlib
+- **PlotlyPlotter**: Creates interactive visualizations using Plotly
+
+### Export Components
+- **ImageExporter**: Exports height maps to various image formats
+- **ModelExporter**: Exports height maps to 3D model formats (STL, OBJ, PLY)
+- **CompressionExporter**: Exports height maps to NumPy formats

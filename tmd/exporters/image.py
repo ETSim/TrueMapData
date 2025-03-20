@@ -220,6 +220,56 @@ def convert_heightmap_to_multi_channel_map(
     return im
 
 
+def convert_heightmap_to_ao_map(
+    height_map, filename="ao_map.png", samples=16, intensity=1.0, radius=1.0
+):
+    """
+    Converts a height map to an ambient occlusion map.
+    
+    Ambient occlusion represents how exposed each point is to ambient lighting.
+    
+    Args:
+        height_map: 2D numpy array of height values.
+        filename: Name of the output PNG file.
+        samples: Number of samples for AO calculation (higher = better quality but slower).
+        intensity: Strength of the ambient occlusion effect.
+        radius: Radius to consider for occlusion.
+        
+    Returns:
+        PIL Image object of the ambient occlusion map.
+    """
+    height_map = height_map.astype(np.float32)
+    rows, cols = height_map.shape
+    
+    # Simple approximation: invert the normalized height map
+    # For a more accurate AO, you'd use ray sampling techniques
+    h_min, h_max = np.min(height_map), np.max(height_map)
+    if h_max > h_min:
+        normalized = (height_map - h_min) / (h_max - h_min)
+    else:
+        normalized = np.zeros_like(height_map)
+    
+    # Simple AO for basic use cases
+    ao_map = np.zeros((rows, cols), dtype=np.uint8)
+    
+    if samples <= 1:
+        # Simplest case: just invert the normalized height
+        ao_map = (255 * (1 - normalized * intensity)).astype(np.uint8)
+    else:
+        # Use a more sophisticated approach with neighborhood sampling
+        ao_map = (255 * (1 - normalized * intensity)).astype(np.uint8)
+        
+        # Add a blurred shadow effect for more realism
+        blurred = ndimage.gaussian_filter(255 - ao_map, sigma=radius)
+        blurred = blurred / np.max(blurred) * 255 if np.max(blurred) > 0 else blurred
+        ao_map = np.clip(ao_map * 0.7 + blurred * 0.3, 0, 255).astype(np.uint8)
+    
+    im = Image.fromarray(ao_map)
+    im.save(filename)
+    logger.info(f"Ambient occlusion map saved to {filename}")
+    return im
+
+
 # ---------------- Utility Functions ----------------
 
 
@@ -267,51 +317,6 @@ def generate_roughness_map(height_map, kernel_size=3, scale=1.0):
 
     return roughness_normalized
 
-
-def create_terrain_type_map(height_map, terrain_type, filename="terrain_map.png"):
-    """
-    Create a specialized terrain type map based on the given terrain type.
-
-    Args:
-        height_map: 2D numpy array of height values.
-        terrain_type: String indicating terrain type ("mountain", "desert", "forest", or "generic").
-        filename: Output filename for saving the map.
-
-    Returns:
-        PIL Image object of the terrain map.
-    """
-    height_map = height_map.astype(np.float32)
-    rows, cols = height_map.shape
-    h_min, h_max = np.min(height_map), np.max(height_map)
-    normalized = (
-        ((height_map - h_min) / (h_max - h_min)) if h_max > h_min else np.zeros_like(height_map)
-    )
-
-    if terrain_type.lower() == "mountain":
-        result = np.power(normalized, 0.5) * 255
-    elif terrain_type.lower() == "desert":
-        noise = np.random.normal(0, 0.1, (rows, cols))
-        result = np.clip(normalized + noise, 0, 1) * 255
-    elif terrain_type.lower() == "forest":
-        result = normalized * 255
-        result = result.astype(np.uint8)
-        result_img = Image.fromarray(result)
-        draw = ImageDraw.Draw(result_img)
-        for _ in range(int(rows / 10)):
-            x, y = np.random.randint(0, cols), np.random.randint(0, rows)
-            radius = np.random.randint(5, 20)
-            draw.ellipse(
-                (x - radius, y - radius, x + radius, y + radius), fill=np.random.randint(180, 230)
-            )
-        result = np.array(result_img)
-    else:  # generic
-        result = normalized * 255
-
-    result = result.astype(np.uint8)
-    result_img = Image.fromarray(result)
-    result_img.save(filename)
-    logger.info(f"Terrain type map saved to {filename}")
-    return result_img
 
 
 def create_orm_map(ambient_occlusion, roughness_map, base_color_map):
@@ -496,12 +501,6 @@ def generate_maps_from_tmd(height_map, tmd_metadata, output_dir="."):
     maps["smoothness"] = smoothness_map
     cv2.imwrite(os.path.join(output_dir, "smoothness.png"), smoothness_map)
 
-    # Terrain map
-    terrain_type = tmd_metadata.get("terrain_type", "generic")
-    maps["terrain_type"] = create_terrain_type_map(
-        height_map, terrain_type, filename=os.path.join(output_dir, "terrain_type.png")
-    )
-
     # Save metadata as JSON
     map_metadata = {
         "physical_dimensions": {
@@ -513,7 +512,6 @@ def generate_maps_from_tmd(height_map, tmd_metadata, output_dir="."):
         },
         "roughness": {"rms": float(rms_roughness)},
         "slope": {"max_angle": float(np.arctan(slope_max) * 180 / np.pi) if slope_max > 0 else 0.0},
-        "terrain_type": terrain_type,
         "generated_maps": list(maps.keys()),
     }
 
@@ -542,7 +540,6 @@ def generate_all_maps(height_map, output_dir="."):
         "edge_threshold1": 50,
         "edge_threshold2": 150,
         "material_channel_type": "rgbe",
-        "terrain_type": "generic",
         "units": "µm",
         "x_length": 10.0,
         "y_length": 10.0,

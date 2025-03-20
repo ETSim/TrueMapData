@@ -13,8 +13,6 @@ typer>=0.7.0
 # File formats and visualization
 pyvista>=0.37.0  # Optional for 3D visualization
 
-meshio
-gzip
-pickle
-opencv-contrib
-opencv-python
+# 3D Model & Image Exporters
+meshio>=5.0.0
+opencv-python>=4.5.0

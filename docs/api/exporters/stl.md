@@ -8,7 +8,7 @@ STL (STereoLithography) is a file format that represents 3D surfaces as triangul
 
 ## Functions
 
-::: tmd.exporters.stl.convert_heightmap_to_stl
+::: tmd.exporters.model.convert_heightmap_to_stl
 
 ## Examples
 
@@ -16,7 +16,7 @@ STL (STereoLithography) is a file format that represents 3D surfaces as triangul
 
 ```python
 from tmd.processor import TMDProcessor
-from tmd.exporters.stl import convert_heightmap_to_stl
+from tmd.exporters.model import convert_heightmap_to_stl
 
 # Process a TMD file
 processor = TMDProcessor("example.tmd")

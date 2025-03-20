@@ -53,3 +53,38 @@ def export_metadata(metadata: Dict[str, Any], stats: Dict[str, Any], output_path
         for key, value in stats.items():
             f.write(f"{key}: {value}\n")
     return output_path
+
+
+def export_metadata_txt(data_dict, filename="tmd_metadata.txt"):
+    """
+    Exports TMD metadata to a human-readable text file.
+
+    Args:
+        data_dict: Dictionary containing TMD data
+        filename: Name of the output text file
+
+    Returns:
+        Path to the saved file
+    """
+    with open(filename, "w") as f:
+        f.write("TMD File Metadata\n")
+        f.write("================\n\n")
+
+        # Write metadata values
+        for key, value in data_dict.items():
+            if key != "height_map":  # Skip the height map
+                f.write(f"{key}: {value}\n")
+
+        # Write height map statistics
+        if "height_map" in data_dict:
+            height_map = data_dict["height_map"]
+            f.write("\nHeight Map Statistics\n")
+            f.write("====================\n")
+            f.write(f"Shape: {height_map.shape}\n")
+            f.write(f"Min: {height_map.min()}\n")
+            f.write(f"Max: {height_map.max()}\n")
+            f.write(f"Mean: {height_map.mean()}\n")
+            f.write(f"Std Dev: {height_map.std()}\n")
+
+    print(f"TMD metadata saved to text file: {filename}")
+    return filename

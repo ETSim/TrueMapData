@@ -81,47 +81,57 @@ def detect_tmd_version(file_path: str) -> int:
     Determine the TMD file version based on header content.
 
     Args:
-        file_path: Path to the TMD file
+        file_path: Path to the TMD file.
 
     Returns:
-        Integer version (1 or 2)
+        Integer version (1 or 2).
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
+    # Read enough header bytes to reliably check for the version string.
     with open(file_path, "rb") as f:
         header_bytes = f.read(64)
         header_text = header_bytes.decode("ascii", errors="replace")
+        logger.debug(f"Header text: {header_text}")
 
-        # Check for version number in header
+        # Look for explicit version markers first
         if "v2.0" in header_text:
             return 2
         elif "v1.0" in header_text:
             return 1
 
-        # If no explicit version, try to determine from structure
+        # If no explicit version is found, check for the standard header pattern.
         if "Binary TrueMap Data File" in header_text:
-            # Most likely v2 if it has the standard header
             return 2
 
-    # Default to v1 if unable to determine
+    # Default to version 1 if no clues are found
     return 1
 
 
-def get_header_offset(version):
+def get_header_offset(version: int) -> int:
     """
     Get the header offset for the given TMD version.
 
     Args:
-        version: TMD file version (1 or 2)
+        version: TMD file version (1 or 2).
 
     Returns:
-        Header offset in bytes
+        Header offset in bytes.
     """
-    if version == 1:
-        return 32  # Version 1 files have header at offset 32
-    else:
-        return 64  # Version 2 files have header at offset 64
+    # v1 headers typically start at offset 32; v2 headers at 64.
+    return 32 if version == 1 else 64
+
+def _read_bytes(f, num_bytes: int) -> bytes:
+    """
+    Helper function to safely read a given number of bytes.
+    Raises an error if the expected number of bytes cannot be read.
+    """
+    data = f.read(num_bytes)
+    if len(data) != num_bytes:
+        raise ValueError(f"Expected {num_bytes} bytes, got {len(data)} bytes.")
+    return data
+
 
 
 def process_tmd_file(
@@ -134,159 +144,115 @@ def process_tmd_file(
     Handles both v1 and v2 file formats.
 
     Args:
-        file_path: Path to the TMD file
-        force_offset: Optional tuple (x_offset, y_offset) to override file values
-        debug: Whether to print debug information
+        file_path: Path to the TMD file.
+        force_offset: Optional tuple (x_offset, y_offset) to override file values.
+        debug: Whether to print debug information.
 
     Returns:
-        Tuple of (metadata_dict, height_map_array)
+        Tuple of (metadata_dict, height_map_array).
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
     version = detect_tmd_version(file_path)
+    if debug:
+        print(f"Detected TMD file version: {version}")
 
     with open(file_path, "rb") as f:
-        # Handle different versions
+        # Set starting position based on version.
         if version == 1:
-            f.seek(28)  # Offset for v1 files
+            f.seek(28)  # v1 files: metadata starts at offset 28
             if debug:
                 print("⚠️ Detected v1 file format. Reading metadata...")
             comment = None
-        elif version == 2:
-            f.seek(32)  # Default for v2 files
+        else:
+            # For v2 files, metadata starts at offset 32.
+            f.seek(32)
             if debug:
                 print("⚠️ Detected v2 file format. Reading metadata...")
             try:
-                comment = f.read(24).decode('ascii').strip()
+                comment = f.read(24).decode('ascii', errors='replace').strip()
                 if debug and comment:
                     print(f"Comment: {comment}")
-            except Exception:
-                comment = None
-                try:
-                    f.read(24)
-                    f.seek(33)
-                except Exception:
-                    comment = None
-                    f.seek(33)
-
-        # Read dimensions
-        width_bytes = f.read(4)
-        height_bytes = f.read(4)
-        
-        if len(width_bytes) < 4 or len(height_bytes) < 4:
-            if debug:
-                print("Warning: File too small to read dimensions properly.")
-            width = 1
-            height = 1
-        else:
-            try:
-                # In TMD format, dimensions are stored as (width, height)
-                width = struct.unpack("<I", width_bytes)[0]
-                height = struct.unpack("<I", height_bytes)[0]
-                print(f"Width: {width}, Height: {height}")
             except Exception as e:
-                if debug:
-                    print(f"Error parsing dimensions: {str(e)}")
-                width = 1
-                height = 1
-        
-        # Validate dimensions to avoid memory issues
+                logger.error(f"Error reading comment: {e}")
+                comment = None
+                # Attempt to skip the comment bytes
+                f.seek(32 + 24)
+
+        # Read dimensions (width and height as little-endian unsigned int)
+        try:
+            width_bytes = _read_bytes(f, 4)
+            height_bytes = _read_bytes(f, 4)
+            width = struct.unpack("<I", width_bytes)[0]
+            height = struct.unpack("<I", height_bytes)[0]
+            if debug:
+                print(f"Width: {width}, Height: {height}")
+        except Exception as e:
+            if debug:
+                print(f"Error parsing dimensions: {e}")
+            width, height = 1, 1
+
+        # Validate dimensions to avoid excessive memory usage.
         if width <= 0 or height <= 0 or width > 10000 or height > 10000:
             raise ValueError(f"Invalid dimensions: {width} x {height}")
-        
-        # Read spatial parameters
-        x_length_bytes = f.read(4)
-        y_length_bytes = f.read(4)
-        x_offset_bytes = f.read(4)
-        y_offset_bytes = f.read(4)
-        
-        # Default values if reading fails
-        x_length = 10.0
-        y_length = 10.0
-        x_offset = 0.0
-        y_offset = 0.0
-        
-        # Try to parse values
-        if len(x_length_bytes) == 4:
-            try:
-                x_length = struct.unpack("<f", x_length_bytes)[0]
-            except Exception:
-                pass
-        
-        if len(y_length_bytes) == 4:
-            try:
-                y_length = struct.unpack("<f", y_length_bytes)[0]
-            except Exception:
-                pass
-        
-        if len(x_offset_bytes) == 4:
-            try:
-                x_offset = struct.unpack("<f", x_offset_bytes)[0]
-            except Exception:
-                pass
-        
-        if len(y_offset_bytes) == 4:
-            try:
-                y_offset = struct.unpack("<f", y_offset_bytes)[0]
-            except Exception:
-                pass
 
-        if debug:
-            print(f"Width: {width}, Height: {height}")
-            print(f"X Length: {x_length}, Y Length: {y_length}")
-            print(f"X Offset: {x_offset}, Y Offset: {y_offset}")
+        # Read spatial parameters (each 4 bytes as float)
+        def read_float(field_name: str, default: float = 0.0) -> float:
+            try:
+                data = _read_bytes(f, 4)
+                value = struct.unpack("<f", data)[0]
+                if debug:
+                    print(f"{field_name}: {value}")
+                return value
+            except Exception as e:
+                if debug:
+                    print(f"Error reading {field_name}: {e}. Using default {default}.")
+                return default
 
-        # Apply forced offsets if provided
+        x_length = read_float("X Length", 10.0)
+        y_length = read_float("Y Length", 10.0)
+        x_offset = read_float("X Offset", 0.0)
+        y_offset = read_float("Y Offset", 0.0)
+
         if force_offset:
             x_offset, y_offset = force_offset
             if debug:
                 print(f"⚠️ Using forced offsets: x_offset={x_offset}, y_offset={y_offset}")
 
-        # Read height map data with a safety check
+        # Read height map data
         try:
             remaining_bytes = f.read()
-            max_safe_size = width * height * 4 * 2  # Allow for some extra data
-            
+            max_safe_size = width * height * 4 * 2  # extra allowance
             if len(remaining_bytes) > max_safe_size:
                 if debug:
-                    print(f"Warning: File contains much more data than expected. Limiting read size.")
+                    print("Warning: Excess data detected. Trimming read size.")
                 remaining_bytes = remaining_bytes[:max_safe_size]
-                
             height_map_data = np.frombuffer(remaining_bytes, dtype=np.float32)
             expected_size = width * height
 
-            # Handle potential size mismatches
             if len(height_map_data) < expected_size:
                 if debug:
-                    print(
-                        f"Warning: Incomplete height map. Expected {expected_size}, got {len(height_map_data)}. Padding with zeros."
-                    )
-                # Pad the array safely
-                padding_size = expected_size - len(height_map_data)
-                padding = np.zeros(padding_size, dtype=np.float32)
+                    print(f"Warning: Incomplete height map. Expected {expected_size} values, got {len(height_map_data)}. Padding with zeros.")
+                padding = np.zeros(expected_size - len(height_map_data), dtype=np.float32)
                 height_map_data = np.concatenate([height_map_data, padding])
             elif len(height_map_data) > expected_size:
                 if debug:
-                    print(
-                        f"Warning: Extra data detected. Expected {expected_size}, got {len(height_map_data)}. Trimming excess."
-                    )
+                    print(f"Warning: Extra height map data detected. Expected {expected_size} values, got {len(height_map_data)}. Trimming excess.")
                 height_map_data = height_map_data[:expected_size]
-                
-            # Reshape into 2D array - TMD stores data in row-major order but with width first
-            # So need to reshape to (height, width) for NumPy
+
+            # Reshape the data into a 2D array.
             height_map = height_map_data.reshape((height, width))
         except Exception as e:
             if debug:
-                print(f"Error parsing height map data: {str(e)}. Creating empty map.")
-            # Create minimal empty height map
+                print(f"Error parsing height map data: {e}. Creating empty height map.")
             height_map = np.zeros((height, width), dtype=np.float32)
 
-    # Build metadata dictionary
+    # Build metadata dictionary.
     metadata = {
         "version": version,
-        "width": width,  # width is columns (x-axis)
-        "height": height,  # height is rows (y-axis)
+        "width": width,
+        "height": height,
         "x_length": x_length,
         "y_length": y_length,
         "x_offset": x_offset,

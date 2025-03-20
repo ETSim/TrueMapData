@@ -21,12 +21,11 @@ theme:
 plugins:
   - search
   - mkdocstrings:
+      default_handler: python
       handlers:
         python:
-          rendering:
+          options:
             show_source: true
-  - git-revision-date-localized:
-      enable_creation_date: true
 
 markdown_extensions:
   - pymdownx.highlight

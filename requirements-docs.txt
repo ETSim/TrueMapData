@@ -2,7 +2,7 @@
 
 # For building and serving documentation
 mkdocs==1.5.3
-mkdocs-material==9.4.14
+mkdocs-material==9.6.9
 mkdocstrings>=0.20.0
 mkdocstrings-python>=1.0.0
 pymdown-extensions>=9.0

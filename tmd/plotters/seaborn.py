@@ -2,10 +2,11 @@
 Seaborn-based visualization functions for TMD data.
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from typing import Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 
 # Default settings
 COLORBAR_LABEL = "Height (µm)"
@@ -61,9 +62,7 @@ def plot_height_map_seaborn(
     return plt.gcf()
 
 
-def plot_2d_heatmap_seaborn(
-    height_map, colorbar_label=None, filename="seaborn_2d_heatmap.png"
-):
+def plot_2d_heatmap_seaborn(height_map, colorbar_label=None, filename="seaborn_2d_heatmap.png"):
     """
     Creates a detailed 2D heatmap of the height map using Seaborn with additional annotations.
 
@@ -85,15 +84,11 @@ def plot_2d_heatmap_seaborn(
     fig, ax = plt.subplots(figsize=(12, 10))
 
     # Create the heatmap
-    sns_heatmap = sns.heatmap(
-        height_map, cmap="viridis", cbar_kws={"label": colorbar_label}, ax=ax
-    )
+    sns_heatmap = sns.heatmap(height_map, cmap="viridis", cbar_kws={"label": colorbar_label}, ax=ax)
 
     # Add contour lines to show levels
     rows, cols = height_map.shape
-    if (
-        rows <= 1000 and cols <= 1000
-    ):  # Only for smaller maps to avoid excessive computation
+    if rows <= 1000 and cols <= 1000:  # Only for smaller maps to avoid excessive computation
         x = np.arange(0, cols, 1)
         y = np.arange(0, rows, 1)
         X, Y = np.meshgrid(x, y)

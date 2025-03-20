@@ -60,7 +60,7 @@ nav:
     - Processor: api/processor.md
     - Filters: api/filter.md
     - Utilities: api/utils.md
-    - Exporters: 
+    - Exporters:
       - STL Export: api/exporters/stl.md
       - NumPy Export: api/exporters/numpy.md
       - Image Export: api/exporters/image.md

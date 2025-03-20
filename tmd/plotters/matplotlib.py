@@ -3,9 +3,10 @@ Matplotlib-based visualization functions for TMD data.
 """
 
 import warnings
-import numpy as np
-import matplotlib.pyplot as plt
 from typing import Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Handle potential import issues with mplot3d
 try:
@@ -97,9 +98,7 @@ def plot_height_map_matplotlib(
     return fig
 
 
-def plot_2d_heatmap_matplotlib(
-    height_map, colorbar_label=None, filename="2d_heatmap.png"
-):
+def plot_2d_heatmap_matplotlib(height_map, colorbar_label=None, filename="2d_heatmap.png"):
     """
     Creates a 2D heatmap of the height map using Matplotlib.
 
@@ -151,9 +150,7 @@ def plot_x_profile_matplotlib(data, profile_row=None, filename="x_profile.png"):
     if profile_row is None:
         profile_row = height_map.shape[0] // 2
 
-    x_coords = np.linspace(
-        data["x_offset"], data["x_offset"] + data["x_length"], num=width
-    )
+    x_coords = np.linspace(data["x_offset"], data["x_offset"] + data["x_length"], num=width)
     x_profile = height_map[profile_row, :]
 
     print(f"\nX Profile at row {profile_row}:")
@@ -162,9 +159,7 @@ def plot_x_profile_matplotlib(data, profile_row=None, filename="x_profile.png"):
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(x_coords, x_profile, "b-", linewidth=1)
-    ax.scatter(
-        x_coords[::10], x_profile[::10], color="red", s=20
-    )  # Add points every 10th element
+    ax.scatter(x_coords[::10], x_profile[::10], color="red", s=20)  # Add points every 10th element
 
     ax.set_title(f"X Profile at Row {profile_row}")
     ax.set_xlabel("X Coordinate")

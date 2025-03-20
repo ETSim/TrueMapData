@@ -15,13 +15,13 @@ TMD (TrueMap Data) files contain height map information for surface topography a
 
     ```python
     from tmd.processor import TMDProcessor
-    
+
     # Initialize processor with your TMD file
     processor = TMDProcessor("path/to/your/file.tmd")
-    
+
     # Process the file
     processor.process()
-    
+
     # Print basic information
     print(processor.get_metadata())
     ```
@@ -30,10 +30,10 @@ TMD (TrueMap Data) files contain height map information for surface topography a
 
     ```python
     from tmd.utils.utils import process_tmd_file
-    
+
     # Process the file directly
     metadata, height_map = process_tmd_file("path/to/your/file.tmd")
-    
+
     # Print metadata
     print(metadata)
     ```
@@ -62,7 +62,7 @@ from tmd.plotters.matplotlib import plot_height_map_matplotlib
 
 # Create a 3D surface plot
 plot_height_map_matplotlib(
-    height_map, 
+    height_map,
     colorbar_label="Height (μm)",
     filename="height_map.png"
 )

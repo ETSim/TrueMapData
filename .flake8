@@ -1,7 +1,7 @@
 [flake8]
 max-line-length = 100
 exclude = .git,__pycache__,docs/,build/,dist/,*.egg-info/,venv/,env/
-ignore = 
+ignore =
     E203,  # whitespace before ':' - Black handles this differently
     E231,  # missing whitespace after ',' - Black handles this differently
     E501,  # line too long - Black handles this

@@ -2,14 +2,13 @@
 Functions for manipulating height maps - cropping, flipping, rotating, thresholding, etc.
 """
 
+from typing import Optional, Tuple
+
 import numpy as np
 from scipy import ndimage
-from typing import Tuple, Optional
 
 
-def crop_height_map(
-    height_map: np.ndarray, region: Tuple[int, int, int, int]
-) -> np.ndarray:
+def crop_height_map(height_map: np.ndarray, region: Tuple[int, int, int, int]) -> np.ndarray:
     """
     Crop a height map to the specified region.
 
@@ -25,9 +24,7 @@ def crop_height_map(
     # Validate crop region
     rows, cols = height_map.shape
     if not (0 <= row_start < row_end <= rows and 0 <= col_start < col_end <= cols):
-        raise ValueError(
-            f"Invalid crop region {region} for height map of shape {height_map.shape}"
-        )
+        raise ValueError(f"Invalid crop region {region} for height map of shape {height_map.shape}")
 
     return height_map[row_start:row_end, col_start:col_end].copy()
 
@@ -147,9 +144,7 @@ def extract_cross_section(
         if position is None:
             position = rows // 2  # Default to middle row
         if position < 0 or position >= rows:
-            raise ValueError(
-                f"Position {position} out of range for height map with {rows} rows"
-            )
+            raise ValueError(f"Position {position} out of range for height map with {rows} rows")
 
         # Extract the cross-section
         heights = height_map[position, :].copy()
@@ -171,9 +166,7 @@ def extract_cross_section(
         if position is None:
             position = cols // 2  # Default to middle column
         if position < 0 or position >= cols:
-            raise ValueError(
-                f"Position {position} out of range for height map with {cols} columns"
-            )
+            raise ValueError(f"Position {position} out of range for height map with {cols} columns")
 
         # Extract the cross-section
         heights = height_map[:, position].copy()
@@ -201,15 +194,11 @@ def extract_cross_section(
         r1, c1 = end_point
 
         # Check bounds
-        if not (
-            0 <= r0 < rows and 0 <= c0 < cols and 0 <= r1 < rows and 0 <= c1 < cols
-        ):
+        if not (0 <= r0 < rows and 0 <= c0 < cols and 0 <= r1 < rows and 0 <= c1 < cols):
             raise ValueError("Start or end point out of bounds")
 
         # Generate points along the line
-        num_points = (
-            max(abs(r1 - r0) + 1, abs(c1 - c0) + 1) * 2
-        )  # Oversample to avoid aliasing
+        num_points = max(abs(r1 - r0) + 1, abs(c1 - c0) + 1) * 2  # Oversample to avoid aliasing
         rs = np.linspace(r0, r1, num_points)
         cs = np.linspace(c0, c1, num_points)
 

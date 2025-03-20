@@ -5,8 +5,10 @@ This module provides functions for computing statistics on TMD height maps
 and exporting metadata to a text file.
 """
 
+from typing import Any, Dict
+
 import numpy as np
-from typing import Dict, Any
+
 
 def compute_stats(height_map: np.ndarray) -> Dict[str, Any]:
     """
@@ -29,6 +31,7 @@ def compute_stats(height_map: np.ndarray) -> Dict[str, Any]:
         "nan_count": int(np.count_nonzero(np.isnan(height_map))),
     }
     return stats
+
 
 def export_metadata(metadata: Dict[str, Any], stats: Dict[str, Any], output_path: str) -> str:
     """

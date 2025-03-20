@@ -2,10 +2,11 @@
 Plotly-based visualization functions for TMD data.
 """
 
-import numpy as np
-import plotly.graph_objects as go
 import os
 from typing import Optional, Tuple
+
+import numpy as np
+import plotly.graph_objects as go
 
 # Default settings
 COLORBAR_LABEL = "Height (µm)"
@@ -39,7 +40,7 @@ def plot_height_map_with_slider(
 
     if partial_range is not None:
         height_map = height_map[
-            partial_range[0]:partial_range[1], partial_range[2]:partial_range[3]
+            partial_range[0] : partial_range[1], partial_range[2] : partial_range[3]
         ]
         print(
             f"Partial render applied: rows {partial_range[0]}:{partial_range[1]}, cols {partial_range[2]}:{partial_range[3]}"
@@ -77,9 +78,7 @@ def plot_height_map_with_slider(
             )
         )
 
-    sliders = [
-        dict(active=1, currentvalue={"prefix": "Z-scale: "}, steps=steps, pad={"t": 50})
-    ]
+    sliders = [dict(active=1, currentvalue={"prefix": "Z-scale: "}, steps=steps, pad={"t": 50})]
 
     fig.update_layout(sliders=sliders)
     fig.write_html(html_filename, include_plotlyjs="cdn")
@@ -103,14 +102,10 @@ def plot_2d_heatmap(height_map, colorbar_label=None, html_filename="2d_heatmap.h
         colorbar_label = COLORBAR_LABEL
 
     fig = go.Figure(
-        data=go.Heatmap(
-            z=height_map, colorscale="Viridis", colorbar=dict(title=colorbar_label)
-        )
+        data=go.Heatmap(z=height_map, colorscale="Viridis", colorbar=dict(title=colorbar_label))
     )
 
-    fig.update_layout(
-        title="2D Heatmap of Height Map", xaxis_title="X", yaxis_title="Y"
-    )
+    fig.update_layout(title="2D Heatmap of Height Map", xaxis_title="X", yaxis_title="Y")
 
     fig.write_html(html_filename, include_plotlyjs="cdn")
     print(f"2D Heatmap saved to {html_filename}")
@@ -135,9 +130,7 @@ def plot_x_profile(data, profile_row=None, html_filename="x_profile.html"):
     if profile_row is None:
         profile_row = height_map.shape[0] // 2
 
-    x_coords = np.linspace(
-        data["x_offset"], data["x_offset"] + data["x_length"], num=width
-    )
+    x_coords = np.linspace(data["x_offset"], data["x_offset"] + data["x_length"], num=width)
     x_profile = height_map[profile_row, :]
 
     print(f"\nX Profile at row {profile_row}:")
@@ -145,9 +138,7 @@ def plot_x_profile(data, profile_row=None, html_filename="x_profile.html"):
     print("Heights (first 10):", x_profile[:10])
 
     fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(x=x_coords, y=x_profile, mode="lines+markers", name="X Profile")
-    )
+    fig.add_trace(go.Scatter(x=x_coords, y=x_profile, mode="lines+markers", name="X Profile"))
 
     fig.update_layout(
         title=f"X Profile (row {profile_row})",

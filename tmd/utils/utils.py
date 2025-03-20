@@ -2,15 +2,15 @@
 Core utility functions for TMD file processing and analysis.
 """
 
-import os
-import struct
-import re
-import numpy as np
-from typing import Dict, Any, Tuple, Optional, List
 import logging
+import os
+import re
+import struct
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
-
 
 
 def hexdump(
@@ -35,13 +35,13 @@ def hexdump(
     """
     if length is None:
         length = len(bytes_data) - start
-    
+
     # Make sure we only process the specified length
-    data_to_process = bytes_data[start:start + length]
-    
+    data_to_process = bytes_data[start : start + length]
+
     result = []
     for i in range(0, len(data_to_process), width):
-        chunk = data_to_process[i:i + width]
+        chunk = data_to_process[i : i + width]
         hex_part = " ".join(f"{b:02x}" for b in chunk)
 
         line = f"{start + i:08x}:  {hex_part:<{width * 3}}"
@@ -122,6 +122,7 @@ def get_header_offset(version: int) -> int:
     # v1 headers typically start at offset 32; v2 headers at 64.
     return 32 if version == 1 else 64
 
+
 def _read_bytes(f, num_bytes: int) -> bytes:
     """
     Helper function to safely read a given number of bytes.
@@ -131,7 +132,6 @@ def _read_bytes(f, num_bytes: int) -> bytes:
     if len(data) != num_bytes:
         raise ValueError(f"Expected {num_bytes} bytes, got {len(data)} bytes.")
     return data
-
 
 
 def process_tmd_file(
@@ -171,7 +171,7 @@ def process_tmd_file(
             if debug:
                 print("⚠️ Detected v2 file format. Reading metadata...")
             try:
-                comment = f.read(24).decode('ascii', errors='replace').strip()
+                comment = f.read(24).decode("ascii", errors="replace").strip()
                 if debug and comment:
                     print(f"Comment: {comment}")
             except Exception as e:
@@ -233,12 +233,16 @@ def process_tmd_file(
 
             if len(height_map_data) < expected_size:
                 if debug:
-                    print(f"Warning: Incomplete height map. Expected {expected_size} values, got {len(height_map_data)}. Padding with zeros.")
+                    print(
+                        f"Warning: Incomplete height map. Expected {expected_size} values, got {len(height_map_data)}. Padding with zeros."
+                    )
                 padding = np.zeros(expected_size - len(height_map_data), dtype=np.float32)
                 height_map_data = np.concatenate([height_map_data, padding])
             elif len(height_map_data) > expected_size:
                 if debug:
-                    print(f"Warning: Extra height map data detected. Expected {expected_size} values, got {len(height_map_data)}. Trimming excess.")
+                    print(
+                        f"Warning: Extra height map data detected. Expected {expected_size} values, got {len(height_map_data)}. Trimming excess."
+                    )
                 height_map_data = height_map_data[:expected_size]
 
             # Reshape the data into a 2D array.
@@ -261,6 +265,7 @@ def process_tmd_file(
     }
 
     return metadata, height_map
+
 
 def write_tmd_file(
     height_map: np.ndarray,
@@ -292,51 +297,53 @@ def write_tmd_file(
     """
     # Ensure output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    
+
     # Get height map dimensions (rows, cols) = (height, width)
     height, width = height_map.shape
-    
+
     with open(output_path, "wb") as f:
         print(f"Writing TMD file v{version} to {output_path}")
         if version == 2:
             # Write the exact header format shown in the example
             header = "Binary TrueMap Data File v2.0\n"
             header_comment = "Created by TrueMap v6\n"
-            
+
             # Write header and pad to 32 bytes with nulls if needed
-            header_bytes = header.encode('ascii')
+            header_bytes = header.encode("ascii")
             remaining_header = 32 - len(header_bytes)
             logger.info(f"Remaining header: {remaining_header}")
             print(f"Remaining header: {remaining_header}")
             if remaining_header > 0:
-                header_bytes += b'\0' * remaining_header
+                header_bytes += b"\0" * remaining_header
             f.write(header_bytes[:32])  # Truncate if too long
-            
+
             # Write comment and pad to 24 bytes
-            comment_bytes = header_comment.encode('ascii')
+            comment_bytes = header_comment.encode("ascii")
             remaining_comment = 24 - len(comment_bytes)
             logger.info(f"Remaining comment: {remaining_comment}")
             print(f"Remaining comment: {remaining_comment}")
             if remaining_comment > 0:
-                comment_bytes += b'\0' * remaining_comment
+                comment_bytes += b"\0" * remaining_comment
             f.write(comment_bytes[:24])
-        
+
         # Write dimensions: width and height (4 bytes each, little-endian)
-        f.write(struct.pack('<II', width, height))
-        
+        f.write(struct.pack("<II", width, height))
+
         # Write spatial info: x_length, y_length, x_offset, y_offset (each as 4-byte float)
-        f.write(struct.pack('<ffff', x_length, y_length, x_offset, y_offset))
-        
+        f.write(struct.pack("<ffff", x_length, y_length, x_offset, y_offset))
+
         # Write the height map data (float32 values)
         height_map_flat = height_map.astype(np.float32).flatten()
         f.write(height_map_flat.tobytes())
-    
+
     if debug:
         print(f"Writing TMD file v{version} to {output_path}")
-        print(f"Dimensions: {width} x {height}, Spatial info: {x_length}, {y_length}, {x_offset}, {y_offset}")
+        print(
+            f"Dimensions: {width} x {height}, Spatial info: {x_length}, {y_length}, {x_offset}, {y_offset}"
+        )
         print(f"Successfully wrote TMD file: {output_path}")
         print(f"File size: {os.path.getsize(output_path)} bytes")
-    
+
     return output_path
 
 
@@ -384,7 +391,7 @@ def create_sample_height_map(
 
     # Calculate base amplitude to scale the noise appropriately
     base_amplitude = np.max(np.abs(Z)) if np.max(np.abs(Z)) > 0 else 1.0
-    
+
     # Add random noise with consistent application
     if noise_level > 0:
         noise = np.random.normal(0, noise_level * base_amplitude, Z.shape)

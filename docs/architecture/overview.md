@@ -16,7 +16,7 @@ graph TD
     D1 --> E[Results/Insights]
     D2 --> E
     D3 --> F[Output Files]
-    
+
     classDef core fill:#f9f,stroke:#333,stroke-width:2px;
     classDef input fill:#bbf,stroke:#333,stroke-width:1px;
     classDef output fill:#bfb,stroke:#333,stroke-width:1px;
@@ -35,20 +35,20 @@ graph LR
     TMDProcessor --> Filter[Filter Module]
     TMDProcessor --> Plotters[Plotters Module]
     TMDProcessor --> Exporters[Exporters Module]
-    
+
     Utils --> ProcessingUtils[Processing Utils]
     Utils --> FileUtils[File Utils]
-    
+
     Filter --> WavinessFilter[Waviness/Roughness]
     Filter --> SlopeCalculation[Gradient/Slope]
-    
+
     Plotters --> MatplotlibPlotter[Matplotlib]
     Plotters --> OtherPlotters[Other Plotters]
-    
+
     Exporters --> STLExporter[STL Export]
     Exporters --> NPYExporter[NumPy Export]
     Exporters --> ImageExporter[Image Export]
-    
+
     classDef main fill:#f96,stroke:#333,stroke-width:2px;
     classDef module fill:#9cf,stroke:#333,stroke-width:1px;
     classDef submodule fill:#fcf,stroke:#333,stroke-width:1px;
@@ -73,11 +73,11 @@ flowchart TD
     F -->|No| H[Analysis]
     G --> H
     H --> I[Visualization/Export]
-    
+
     classDef process fill:#d1c7ff,stroke:#333,stroke-width:1px;
     classDef decision fill:#ffcccc,stroke:#333,stroke-width:1px;
     classDef output fill:#ccffcc,stroke:#333,stroke-width:1px;
-    
+
     class A,B,C,D,E,G,H process;
     class F decision;
     class I output;
@@ -97,32 +97,32 @@ classDiagram
         +get_metadata()
         +get_stats()
     }
-    
+
     class HeightMap {
         +array: ndarray
         +metadata: dict
         +apply_filter()
         +calculate_stats()
     }
-    
+
     class FilterUtils {
         +extract_waviness()
         +extract_roughness()
         +calculate_gradient()
     }
-    
+
     class ExportTools {
         +export_to_stl()
         +export_to_npy()
         +export_to_image()
     }
-    
+
     class VisualizationTools {
         +plot_3d()
         +plot_heatmap()
         +plot_profile()
     }
-    
+
     TMDProcessor --> HeightMap: creates
     HeightMap --> FilterUtils: uses
     HeightMap --> ExportTools: uses
@@ -140,14 +140,14 @@ graph TD
     A --> A2[Comment Section]
     A --> A3[Dimensions]
     A --> A4[Spatial Parameters]
-    
+
     B[Data Section] --> B1[Height Map Data]
     B1 --> B2[Row-major Float32 Array]
     end
-    
+
     classDef header fill:#ffddaa,stroke:#333,stroke-width:1px;
     classDef data fill:#aaddff,stroke:#333,stroke-width:1px;
-    
+
     class A,A1,A2,A3,A4 header;
     class B,B1,B2 data;
 ```

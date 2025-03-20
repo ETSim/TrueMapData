@@ -107,8 +107,6 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 |-------------|----------------------|
 | <img src="https://github.com/user-attachments/assets/cf1cc89a-0a35-4f6c-966c-22ea193e0a70" width="400"> | <img src="https://github.com/user-attachments/assets/d227f561-6d39-45fb-94eb-0a94d66fc948" width="400"> |
 
----![bump_map]()
-
 
 ## Installation
 

@@ -81,8 +81,11 @@ def plot_height_map_with_slider(
     sliders = [dict(active=1, currentvalue={"prefix": "Z-scale: "}, steps=steps, pad={"t": 50})]
 
     fig.update_layout(sliders=sliders)
-    fig.write_html(html_filename, include_plotlyjs="cdn")
-    print(f"3D Plot saved to {html_filename}")
+    
+    if html_filename:
+        fig.write_html(html_filename, include_plotlyjs="cdn")
+        print(f"3D Plot saved to {html_filename}")
+    
     return fig
 
 
@@ -107,8 +110,10 @@ def plot_2d_heatmap(height_map, colorbar_label=None, html_filename="2d_heatmap.h
 
     fig.update_layout(title="2D Heatmap of Height Map", xaxis_title="X", yaxis_title="Y")
 
-    fig.write_html(html_filename, include_plotlyjs="cdn")
-    print(f"2D Heatmap saved to {html_filename}")
+    if html_filename:
+        fig.write_html(html_filename, include_plotlyjs="cdn")
+        print(f"2D Heatmap saved to {html_filename}")
+    
     return fig
 
 
@@ -125,12 +130,14 @@ def plot_x_profile(data, profile_row=None, html_filename="x_profile.html"):
         Tuple of (x_coordinates, profile_heights, figure)
     """
     height_map = data["height_map"]
-    width = data["width"]
+    width = data.get("width", height_map.shape[1])
+    x_offset = data.get("x_offset", 0.0)
+    x_length = data.get("x_length", width)
 
     if profile_row is None:
         profile_row = height_map.shape[0] // 2
 
-    x_coords = np.linspace(data["x_offset"], data["x_offset"] + data["x_length"], num=width)
+    x_coords = np.linspace(x_offset, x_offset + x_length, num=width)
     x_profile = height_map[profile_row, :]
 
     print(f"\nX Profile at row {profile_row}:")
@@ -146,13 +153,15 @@ def plot_x_profile(data, profile_row=None, html_filename="x_profile.html"):
         yaxis_title=COLORBAR_LABEL,
     )
 
-    fig.write_html(html_filename, include_plotlyjs="cdn")
-    print(f"X Profile plot saved to {html_filename}")
+    if html_filename:
+        fig.write_html(html_filename, include_plotlyjs="cdn")
+        print(f"X Profile plot saved to {html_filename}")
+    
     return x_coords, x_profile, fig
 
 
 def plot_height_map_3d(
-    height_map, title="Height Map", filename="height_map.html", colorscale="Viridis"
+    height_map, title="Height Map", filename=None, colorscale="Viridis"
 ):
     """
     Creates a 3D surface plot of the height map using Plotly.
@@ -160,11 +169,11 @@ def plot_height_map_3d(
     Args:
         height_map: 2D numpy array of height values
         title: Plot title
-        filename: Output file name for HTML
+        filename: Output file name for HTML (None = don't save)
         colorscale: Plotly colorscale name
 
     Returns:
-        Path to the saved HTML file
+        Plotly figure object
     """
     # Create 3D surface plot
     fig = go.Figure(data=[go.Surface(z=height_map, colorscale=colorscale)])
@@ -186,11 +195,11 @@ def plot_height_map_3d(
         fig.write_html(filename)
         print(f"Saved height map plot as {filename}")
 
-    return filename
+    return fig
 
 
 def plot_height_map_2d(
-    height_map, title="Height Map", filename="height_map_2d.html", colorscale="Viridis"
+    height_map, title="Height Map", filename=None, colorscale="Viridis"
 ):
     """
     Creates a 2D heatmap visualization of the height map using Plotly.
@@ -198,11 +207,11 @@ def plot_height_map_2d(
     Args:
         height_map: 2D numpy array of height values
         title: Plot title
-        filename: Output file name for HTML
+        filename: Output file name for HTML (None = don't save)
         colorscale: Plotly colorscale name
 
     Returns:
-        Path to the saved HTML file
+        Plotly figure object
     """
     fig = go.Figure(data=go.Heatmap(z=height_map, colorscale=colorscale))
 
@@ -212,14 +221,14 @@ def plot_height_map_2d(
         fig.write_html(filename)
         print(f"Saved 2D height map plot as {filename}")
 
-    return filename
+    return fig
 
 
 def plot_cross_section_plotly(
     x_positions, 
     heights, 
     title="Surface Cross-Section", 
-    filename="cross_section.html"
+    filename=None
 ):
     """
     Create an interactive cross-section plot using Plotly.
@@ -228,7 +237,7 @@ def plot_cross_section_plotly(
         x_positions: Array of x-axis positions for the cross-section
         heights: Array of height values at each position
         title: Title for the plot
-        filename: Output filename for the interactive HTML
+        filename: Output filename for the interactive HTML (None = don't save)
         
     Returns:
         Plotly figure object
@@ -302,3 +311,218 @@ def plot_cross_section_plotly(
         print(f"Interactive cross-section plot saved to {filename}")
     
     return fig
+
+
+def plot_multiple_profiles(
+    profiles_data,
+    title="Multiple Surface Profiles",
+    filename=None,
+    colorscale=None
+):
+    """
+    Create an interactive plot with multiple surface profiles for comparison.
+    
+    Args:
+        profiles_data: List of dictionaries, each containing:
+                      - 'x': x-position array 
+                      - 'y': height values array
+                      - 'name': profile name for legend
+        title: Title for the plot
+        filename: Output filename for HTML (None = don't save)
+        colorscale: List of colors to use for the lines (None = auto)
+        
+    Returns:
+        Plotly figure object
+    """
+    try:
+        import plotly.graph_objects as go
+        import plotly.colors as pc
+    except ImportError:
+        raise ImportError("Plotly is required for this function. Install with: pip install plotly")
+    
+    # Create default colorscale if none provided
+    if colorscale is None:
+        colorscale = pc.qualitative.Plotly
+        
+    fig = go.Figure()
+    
+    # Add each profile as a separate trace
+    for i, profile in enumerate(profiles_data):
+        color = colorscale[i % len(colorscale)]
+        
+        # Add the profile line
+        fig.add_trace(
+            go.Scatter(
+                x=profile['x'],
+                y=profile['y'],
+                mode="lines",
+                name=profile.get('name', f"Profile {i+1}"),
+                line=dict(color=color, width=2)
+            )
+        )
+    
+    # Configure layout
+    fig.update_layout(
+        title=title,
+        xaxis_title="Position",
+        yaxis_title="Height",
+        hovermode="closest",
+        template="plotly_white",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    # Add grid lines
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
+    
+    # Save to file if filename is provided
+    if filename:
+        fig.write_html(filename)
+        print(f"Multiple profiles plot saved to {filename}")
+    
+    return fig
+
+
+# Add unit tests for this module below
+if __name__ == "__main__":
+    import tempfile
+    import unittest
+    
+    class TestPlotlyFunctions(unittest.TestCase):
+        """Test case for Plotly visualization functions"""
+        
+        def setUp(self):
+            """Create test data for all tests"""
+            # Create a test height map: small to keep tests fast
+            self.height_map = np.zeros((50, 50))
+            # Add a simple pattern for visualization
+            x = np.linspace(-3, 3, 50)
+            y = np.linspace(-3, 3, 50)
+            X, Y = np.meshgrid(x, y)
+            self.height_map = np.sin(X) * np.cos(Y)
+            
+            # Create a temp directory for test outputs
+            self.temp_dir = tempfile.TemporaryDirectory()
+            
+            # Create test profile data
+            x = np.linspace(0, 10, 100)
+            profile1 = np.sin(x)
+            profile2 = np.cos(x)
+            self.profiles_data = [
+                {'x': x, 'y': profile1, 'name': 'Sine Profile'},
+                {'x': x, 'y': profile2, 'name': 'Cosine Profile'}
+            ]
+            
+            # Create test TMD-like data structure
+            self.tmd_data = {
+                'height_map': self.height_map,
+                'width': 50,
+                'height': 50,
+                'x_offset': 0.0,
+                'y_offset': 0.0,
+                'x_length': 10.0,
+                'y_length': 10.0
+            }
+            
+        def tearDown(self):
+            """Clean up temp directory"""
+            self.temp_dir.cleanup()
+            
+        def test_plot_height_map_3d(self):
+            """Test creating a 3D surface plot"""
+            # Test without saving
+            fig = plot_height_map_3d(self.height_map, title="Test 3D")
+            self.assertIsNotNone(fig)
+            
+            # Test with saving
+            filename = os.path.join(self.temp_dir.name, "test_3d.html")
+            fig = plot_height_map_3d(self.height_map, title="Test 3D", filename=filename)
+            self.assertTrue(os.path.exists(filename))
+            
+        def test_plot_height_map_2d(self):
+            """Test creating a 2D heatmap"""
+            # Test without saving
+            fig = plot_height_map_2d(self.height_map, title="Test 2D")
+            self.assertIsNotNone(fig)
+            
+            # Test with saving
+            filename = os.path.join(self.temp_dir.name, "test_2d.html")
+            fig = plot_height_map_2d(self.height_map, title="Test 2D", filename=filename)
+            self.assertTrue(os.path.exists(filename))
+            
+        def test_plot_cross_section(self):
+            """Test creating a cross-section plot"""
+            x = np.linspace(0, 10, 100)
+            heights = np.sin(x)
+            
+            # Test without saving
+            fig = plot_cross_section_plotly(x, heights, title="Test Cross-Section")
+            self.assertIsNotNone(fig)
+            
+            # Test with saving
+            filename = os.path.join(self.temp_dir.name, "test_cross_section.html")
+            fig = plot_cross_section_plotly(x, heights, title="Test Cross-Section", filename=filename)
+            self.assertTrue(os.path.exists(filename))
+            
+        def test_plot_multiple_profiles(self):
+            """Test creating a plot with multiple profiles"""
+            # Test without saving
+            fig = plot_multiple_profiles(self.profiles_data, title="Test Multiple Profiles")
+            self.assertIsNotNone(fig)
+            
+            # Test with saving
+            filename = os.path.join(self.temp_dir.name, "test_multiple_profiles.html")
+            fig = plot_multiple_profiles(self.profiles_data, title="Test Multiple Profiles", filename=filename)
+            self.assertTrue(os.path.exists(filename))
+            
+        def test_plot_height_map_with_slider(self):
+            """Test creating a 3D plot with z-scale slider"""
+            # Test without saving
+            fig = plot_height_map_with_slider(self.height_map, html_filename=None)
+            self.assertIsNotNone(fig)
+            
+            # Test with saving
+            filename = os.path.join(self.temp_dir.name, "test_slider.html")
+            fig = plot_height_map_with_slider(self.height_map, html_filename=filename)
+            self.assertTrue(os.path.exists(filename))
+            
+            # Test with partial range
+            partial_range = (10, 40, 10, 40)
+            fig = plot_height_map_with_slider(
+                self.height_map, 
+                html_filename=None, 
+                partial_range=partial_range
+            )
+            self.assertIsNotNone(fig)
+            
+        def test_plot_x_profile(self):
+            """Test extracting and plotting x profile"""
+            # Test with default profile row
+            x_coords, x_profile, fig = plot_x_profile(
+                self.tmd_data, 
+                html_filename=None
+            )
+            self.assertEqual(len(x_coords), self.tmd_data['width'])
+            self.assertEqual(len(x_profile), self.tmd_data['width'])
+            self.assertIsNotNone(fig)
+            
+            # Test with specific profile row
+            profile_row = 25
+            x_coords, x_profile, fig = plot_x_profile(
+                self.tmd_data, 
+                profile_row=profile_row,
+                html_filename=None
+            )
+            self.assertEqual(len(x_coords), self.tmd_data['width'])
+            self.assertEqual(len(x_profile), self.tmd_data['width'])
+            # Check that we got the right row
+            np.testing.assert_array_equal(x_profile, self.height_map[profile_row, :])
+            
+    # Run the tests
+    unittest.main()

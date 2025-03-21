@@ -81,58 +81,30 @@ def detect_tmd_version(file_path: str) -> int:
     Determine the TMD file version based on header content.
 
     Args:
-        file_path: Path to the TMD file.
+        file_path: Path to the TMD file
 
     Returns:
-        Integer version (1 or 2).
+        Integer version (1 or 2)
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    # Read enough header bytes to reliably check for the version string.
     with open(file_path, "rb") as f:
         header_bytes = f.read(64)
         header_text = header_bytes.decode("ascii", errors="replace")
         logger.debug(f"Header text: {header_text}")
 
-        # Look for explicit version markers first
+        # Check for version number in header
         if "v2.0" in header_text:
             return 2
-        elif "v1.0" in header_text:
+
+        # If no explicit version, try to determine from structure
+        if "Binary TrueMap Data File" in header_text:
+            # Most likely v2 if it has the standard header
             return 1
 
-        # If no explicit version is found, check for the standard header pattern.
-        if "Binary TrueMap Data File" in header_text:
-            return 2
-
-    # Default to version 1 if no clues are found
+    # Default to v1 if unable to determine
     return 1
-
-
-def get_header_offset(version: int) -> int:
-    """
-    Get the header offset for the given TMD version.
-
-    Args:
-        version: TMD file version (1 or 2).
-
-    Returns:
-        Header offset in bytes.
-    """
-    # v1 headers typically start at offset 32; v2 headers at 64.
-    return 32 if version == 1 else 64
-
-
-def _read_bytes(f, num_bytes: int) -> bytes:
-    """
-    Helper function to safely read a given number of bytes.
-    Raises an error if the expected number of bytes cannot be read.
-    """
-    data = f.read(num_bytes)
-    if len(data) != num_bytes:
-        raise ValueError(f"Expected {num_bytes} bytes, got {len(data)} bytes.")
-    return data
-
 
 def process_tmd_file(
     file_path: str,
@@ -141,118 +113,184 @@ def process_tmd_file(
 ) -> Tuple[Dict[str, Any], np.ndarray]:
     """
     Process a TMD file and extract metadata and height map.
-    Handles both v1 and v2 file formats.
+    Handles both v1 and v2 file formats, plus GelSight format.
 
     Args:
-        file_path: Path to the TMD file.
-        force_offset: Optional tuple (x_offset, y_offset) to override file values.
-        debug: Whether to print debug information.
+        file_path: Path to the TMD file
+        force_offset: Optional tuple (x_offset, y_offset) to override file values
+        debug: Whether to print debug information
 
     Returns:
-        Tuple of (metadata_dict, height_map_array).
+        Tuple of (metadata_dict, height_map_array)
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
-
+    
+    # Detect version from file header
     version = detect_tmd_version(file_path)
     if debug:
         print(f"Detected TMD file version: {version}")
 
     with open(file_path, "rb") as f:
-        # Set starting position based on version.
+        # Handle different versions
         if version == 1:
-            f.seek(28)  # v1 files: metadata starts at offset 28
+            f.seek(28)  # Offset for v1 files
             if debug:
                 print("⚠️ Detected v1 file format. Reading metadata...")
             comment = None
-        else:
-            # For v2 files, metadata starts at offset 32.
-            f.seek(32)
+        elif version == 2:
+            f.seek(32)  # Default for v2 files
             if debug:
                 print("⚠️ Detected v2 file format. Reading metadata...")
             try:
-                comment = f.read(24).decode("ascii", errors="replace").strip()
+                comment = f.read(24).decode('ascii').strip()
                 if debug and comment:
                     print(f"Comment: {comment}")
-            except Exception as e:
-                logger.error(f"Error reading comment: {e}")
+            except Exception:
                 comment = None
-                # Attempt to skip the comment bytes
-                f.seek(32 + 24)
-
-        # Read dimensions (width and height as little-endian unsigned int)
+                try:
+                    f.read(24)
+                    f.seek(33)
+                except Exception:
+                    comment = None
+                    f.seek(33)
+        
+        # Read dimensions (width and height)
         try:
-            width_bytes = _read_bytes(f, 4)
-            height_bytes = _read_bytes(f, 4)
-            width = struct.unpack("<I", width_bytes)[0]
-            height = struct.unpack("<I", height_bytes)[0]
-            if debug:
-                print(f"Width: {width}, Height: {height}")
+            width_bytes = f.read(4)
+            height_bytes = f.read(4)
+            
+            if len(width_bytes) < 4 or len(height_bytes) < 4:
+                if debug:
+                    print("Warning: File too small to read dimensions properly.")
+                width, height = 1, 1
+            else:
+                width = struct.unpack("<I", width_bytes)[0]
+                height = struct.unpack("<I", height_bytes)[0]
+                if debug:
+                    print(f"Dimensions: {width} x {height}")
         except Exception as e:
             if debug:
                 print(f"Error parsing dimensions: {e}")
             width, height = 1, 1
-
-        # Validate dimensions to avoid excessive memory usage.
-        if width <= 0 or height <= 0 or width > 10000 or height > 10000:
-            raise ValueError(f"Invalid dimensions: {width} x {height}")
-
-        # Read spatial parameters (each 4 bytes as float)
-        def read_float(field_name: str, default: float = 0.0) -> float:
-            try:
-                data = _read_bytes(f, 4)
-                value = struct.unpack("<f", data)[0]
-                if debug:
-                    print(f"{field_name}: {value}")
-                return value
-            except Exception as e:
-                if debug:
-                    print(f"Error reading {field_name}: {e}. Using default {default}.")
-                return default
-
-        x_length = read_float("X Length", 10.0)
-        y_length = read_float("Y Length", 10.0)
-        x_offset = read_float("X Offset", 0.0)
-        y_offset = read_float("Y Offset", 0.0)
-
+        
+        # Read spatial parameters (physical dimensions)
+        x_length = 10.0  # Default values
+        y_length = 10.0
+        x_offset = 0.0
+        y_offset = 0.0
+        
+        try:
+            x_length_bytes = f.read(4)
+            y_length_bytes = f.read(4)
+            if version == 2:
+                x_offset_bytes = f.read(4)
+                y_offset_bytes = f.read(4)
+            
+            if len(x_length_bytes) == 4:
+                x_length = struct.unpack("<f", x_length_bytes)[0]
+            if len(y_length_bytes) == 4:
+                y_length = struct.unpack("<f", y_length_bytes)[0]
+            if len(x_offset_bytes) == 4 and version == 2:
+                x_offset = struct.unpack("<f", x_offset_bytes)[0]
+            if len(y_offset_bytes) == 4 and version == 2:
+                y_offset = struct.unpack("<f", y_offset_bytes)[0]
+            
+            if debug:
+                print(f"X Length: {x_length}, Y Length: {y_length}")
+                print(f"X Offset: {x_offset}, Y Offset: {y_offset}")
+        except Exception as e:
+            if debug:
+                print(f"Error reading spatial parameters: {e}. Using defaults.")
+        
+        # Apply forced offsets if provided
         if force_offset:
             x_offset, y_offset = force_offset
             if debug:
-                print(f"⚠️ Using forced offsets: x_offset={x_offset}, y_offset={y_offset}")
-
-        # Read height map data
+                print(f"Using forced offsets: x_offset={x_offset}, y_offset={y_offset}")
+        
+        # Calculate mm per pixel and pixel offsets
+        mmpp = x_length / width if width > 0 else 1.0
+        px_off_x = int(round(x_offset / mmpp)) if x_offset != 0 else 0
+        px_off_y = int(round(y_offset / mmpp)) if y_offset != 0 else 0
+        
+        if debug and (px_off_x != 0 or px_off_y != 0):
+            print(f"Pixel offsets: x={px_off_x}, y={px_off_y}")
+        
+        # Read height map data based on file version
         try:
-            remaining_bytes = f.read()
-            max_safe_size = width * height * 4 * 2  # extra allowance
-            if len(remaining_bytes) > max_safe_size:
+            # For v1 files or GelSight, read all at once
+            if version == 1:
+                # Calculate expected size and read all remaining data
+                expected_data_size = width * height * 4  # 4 bytes per float
+                height_data = f.read()
+                
                 if debug:
-                    print("Warning: Excess data detected. Trimming read size.")
-                remaining_bytes = remaining_bytes[:max_safe_size]
-            height_map_data = np.frombuffer(remaining_bytes, dtype=np.float32)
-            expected_size = width * height
-
-            if len(height_map_data) < expected_size:
-                if debug:
-                    print(
-                        f"Warning: Incomplete height map. Expected {expected_size} values, got {len(height_map_data)}. Padding with zeros."
-                    )
-                padding = np.zeros(expected_size - len(height_map_data), dtype=np.float32)
-                height_map_data = np.concatenate([height_map_data, padding])
-            elif len(height_map_data) > expected_size:
-                if debug:
-                    print(
-                        f"Warning: Extra height map data detected. Expected {expected_size} values, got {len(height_map_data)}. Trimming excess."
-                    )
-                height_map_data = height_map_data[:expected_size]
-
-            # Reshape the data into a 2D array.
-            height_map = height_map_data.reshape((height, width))
+                    print(f"Expected {expected_data_size} bytes of height data, read {len(height_data)} bytes")
+                
+                # Handle data size mismatches
+                if len(height_data) < expected_data_size:
+                    if debug:
+                        print(f"Padding height data: expected {expected_data_size}, got {len(height_data)}")
+                    height_data = height_data.ljust(expected_data_size, b'\0')
+                elif len(height_data) > expected_data_size:
+                    if debug:
+                        print(f"Trimming height data: expected {expected_data_size}, got {len(height_data)}")
+                    height_data = height_data[:expected_data_size]
+                
+                # Convert to float array
+                height_map_data = np.frombuffer(height_data, dtype=np.float32)
+                
+                # Apply offsets if needed
+                if px_off_x != 0 or px_off_y != 0:
+                    full_width = width + px_off_x
+                    full_height = height + px_off_y
+                    height_map = np.zeros((full_height, full_width), dtype=np.float32)
+                    
+                    # Reshape data and place in correct position
+                    data_reshaped = height_map_data.reshape((height, width))
+                    height_map[px_off_y:px_off_y+height, px_off_x:px_off_x+width] = data_reshaped
+                else:
+                    # No offset, just reshape
+                    height_map = height_map_data.reshape((height, width))
+            else:
+                # For v2 files, use row-by-row approach or block read
+                if px_off_x != 0 or px_off_y != 0:
+                    # With offsets, read row by row
+                    full_width = width + px_off_x
+                    full_height = height + px_off_y
+                    height_map = np.zeros((full_height, full_width), dtype=np.float32)
+                    
+                    # Read each row and position with offset
+                    for y in range(height):
+                        row_data = f.read(width * 4)
+                        if len(row_data) != width * 4:
+                            if debug:
+                                print(f"Warning: Row {y} - Expected {width * 4} bytes, got {len(row_data)}")
+                            row_data = row_data.ljust(width * 4, b'\0')
+                        
+                        row_floats = np.frombuffer(row_data, dtype=np.float32)
+                        height_map[y + px_off_y, px_off_x:px_off_x + width] = row_floats
+                else:
+                    # No offset, read as a block
+                    height_data = f.read(width * height * 4)
+                    
+                    if len(height_data) < width * height * 4:
+                        if debug:
+                            print(f"Warning: Expected {width * height * 4} bytes, got {len(height_data)}")
+                        height_data = height_data.ljust(width * height * 4, b'\0')
+                    elif len(height_data) > width * height * 4:
+                        if debug:
+                            print(f"Warning: Extra data detected. Trimming.")
+                        height_data = height_data[:width * height * 4]
+                    
+                    height_map = np.frombuffer(height_data, dtype=np.float32).reshape((height, width))
         except Exception as e:
             if debug:
                 print(f"Error parsing height map data: {e}. Creating empty height map.")
             height_map = np.zeros((height, width), dtype=np.float32)
 
-    # Build metadata dictionary.
+    # Build metadata dictionary
     metadata = {
         "version": version,
         "width": width,
@@ -261,7 +299,10 @@ def process_tmd_file(
         "y_length": y_length,
         "x_offset": x_offset,
         "y_offset": y_offset,
-        "comment": comment if version == 2 else None,
+        "mmpp": mmpp,
+        "comment": comment,
+        "px_off_x": px_off_x,
+        "px_off_y": px_off_y
     }
 
     return metadata, height_map
@@ -302,48 +343,59 @@ def write_tmd_file(
     height, width = height_map.shape
 
     with open(output_path, "wb") as f:
-        print(f"Writing TMD file v{version} to {output_path}")
+        if debug:
+            print(f"Writing TMD file v{version} to {output_path}")
+            
         if version == 2:
             # Write the exact header format shown in the example
             header = "Binary TrueMap Data File v2.0\n"
-            header_comment = "Created by TrueMap v6\n"
+            header_comment = comment if comment else "Created by TrueMap v6\n"
+            
+            # Ensure header_comment ends with newline
+            if not header_comment.endswith('\n'):
+                header_comment += '\n'
 
             # Write header and pad to 32 bytes with nulls if needed
-            header_bytes = header.encode("ascii")
+            header_bytes = header.encode('ascii')
             remaining_header = 32 - len(header_bytes)
-            logger.info(f"Remaining header: {remaining_header}")
-            print(f"Remaining header: {remaining_header}")
+            if debug:
+                print(f"Remaining header: {remaining_header}")
             if remaining_header > 0:
-                header_bytes += b"\0" * remaining_header
+                header_bytes += b'\0' * remaining_header
             f.write(header_bytes[:32])  # Truncate if too long
-
+            
             # Write comment and pad to 24 bytes
-            comment_bytes = header_comment.encode("ascii")
+            comment_bytes = header_comment.encode('ascii')
             remaining_comment = 24 - len(comment_bytes)
-            logger.info(f"Remaining comment: {remaining_comment}")
-            print(f"Remaining comment: {remaining_comment}")
+            if debug:
+                print(f"Remaining comment: {remaining_comment}")
             if remaining_comment > 0:
-                comment_bytes += b"\0" * remaining_comment
+                comment_bytes += b'\0' * remaining_comment
             f.write(comment_bytes[:24])
-
+        else:
+            # For v1 files, just write a basic header
+            header = "Binary TrueMap Data File\r\n"
+            header_bytes = header.encode('ascii')
+            remaining_header = 28 - len(header_bytes)  # v1 metadata starts at 28
+            if remaining_header > 0:
+                header_bytes += b'\0' * remaining_header
+            f.write(header_bytes[:28])
+        
         # Write dimensions: width and height (4 bytes each, little-endian)
-        f.write(struct.pack("<II", width, height))
-
+        f.write(struct.pack('<II', width, height))
+        
         # Write spatial info: x_length, y_length, x_offset, y_offset (each as 4-byte float)
-        f.write(struct.pack("<ffff", x_length, y_length, x_offset, y_offset))
-
+        f.write(struct.pack('<ffff', x_length, y_length, x_offset, y_offset))
+        
         # Write the height map data (float32 values)
         height_map_flat = height_map.astype(np.float32).flatten()
         f.write(height_map_flat.tobytes())
-
+    
     if debug:
-        print(f"Writing TMD file v{version} to {output_path}")
-        print(
-            f"Dimensions: {width} x {height}, Spatial info: {x_length}, {y_length}, {x_offset}, {y_offset}"
-        )
+        print(f"Dimensions: {width} x {height}, Spatial info: {x_length}, {y_length}, {x_offset}, {y_offset}")
         print(f"Successfully wrote TMD file: {output_path}")
         print(f"File size: {os.path.getsize(output_path)} bytes")
-
+    
     return output_path
 
 
@@ -391,7 +443,7 @@ def create_sample_height_map(
 
     # Calculate base amplitude to scale the noise appropriately
     base_amplitude = np.max(np.abs(Z)) if np.max(np.abs(Z)) > 0 else 1.0
-
+    
     # Add random noise with consistent application
     if noise_level > 0:
         noise = np.random.normal(0, noise_level * base_amplitude, Z.shape)

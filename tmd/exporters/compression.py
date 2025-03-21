@@ -1,105 +1,146 @@
-import numpy as np
+"""
+Compression exporters for TMD data.
+
+This module provides functions to export TMD data in compressed formats.
+"""
+
 import os
-import pickle
-import gzip
+import numpy as np
+import json
 
-def export_to_npy(height_map, filename="height_map.npy", compress=False):
+
+def export_to_npy(data, output_path):
     """
-    Exports the height map to a NumPy .npy file.
-
+    Export height map data to NumPy .npy format.
+    
     Args:
-        height_map: 2D numpy array of height values
-        filename: Name of the output .npy file
-        compress: Whether to use compression (uses savez_compressed if True)
-
+        data: Height map as 2D numpy array or dictionary containing height_map
+        output_path: Path to save the .npy file
+        
     Returns:
         Path to the saved file
     """
-    # Ensure output has .npy extension if not compressing, or .npz if compressing
-    if not filename.lower().endswith(".npy") and not compress:
-        filename += ".npy"
-    elif not filename.lower().endswith(".npz") and compress:
-        filename += ".npz"
-
-    if compress:
-        np.savez_compressed(filename, height_map=height_map)
-        print(f"Height map saved to compressed NPZ file: {filename}")
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    
+    # If data is a dictionary, extract the height map
+    if isinstance(data, dict) and 'height_map' in data:
+        height_map = data['height_map']
     else:
-        np.save(filename, height_map)
-        print(f"Height map saved to NPY file: {filename}")
+        height_map = data
+    
+    # Check if height_map is a numpy array
+    if not isinstance(height_map, np.ndarray):
+        raise TypeError("Height map must be a NumPy array")
+    
+    # Save as .npy file
+    np.save(output_path, height_map)
+    print(f"Height map exported to {output_path}")
+    
+    return output_path
 
-    return filename
 
-
-def export_to_npz(data_dict, filename="tmd_data.npz", compress=True):
+def export_to_npz(data, output_path, compress=True):
     """
-    Exports TMD data to a NumPy .npz file with multiple arrays.
-
+    Export TMD data to NumPy .npz format.
+    
     Args:
-        data_dict: Dictionary containing TMD data (height_map, metadata, etc.)
-        filename: Name of the output .npz file
-        compress: Whether to use compression
-
+        data: Dictionary containing height map and metadata
+        output_path: Path to save the .npz file
+        compress: Whether to use compression (default: True)
+        
     Returns:
         Path to the saved file
     """
-    # Ensure output has .npz extension
-    if not filename.lower().endswith(".npz"):
-        filename += ".npz"
-
-    # Prepare export dictionary
-    export_dict = {}
-
-    # Add height map
-    if "height_map" in data_dict:
-        export_dict["height_map"] = data_dict["height_map"]
-
-    # Add metadata as separate arrays
-    for key, value in data_dict.items():
-        if key != "height_map":
-            # Convert string metadata to arrays if needed
-            if isinstance(value, str):
-                export_dict[key] = np.array([value])
-            elif isinstance(value, (int, float)):
-                export_dict[key] = np.array([value])
-            else:
-                export_dict[key] = np.array(value)
-
-    # Save to NPZ file with or without compression
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    
+    # Check if data is a dictionary
+    if not isinstance(data, dict):
+        raise TypeError("Data must be a dictionary")
+    
+    # Extract height map
+    if 'height_map' not in data:
+        raise ValueError("Data dictionary must contain 'height_map'")
+    
+    # Create a copy of the data without the height map for separate storage
+    metadata = {k: v for k, v in data.items() if k != 'height_map'}
+    
+    # Convert non-array types to arrays or strings for npz compatibility
+    for key, value in metadata.items():
+        if not isinstance(value, (np.ndarray, str, int, float, bool)) or value is None:
+            metadata[key] = str(value)
+    
+    # Add metadata as a string for easier recovery
+    try:
+        metadata_str = json.dumps(metadata, default=str)
+    except TypeError:
+        # Fallback if json conversion fails
+        metadata_str = str(metadata)
+    
+    # Save to .npz file
     if compress:
-        np.savez_compressed(filename, **export_dict)
+        np.savez_compressed(
+            output_path,
+            height_map=data['height_map'],
+            metadata=metadata_str
+        )
     else:
-        np.savez(filename, **export_dict)
+        np.savez(
+            output_path,
+            height_map=data['height_map'],
+            metadata=metadata_str
+        )
+    
+    print(f"TMD data exported to {output_path}" + (" (compressed)" if compress else ""))
+    return output_path
 
-    print(f"TMD data saved to {'compressed ' if compress else ''}NPZ file: {filename}")
-    return filename
 
-
-def export_height_map_with_metadata_pickle_gzip(height_map, metadata, stats=None, images=None, filename="height_map.pkl.gz"):
+def load_from_npy(file_path):
     """
-    Exports the height map and metadata to a compressed pickle file.
-
+    Load height map data from a .npy file.
+    
     Args:
-        height_map: 2D numpy array of height values
-        metadata: Dictionary containing metadata
-        stats: Dictionary containing height map statistics
-        images: List of image paths to include
-        filename: Name of the output .pkl.gz file
-
+        file_path: Path to the .npy file
+        
     Returns:
-        Path to the saved file
+        NumPy array containing the height map
     """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    return np.load(file_path)
 
-    # Prepare data dictionary
-    data_dict = {
-        "height_map": height_map,
-        "metadata": metadata,
-        "stats": stats,
-        "images": images
-    }
 
-    with gzip.open(filename, "wb") as f:
-        pickle.dump(data_dict, f)
-
-    print(f"Height map and metadata saved to compressed pickle file: {filename}")
-    return filename
+def load_from_npz(file_path):
+    """
+    Load TMD data from a .npz file.
+    
+    Args:
+        file_path: Path to the .npz file
+        
+    Returns:
+        Dictionary containing height map and metadata
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    # Load the .npz file
+    npz_data = np.load(file_path)
+    
+    # Extract height map
+    height_map = npz_data['height_map']
+    
+    # Extract metadata
+    try:
+        metadata_str = str(npz_data['metadata'])
+        metadata = json.loads(metadata_str)
+    except (KeyError, json.JSONDecodeError):
+        # Fallback if metadata is missing or invalid
+        metadata = {}
+    
+    # Combine into a single dictionary
+    result = metadata.copy()
+    result['height_map'] = height_map
+    
+    return result

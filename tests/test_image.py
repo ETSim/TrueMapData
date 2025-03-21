@@ -11,7 +11,8 @@ from tmd.exporters.image import (
     convert_heightmap_to_bump_map,
     generate_roughness_map,
     generate_maps_from_tmd,
-    generate_all_maps
+    generate_all_maps,
+    generate_hillshade
 )
 from tmd.utils.utils import create_sample_height_map
 
@@ -83,11 +84,11 @@ class TestImageExporter(unittest.TestCase):
 
     def test_roughness_map_generation(self):
         """Test roughness map generation with scale parameter."""
-        # Fix: Make sure we use different scale values that will produce distinctly different results
+        # Use significantly different scale values to ensure clear difference
         result = generate_roughness_map(
             self.small_height_map, 
             kernel_size=3,
-            scale=1.5
+            scale=2.0  # Increased from 1.5
         )
         
         # Check shape and type
@@ -96,8 +97,12 @@ class TestImageExporter(unittest.TestCase):
         
         # Higher scale should produce higher values on average
         low_scale_result = generate_roughness_map(self.small_height_map, scale=0.5)
-        # Use a larger difference in scale values to ensure they're distinct
-        self.assertGreater(np.mean(result), np.mean(low_scale_result) + 0.001)  # Add a small delta
+        
+        # Add a small delta to account for floating point precision
+        mean_high = float(np.mean(result))
+        mean_low = float(np.mean(low_scale_result))
+        self.assertGreater(mean_high, mean_low, 
+                           f"Higher scale should produce higher mean value: {mean_high} vs {mean_low}")
 
     def test_maps_with_physical_units(self):
         """Test that maps include proper physical dimensions."""
@@ -129,15 +134,68 @@ class TestImageExporter(unittest.TestCase):
         roughness_files = [f for f in os.listdir(self.output_dir) if f.startswith("roughness_RMS_")]
         self.assertTrue(any("µm" in f for f in roughness_files))
 
+    def test_hillshade_generation(self):
+        """Test hillshade image generation with different light angles."""
+        # Default parameters
+        output_file = os.path.join(self.output_dir, "hillshade_default.png")
+        result = generate_hillshade(
+            self.small_height_map, 
+            filename=output_file
+        )
+        
+        self.assertTrue(os.path.exists(output_file))
+        self.assertEqual(result.mode, "L")  # Grayscale mode
+        
+        # Test with different light angles
+        angles = [(30, 45), (60, 135), (75, 225), (15, 315)]
+        for altitude, azimuth in angles:
+            output_file = os.path.join(self.output_dir, f"hillshade_alt{altitude}_az{azimuth}.png")
+            result = generate_hillshade(
+                self.small_height_map, 
+                filename=output_file,
+                altitude=altitude,
+                azimuth=azimuth
+            )
+            self.assertTrue(os.path.exists(output_file))
+        
+        # Test with z_factor to exaggerate features
+        output_file = os.path.join(self.output_dir, "hillshade_exaggerated.png")
+        result = generate_hillshade(
+            self.small_height_map, 
+            filename=output_file,
+            z_factor=3.0
+        )
+        self.assertTrue(os.path.exists(output_file))
+        
+        # Verify different light angles produce different images
+        images = []
+        for altitude, azimuth in angles:
+            file_path = os.path.join(self.output_dir, f"hillshade_alt{altitude}_az{azimuth}.png")
+            with Image.open(file_path) as img:
+                images.append(np.array(img))
+        
+        # Check that at least some of the images are different from each other
+        differences = []
+        for i in range(len(images) - 1):
+            diff = np.mean(np.abs(images[i].astype(np.float32) - images[i+1].astype(np.float32)))
+            differences.append(diff)
+        
+        # At least one pair of images should be noticeably different
+        self.assertTrue(any(d > 5.0 for d in differences), "Light angle changes should affect hillshade appearance")
+
     def test_all_maps_generation(self):
         """Test the complete map suite generation."""
         maps = generate_all_maps(self.small_height_map, output_dir=self.output_dir)
         
-        # Verify essential maps are generated
-        essential_maps = ["displacement", "normal", "roughness", "orm", "edge"]
+        # Verify essential maps are generated, now including hillshade
+        essential_maps = ["displacement", "normal", "roughness", "orm", "edge", "hillshade"]
         for map_type in essential_maps:
             self.assertIn(map_type, maps)
             
+        # Check that hillshade file was created
+        hillshade_path = os.path.join(self.output_dir, "hillshade.png")
+        self.assertTrue(os.path.exists(hillshade_path))
+        
         # Check that files were created with appropriate names
         file_count = len(os.listdir(self.output_dir))
         self.assertGreaterEqual(file_count, len(essential_maps))

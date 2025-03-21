@@ -1,0 +1,27 @@
+{
+  "physical_dimensions": {
+    "width": 10.0,
+    "height": 10.0,
+    "units": "\u00b5m",
+    "pixel_size_x": 0.04975124378109453,
+    "pixel_size_y": 0.05
+  },
+  "roughness": {
+    "rms": 0.04108666628599167
+  },
+  "slope": {
+    "max_angle": 89.22713244894537
+  },
+  "generated_maps": [
+    "displacement",
+    "normal",
+    "bump",
+    "roughness",
+    "ambient_occlusion",
+    "base_color",
+    "slope",
+    "orm",
+    "edge",
+    "smoothness"
+  ]
+}

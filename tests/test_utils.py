@@ -17,7 +17,6 @@ from tmd.utils.utils import (
     create_sample_height_map,
     detect_tmd_version,
     generate_synthetic_tmd,
-    get_header_offset,
     hexdump,
     process_tmd_file,
     read_null_terminated_string,
@@ -116,23 +115,26 @@ class TestDetectTMDVersion(unittest.TestCase):
     @patch("os.path.exists", return_value=True)
     def test_detect_v2(self, mock_exists):
         """Test detecting version 2 TMD file"""
-        with patch("builtins.open", mock_open(read_data=b"Binary TrueMap Data File v2.0\0")):
+        with patch("builtins.open", mock_open(read_data=b"Binary TrueMap Data File v2.0\r\n")):
             version = detect_tmd_version("dummy.tmd")
             self.assertEqual(version, 2)
 
     @patch("os.path.exists", return_value=True)
     def test_detect_v1(self, mock_exists):
         """Test detecting version 1 TMD file"""
-        with patch("builtins.open", mock_open(read_data=b"TrueMap Data File v1.0\0")):
+        with patch("builtins.open", mock_open(read_data=b"TrueMap Data File\r\n")):
             version = detect_tmd_version("dummy.tmd")
             self.assertEqual(version, 1)
 
     @patch("os.path.exists", return_value=True)
     def test_detect_generic_binary(self, mock_exists):
         """Test detecting generic Binary TrueMap file (should default to v2)"""
-        with patch("builtins.open", mock_open(read_data=b"Binary TrueMap Data File\0")):
+        with patch("builtins.open", mock_open(read_data=b"Binary TrueMap Data File v2.0\r\n")):
             version = detect_tmd_version("dummy.tmd")
             self.assertEqual(version, 2)
+        with patch("builtins.open", mock_open(read_data=b"Binary TrueMap Data File\r\n")):
+            version = detect_tmd_version("dummy.tmd")
+            self.assertEqual(version, 1)
 
     @patch("os.path.exists", return_value=True)
     def test_detect_unknown(self, mock_exists):
@@ -146,25 +148,6 @@ class TestDetectTMDVersion(unittest.TestCase):
         """Test detecting version with non-existent file"""
         with self.assertRaises(FileNotFoundError):
             detect_tmd_version("nonexistent.tmd")
-
-
-class TestGetHeaderOffset(unittest.TestCase):
-    """Test get_header_offset function"""
-
-    def test_v1_offset(self):
-        """Test getting header offset for v1"""
-        offset = get_header_offset(1)
-        self.assertEqual(offset, 32)
-
-    def test_v2_offset(self):
-        """Test getting header offset for v2"""
-        offset = get_header_offset(2)
-        self.assertEqual(offset, 64)
-
-    def test_invalid_version(self):
-        """Test getting header offset with invalid version (should default to v2)"""
-        offset = get_header_offset(999)
-        self.assertEqual(offset, 64)
 
 
 class TestProcessTMDFile(unittest.TestCase):

@@ -81,6 +81,22 @@ convert_heightmap_to_obj(
 )
 ```
 
+### Adding a Solid Base for 3D Printing
+
+```python
+from tmd.exporters.model import convert_heightmap_to_stl
+
+# Export with a solid base for better 3D printing stability
+convert_heightmap_to_stl(
+    height_map,
+    filename="surface_with_base.stl",
+    x_length=50.0,   # 50mm width
+    y_length=50.0,   # 50mm length
+    z_scale=1.0,     
+    base_height=2.0  # 2mm thick solid base
+)
+```
+
 ### Using Meshio-Based Exporters
 
 ```python
@@ -119,13 +135,14 @@ For 3D printing applications, follow these steps:
    ```python
    from tmd.exporters.model import convert_heightmap_to_stl
    
-   # For 3D printing, use binary STL with height exaggeration
+   # For 3D printing, use binary STL with height exaggeration and a solid base
    convert_heightmap_to_stl(
        prepared_map,
        filename="print_ready.stl",
        x_length=50.0,    # 50mm width
        y_length=50.0,    # 50mm length
        z_scale=10.0,     # Exaggerate height by 10x for visibility
+       base_height=3.0,  # 3mm solid base for stability
        ascii=False       # Binary format for smaller file size
    )
    ```

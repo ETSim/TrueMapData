@@ -202,8 +202,6 @@ The GelSight TMD file format is very similar to the TrueMap v6 format with subtl
 
 The processor uses the file name (or structure hints) to choose the appropriate parser for TrueMap v6 or GelSight TMD files.
 
----
-
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

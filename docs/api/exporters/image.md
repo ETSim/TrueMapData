@@ -1,6 +1,6 @@
-# Image Exporter
+# Image Exporters
 
-The Image Exporter module enables conversion of height maps to various image formats for use in texture mapping, game development, and visualization.
+The TMD image exporters module provides tools for converting heightmaps to various image formats that are useful for visualization, texture mapping, and material creation.
 
 ## Supported Maps
 
@@ -104,6 +104,7 @@ hillshade = maps["hillshade"]
 When developing materials for games or 3D applications, you'll often need a complete set of texture maps. The `generate_all_maps` function creates all necessary maps with consistent parameters.
 
 For terrain visualization, use the hillshade function with different angles to highlight various features:
+
 - Low altitude (15-30°) with varied azimuths: Shows subtle terrain details
 - Higher altitude (45-60°): Shows overall terrain structure
 - Adjusting z_factor: Controls the emphasis of height differences

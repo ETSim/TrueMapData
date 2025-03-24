@@ -132,12 +132,12 @@ for i, percentage in enumerate(percentages):
         axis='x',
         percentage=percentage
     )
-    
+
     # Get x axis positions
     x_values = np.linspace(0, metadata['x_length'], len(profile))
-    
+
     # Plot with label and color
-    plt.plot(x_values, profile, colors[i], linewidth=2, 
+    plt.plot(x_values, profile, colors[i], linewidth=2,
              label=f'Profile at {percentage}%')
 
 plt.title('Height Profiles at Different Positions')

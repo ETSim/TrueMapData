@@ -114,34 +114,37 @@ plt.savefig('analysis_result.png', dpi=300)
 For long-term data storage or dataset creation:
 
 1. **Process and prepare data**:
+
    ```python
    from tmd.processor import TMDProcessor
    from tmd.utils.filter import apply_gaussian_filter
-   
+
    processor = TMDProcessor("sample.tmd")
    data = processor.process()
    height_map = data['height_map']
-   
+
    # Process if needed
    filtered_map = apply_gaussian_filter(height_map, sigma=0.5)
    ```
 
 2. **Save complete dataset**:
+
    ```python
    from tmd.exporters.compression import export_to_npz
-   
+
    # Combine original and processed data
    archive_data = {
        'original': height_map,
        'filtered': filtered_map,
        'metadata': {k: v for k, v in data.items() if k != 'height_map'}
    }
-   
+
    # Save in compressed format
    export_to_npz(archive_data, "dataset_001.npz")
    ```
 
 3. **Document the archive**:
+
    ```python
    # Create a simple readme
    with open("dataset_001_readme.txt", "w") as f:

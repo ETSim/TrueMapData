@@ -89,14 +89,14 @@ logging.basicConfig(level=logging.INFO)
 try:
     processor = TMDProcessor("sample.tmd")
     data = processor.process()
-    
+
     if data is None:
         print("Processing failed, check logs for details")
     else:
         print("Processing successful")
         height_map = data['height_map']
         # Continue with analysis...
-        
+
 except FileNotFoundError:
     print("TMD file not found")
 except Exception as e:
@@ -117,23 +117,23 @@ def process_tmd_file(file_path, output_dir="."):
     """Complete processing pipeline for a TMD file."""
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Process TMD file
     processor = TMDProcessor(file_path)
     data = processor.process()
-    
+
     if data is None:
         print(f"Failed to process {file_path}")
         return None
-    
+
     # Get height map
     height_map = data['height_map']
-    
+
     # Export metadata
     metadata_file = processor.export_metadata(
         os.path.join(output_dir, "metadata.txt")
     )
-    
+
     # Filter and threshold
     smoothed_map = apply_gaussian_filter(height_map, sigma=1.0)
     cleaned_map = threshold_height_map(
@@ -141,15 +141,15 @@ def process_tmd_file(file_path, output_dir="."):
         min_height=smoothed_map.min() * 1.05,
         max_height=smoothed_map.max() * 0.95
     )
-    
+
     # Calculate roughness
     roughness = calculate_rms_roughness(height_map)
     print(f"RMS Roughness: {roughness:.4f}")
-    
+
     # Generate material maps
     material_dir = os.path.join(output_dir, "materials")
     maps = generate_all_maps(cleaned_map, output_dir=material_dir)
-    
+
     # Generate 3D model
     model_file = os.path.join(output_dir, "model.stl")
     convert_heightmap_to_stl(
@@ -159,7 +159,7 @@ def process_tmd_file(file_path, output_dir="."):
         y_length=data.get('y_length', 10.0),
         z_scale=5.0
     )
-    
+
     print(f"Processing complete. Results saved to {output_dir}")
     return data
 

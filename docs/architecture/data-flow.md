@@ -11,27 +11,27 @@ flowchart TD
     TMDFile[TMD File] --> Processor
     Processor --> HeightMap
     Processor --> Metadata
-    
+
     HeightMap --> Processing[Processing Operations]
     HeightMap --> Filtering[Filtering Operations]
     HeightMap --> Analysis[Analysis Operations]
-    
+
     Processing --> ProcessedMap[Processed Height Map]
     Filtering --> FilteredMap[Filtered Height Map]
     Analysis --> AnalysisResults[Analysis Results]
-    
+
     ProcessedMap --> Visualization
     FilteredMap --> Visualization
     AnalysisResults --> Visualization
-    
+
     ProcessedMap --> Export
     FilteredMap --> Export
     AnalysisResults --> Export
-    
+
     Export --> ImageFormats[Image Formats]
     Export --> ModelFormats[3D Model Formats]
     Export --> DataFormats[Data Formats]
-    
+
     Visualization --> StaticViz[Static Visualizations]
     Visualization --> InteractiveViz[Interactive Visualizations]
 ```
@@ -41,6 +41,7 @@ flowchart TD
 ### TMD File
 
 The starting point - a binary file containing:
+
 - Height map data
 - Metadata about physical dimensions
 - File format information
@@ -87,6 +88,7 @@ Throughout the pipeline, the height map undergoes various transformations:
    - Height map → Displacement map (grayscale image)
     P3[Section Location] -.->|Configure| D
     end
+
 ```
 
 ## Error Handling Flow

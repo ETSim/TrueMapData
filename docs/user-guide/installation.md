@@ -121,20 +121,23 @@ mkdocs build
 ### Common Issues
 
 1. **Import errors**: Ensure all dependencies are installed correctly
+
    ```bash
    pip install --upgrade truemapdata[full]
    ```
 
 2. **OpenCV installation issues**: On some systems, you may need to install OpenCV separately:
+
    ```bash
    # On Debian/Ubuntu
    sudo apt-get install python3-opencv
-   
+
    # Or with pip
    pip install opencv-python
    ```
 
 3. **File permission errors**: When saving files, ensure the output directory is writable:
+
    ```python
    import os
    os.makedirs("output", exist_ok=True)
@@ -144,7 +147,7 @@ mkdocs build
 
 If you encounter issues:
 
-1. Check the documentation at https://yourusername.github.io/tmd/
+1. Check the documentation at <https://yourusername.github.io/tmd/>
 2. Open an issue on GitHub
 3. Contact the maintainers
 

@@ -23,6 +23,7 @@ A Python-based TMD file processor with visualization and export capabilities for
   - [TrueMap v6 Format](#truemap-v6-format)
   - [GelSight Format](#gelsight-format)
 - [Visual Examples](#visual-examples)
+- [GelSight Sequence Visualization](#gelsight-sequence-visualization)
 - [License](#license)
 
 ---
@@ -125,7 +126,6 @@ Run the provided **Jupyter Notebook** for step-by-step examples.
 
 ### Quick Install
 
-
 ```bash
 pip install truemapdata
 ```
@@ -201,6 +201,27 @@ The GelSight TMD file format is very similar to the TrueMap v6 format with subtl
    A float32 array representing the height values over a grid defined by the width and height.
 
 The processor uses the file name (or structure hints) to choose the appropriate parser for TrueMap v6 or GelSight TMD files.
+
+---
+
+## GelSight Sequence Visualization
+
+The repository includes a script to visualize GelSight sensor data as a sequence:
+
+```bash
+# Run with default GelSight files
+python visualize_gelsight_sequence.py --show
+
+# Specify custom TMD files and visualization options
+python visualize_gelsight_sequence.py --files path/to/file1.tmd path/to/file2.tmd --format 3d --z-scale 1.5 2.0 --show
+```
+
+This creates interactive visualizations including:
+
+- 3D surface plots with a time slider
+- Animations of changes between frames
+- Statistical analysis of the sequence
+- Difference maps between consecutive frames
 
 ## License
 

@@ -16,7 +16,7 @@ The most widely-compatible visualization module, providing static plots with mat
 
 ::: tmd.plotters.matplotlib.plot_height_map_matplotlib
 
-::: tmd.plotters.matplotlib.plot_2d_heatmap_matplotlib 
+::: tmd.plotters.matplotlib.plot_2d_heatmap_matplotlib
 
 ::: tmd.plotters.matplotlib.plot_x_profile_matplotlib
 
@@ -89,7 +89,7 @@ plot_cross_section_plotly(
 
 ## Comparing Visualization Options
 
-| Feature | Matplotlib | Plotly | 
+| Feature | Matplotlib | Plotly |
 |---------|------------|--------|
 | **Type** | Static | Interactive |
 | **Output** | PNG, PDF, SVG | HTML, Jupyter |
@@ -112,52 +112,52 @@ import os
 def analyze_tmd(file_path, output_dir="."):
     """Basic analysis workflow for TMD files."""
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Process file
     processor = TMDProcessor(file_path)
     data = processor.process()
     height_map = data['height_map']
-    
+
     # 3D visualization
     plot_height_map_matplotlib(
         height_map,
         colorbar_label="Height (µm)",
         filename=os.path.join(output_dir, "3d_surface.png")
     )
-    
+
     # 2D heatmap
     plot_2d_heatmap_matplotlib(
         height_map,
         colorbar_label="Height (µm)",
         filename=os.path.join(output_dir, "heatmap.png")
     )
-    
+
     # Extract and plot cross-sections
     row_pos = height_map.shape[0] // 2
     col_pos = height_map.shape[1] // 2
-    
+
     x_pos, x_heights = extract_cross_section(height_map, data, axis='x', position=row_pos)
     y_pos, y_heights = extract_cross_section(height_map, data, axis='y', position=col_pos)
-    
+
     # Create cross-section plots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-    
+
     ax1.plot(x_pos, x_heights)
     ax1.set_title(f"X Cross-section at row {row_pos}")
     ax1.set_xlabel("X Position")
     ax1.set_ylabel("Height")
     ax1.grid(True, alpha=0.3)
-    
+
     ax2.plot(y_pos, y_heights)
     ax2.set_title(f"Y Cross-section at column {col_pos}")
     ax2.set_xlabel("Y Position")
     ax2.set_ylabel("Height")
     ax2.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "cross_sections.png"), dpi=300)
     plt.close()
-    
+
     print(f"Analysis complete. Results saved to {output_dir}")
     return data
 
@@ -175,22 +175,22 @@ import os
 def create_web_visualization(tmd_files, output_dir):
     """Create web-ready visualizations for multiple TMD files."""
     os.makedirs(output_dir, exist_ok=True)
-    
+
     for file_path in tmd_files:
         try:
             # Extract filename
             file_name = os.path.splitext(os.path.basename(file_path))[0]
-            
+
             # Process TMD file
             processor = TMDProcessor(file_path)
             data = processor.process()
-            
+
             if data is None:
                 print(f"Failed to process {file_path}")
                 continue
-                
+
             height_map = data['height_map']
-            
+
             # Create interactive visualization
             html_path = os.path.join(output_dir, f"{file_name}.html")
             plot_height_map_3d(
@@ -199,23 +199,23 @@ def create_web_visualization(tmd_files, output_dir):
                 colorscale="Viridis",
                 filename=html_path
             )
-            
+
             print(f"Created interactive visualization: {html_path}")
-            
+
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
-    
+
     # Create index.html to link all visualizations
     with open(os.path.join(output_dir, "index.html"), "w") as f:
         f.write("<html><head><title>TMD Visualizations</title></head><body>\n")
         f.write("<h1>TMD Surface Visualizations</h1>\n<ul>\n")
-        
+
         for file_path in tmd_files:
             file_name = os.path.splitext(os.path.basename(file_path))[0]
             f.write(f'  <li><a href="{file_name}.html">{file_name}</a></li>\n')
-            
+
         f.write("</ul></body></html>")
-    
+
     print(f"Created visualization index at {os.path.join(output_dir, 'index.html')}")
 
 # Example usage

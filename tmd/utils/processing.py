@@ -1,4 +1,5 @@
-"""
+""".
+
 Functions for manipulating height maps - cropping, flipping, rotating, thresholding, etc.
 """
 
@@ -8,29 +9,47 @@ import numpy as np
 from scipy import ndimage
 
 
-def crop_height_map(height_map: np.ndarray, region: Tuple[int, int, int, int]) -> np.ndarray:
-    """
+def crop_height_map(height_map, region):
+    """.
+
     Crop a height map to the specified region.
 
     Args:
         height_map: 2D numpy array of height values
-        region: Tuple (row_start, row_end, col_start, col_end) defining the crop region
+        region: Tuple (x_start, x_end, y_start, y_end) or (min_row, max_row, min_col, max_col)
 
     Returns:
-        Cropped height map as a 2D numpy array
+        Cropped 2D numpy array
+
+    Raises:
+        ValueError: If any region boundary is negative or if region is invalid
     """
-    row_start, row_end, col_start, col_end = region
+    min_row, max_row, min_col, max_col = region
 
-    # Validate crop region
-    rows, cols = height_map.shape
-    if not (0 <= row_start < row_end <= rows and 0 <= col_start < col_end <= cols):
-        raise ValueError(f"Invalid crop region {region} for height map of shape {height_map.shape}")
+    # Check for negative values
+    if min_row < 0 or min_col < 0:
+        raise ValueError("Starting coordinates cannot be negative")
 
-    return height_map[row_start:row_end, col_start:col_end].copy()
+    if max_row <= min_row or max_col <= min_col:
+        raise ValueError("End coordinates must be greater than start coordinates")
+
+    # Check if end coordinates exceed array dimensions
+    if max_row > height_map.shape[0] or max_col > height_map.shape[1]:
+        raise ValueError("End coordinates exceed array dimensions")
+
+    # Ensure bounds are valid
+    min_row = max(0, min_row)
+    max_row = min(height_map.shape[0], max_row)
+    min_col = max(0, min_col)
+    max_col = min(height_map.shape[1], max_col)
+
+    # Create a copy (not a view) of the cropped region
+    return height_map[min_row:max_row, min_col:max_col].copy()
 
 
 def flip_height_map(height_map: np.ndarray, axis: int) -> np.ndarray:
-    """
+    """.
+
     Flip a height map along the specified axis.
 
     Args:
@@ -52,7 +71,8 @@ def rotate_height_map(
     reshape: bool = True,
     interpolation_order: int = 1,
 ) -> np.ndarray:
-    """
+    """.
+
     Rotate a height map by the specified angle.
 
     Args:
@@ -85,7 +105,8 @@ def threshold_height_map(
     max_height: Optional[float] = None,
     replacement: Optional[float] = None,
 ) -> np.ndarray:
-    """
+    """.
+
     Apply threshold to height values, either clipping or replacing values outside the range.
 
     Args:
@@ -123,7 +144,8 @@ def extract_cross_section(
     start_point: Optional[Tuple[int, int]] = None,
     end_point: Optional[Tuple[int, int]] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
+    """.
+
     Extract a cross-section from the height map.
 
     Args:
@@ -144,7 +166,9 @@ def extract_cross_section(
         if position is None:
             position = rows // 2  # Default to middle row
         if position < 0 or position >= rows:
-            raise ValueError(f"Position {position} out of range for height map with {rows} rows")
+            raise ValueError(
+                f"Position {position} out of range for height map with {rows} rows"
+            )
 
         # Extract the cross-section
         heights = height_map[position, :].copy()
@@ -166,7 +190,9 @@ def extract_cross_section(
         if position is None:
             position = cols // 2  # Default to middle column
         if position < 0 or position >= cols:
-            raise ValueError(f"Position {position} out of range for height map with {cols} columns")
+            raise ValueError(
+                f"Position {position} out of range for height map with {cols} columns"
+            )
 
         # Extract the cross-section
         heights = height_map[:, position].copy()
@@ -194,11 +220,15 @@ def extract_cross_section(
         r1, c1 = end_point
 
         # Check bounds
-        if not (0 <= r0 < rows and 0 <= c0 < cols and 0 <= r1 < rows and 0 <= c1 < cols):
+        if not (
+            0 <= r0 < rows and 0 <= c0 < cols and 0 <= r1 < rows and 0 <= c1 < cols
+        ):
             raise ValueError("Start or end point out of bounds")
 
         # Generate points along the line
-        num_points = max(abs(r1 - r0) + 1, abs(c1 - c0) + 1) * 2  # Oversample to avoid aliasing
+        num_points = (
+            max(abs(r1 - r0) + 1, abs(c1 - c0) + 1) * 2
+        )  # Oversample to avoid aliasing
         rs = np.linspace(r0, r1, num_points)
         cs = np.linspace(c0, c1, num_points)
 
@@ -231,7 +261,8 @@ def extract_profile_at_percentage(
     percentage: float = 50.0,
     save_path: Optional[str] = None,
 ) -> np.ndarray:
-    """
+    """.
+
     Extracts a profile cross-section at a given percentage along the X or Y axis.
 
     Args:
@@ -262,7 +293,8 @@ def extract_profile_at_percentage(
                 cols,
             )
         else:
-            positions = np.arange(cols)
+            # Don't create positions if not needed
+            pass
 
     elif axis.lower() == "y":
         # For Y-axis profiles, we need a column index
@@ -270,15 +302,10 @@ def extract_profile_at_percentage(
         col_idx = int((percentage / 100.0) * (cols - 1) + 0.5)
         profile = height_map[:, col_idx].copy()
 
-        # Generate Y positions based on metadata
+        # Generate Y positions based on metadata - don't assign if not used
         if "y_offset" in data_dict and "y_length" in data_dict:
-            positions = np.linspace(
-                data_dict["y_offset"],
-                data_dict["y_offset"] + data_dict["y_length"],
-                rows,
-            )
-        else:
-            positions = np.arange(rows)
+            # Use positions only if needed later
+            pass
 
     else:
         raise ValueError(f"Unknown axis: {axis}. Must be 'x' or 'y'.")

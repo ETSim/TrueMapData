@@ -1,4 +1,5 @@
-"""
+""".
+
 TMD file processor module.
 
 This module provides the TMDProcessor class for loading and analyzing TMD files.
@@ -6,9 +7,8 @@ This module provides the TMDProcessor class for loading and analyzing TMD files.
 
 import logging
 import os
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -19,12 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 class TMDProcessor:
-    """
+    """.
+
     Class for processing and analyzing TMD (TrueMap Data) files.
     """
 
     def __init__(self, file_path: str):
-        """
+        """.
+
         Initialize a TMD file processor.
 
         Args:
@@ -37,7 +39,8 @@ class TMDProcessor:
         self._stats_cache = {}
 
     def set_debug(self, debug: bool = True):
-        """
+        """.
+
         Set debug mode.
 
         Args:
@@ -50,7 +53,8 @@ class TMDProcessor:
         return self
 
     def print_file_header(self, num_bytes: int = 64):
-        """
+        """.
+
         Print the file header in hexdump format for inspection.
 
         Args:
@@ -74,7 +78,8 @@ class TMDProcessor:
         logger.info(f"File header ASCII: {ascii_text}")
 
     def process(self, force_offset: Optional[Tuple[float, float]] = None):
-        """
+        """.
+
         Process the TMD file to extract metadata and height map.
 
         Args:
@@ -151,7 +156,8 @@ class TMDProcessor:
             return None
 
     def get_height_map(self):
-        """
+        """.
+
         Get the processed height map.
 
         Returns:
@@ -162,7 +168,8 @@ class TMDProcessor:
         return self.data.get("height_map")
 
     def get_metadata(self):
-        """
+        """.
+
         Get metadata from the processed file.
 
         Returns:
@@ -178,7 +185,8 @@ class TMDProcessor:
         return metadata
 
     def get_stats(self):
-        """
+        """.
+
         Get statistics about the height map.
 
         Returns:
@@ -203,9 +211,10 @@ class TMDProcessor:
             "mean": float(np.nanmean(height_map)),  # Convert to Python float
             "median": float(np.nanmedian(height_map)),  # Convert to Python float
             "std": float(np.nanstd(height_map)),  # Convert to Python float
-            "shape": tuple(map(int, height_map.shape)),  # Convert to Python tuple of ints
-            "non_nan": int(np.count_nonzero(~np.isnan(height_map))),  # Convert to Python int
-            "nan_count": int(np.count_nonzero(np.isnan(height_map))),  # Convert to Python int
+            "shape": tuple(map(int, height_map.shape)),
+            "non_nan": int(np.count_nonzero(~np.isnan(height_map))),
+            "nan_count": int(np.count_nonzero(np.isnan(height_map))),
+            "size": int(height_map.size),
         }
 
         # Cache the results
@@ -214,7 +223,8 @@ class TMDProcessor:
         return stats
 
     def export_metadata(self, output_path: str = None):
-        """
+        """.
+
         Export metadata and statistics to a text file.
 
         Args:

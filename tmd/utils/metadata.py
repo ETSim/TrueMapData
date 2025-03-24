@@ -1,4 +1,5 @@
-"""
+""".
+
 metadata.py
 
 This module provides functions for computing statistics on TMD height maps
@@ -11,7 +12,8 @@ import numpy as np
 
 
 def compute_stats(height_map: np.ndarray) -> Dict[str, Any]:
-    """
+    """.
+
     Calculate statistics for a given height map.
 
     Args:
@@ -33,8 +35,11 @@ def compute_stats(height_map: np.ndarray) -> Dict[str, Any]:
     return stats
 
 
-def export_metadata(metadata: Dict[str, Any], stats: Dict[str, Any], output_path: str) -> str:
-    """
+def export_metadata(
+    metadata: Dict[str, Any], stats: Dict[str, Any], output_path: str
+) -> str:
+    """.
+
     Export metadata and height map statistics to a text file.
 
     Args:
@@ -59,7 +64,8 @@ def export_metadata(metadata: Dict[str, Any], stats: Dict[str, Any], output_path
 
 
 def export_metadata_txt(data_dict, filename="tmd_metadata.txt"):
-    """
+    """.
+
     Exports TMD metadata to a human-readable text file.
 
     Args:
@@ -91,3 +97,28 @@ def export_metadata_txt(data_dict, filename="tmd_metadata.txt"):
 
     print(f"TMD metadata saved to text file: {filename}")
     return filename
+
+
+def extract_metadata(input_file):
+    """.
+
+    Extract metadata from TMD or other supported files.
+
+    Args:
+        input_file: Path to input file.
+
+    Returns:
+        dict: Extracted metadata.
+    """
+    from ..processor import TMDProcessor
+
+    # Check if file is a TMD file
+    if input_file.lower().endswith(".tmd"):
+        processor = TMDProcessor(input_file)
+        data = processor.process()
+        if data and "metadata" in data:
+            return data["metadata"]
+        return {}
+
+    # Add support for other file types as needed
+    return {}

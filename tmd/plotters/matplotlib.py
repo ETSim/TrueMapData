@@ -1,30 +1,107 @@
-"""
-Matplotlib-based visualization functions for TMD data.
+""".
+
+Matplotlib visualization functions for TMD height maps.
 """
 
 import warnings
-from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Handle potential import issues with mplot3d
+# Try to import 3D plotting, with graceful fallback
+HAS_3D = False
 try:
-    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+    # Just check if the module is available without actually importing
+    import mpl_toolkits.mplot3d.axes3d  # noqa: F401
+
+    HAS_3D = True
 except ImportError:
-    warnings.warn(
-        "Could not import Axes3D from mpl_toolkits.mplot3d. "
-        "3D plotting functionality may be limited."
+    pass
+
+
+def plot_height_map_3d(
+    height_map, ax=None, fig=None, cmap="terrain", z_scale=1.0, **kwargs
+):
+    """.
+
+    Create a 3D surface plot of a height map.
+
+    Args:
+        height_map: 2D numpy array of height values
+        ax: Optional matplotlib Axes3D object
+        fig: Optional matplotlib Figure object
+        cmap: Colormap to use
+        z_scale: Scale factor for Z-axis values
+        **kwargs: Additional keyword arguments for plot_surface
+
+    Returns:
+        tuple: (fig, ax) - matplotlib figure and axes objects
+    """
+    # Create figure and axes if not provided
+    if fig is None:
+        fig = plt.figure(figsize=kwargs.get("figsize", (10, 8)))
+
+    # If 3D plotting is not available, fall back to 2D contour plot
+    if not HAS_3D:
+        warnings.warn("\n3D plotting not available - falling back to 2D contour plot")
+        if ax is None:
+            ax = fig.add_subplot(111)
+
+        # Create a contour plot instead
+        x = np.arange(0, height_map.shape[1])
+        y = np.arange(0, height_map.shape[0])
+        contour = ax.contourf(x, y, height_map, cmap=cmap, levels=20)
+        fig.colorbar(contour, ax=ax, label="Height")
+        ax.set_title("Height Map (2D Contour Plot)")
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+
+        return fig, ax
+
+    # If 3D plotting is available, create a 3D surface plot
+    if ax is None:
+        ax = fig.add_subplot(111, projection="3d")
+
+    # Create a surface plot
+    rows, cols = height_map.shape
+    x = np.arange(0, cols)
+    y = np.arange(0, rows)
+    x, y = np.meshgrid(x, y)
+
+    # Apply z-scaling
+    z = height_map * z_scale
+
+    # Plot the surface
+    surf = ax.plot_surface(
+        x,
+        y,
+        z,
+        cmap=cmap,
+        linewidth=0,
+        antialiased=True,
+        **{k: v for k, v in kwargs.items() if k not in ["figsize"]},
     )
 
-# Default settings
+    # Add a color bar
+    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5, label="Height")
+
+    # Set labels and title
+    ax.set_title("Height Map (3D Surface Plot)")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Height")
+
+    return fig, ax
+
+
 COLORBAR_LABEL = "Height (µm)"
 
 
 def plot_height_map_matplotlib(
     height_map, colorbar_label=None, filename="height_map.png", partial_range=None
 ):
-    """
+    """.
+
     Creates a 3D surface plot of the height map using Matplotlib.
 
     Args:
@@ -98,8 +175,11 @@ def plot_height_map_matplotlib(
     return fig
 
 
-def plot_2d_heatmap_matplotlib(height_map, colorbar_label=None, filename="2d_heatmap.png"):
-    """
+def plot_2d_heatmap_matplotlib(
+    height_map, colorbar_label=None, filename="2d_heatmap.png"
+):
+    """.
+
     Creates a 2D heatmap of the height map using Matplotlib.
 
     Args:
@@ -133,7 +213,8 @@ def plot_2d_heatmap_matplotlib(height_map, colorbar_label=None, filename="2d_hea
 
 
 def plot_x_profile_matplotlib(data, profile_row=None, filename="x_profile.png"):
-    """
+    """.
+
     Extracts an X profile from the height map and plots a 2D line chart using Matplotlib.
 
     Args:
@@ -150,7 +231,9 @@ def plot_x_profile_matplotlib(data, profile_row=None, filename="x_profile.png"):
     if profile_row is None:
         profile_row = height_map.shape[0] // 2
 
-    x_coords = np.linspace(data["x_offset"], data["x_offset"] + data["x_length"], num=width)
+    x_coords = np.linspace(
+        data["x_offset"], data["x_offset"] + data["x_length"], num=width
+    )
     x_profile = height_map[profile_row, :]
 
     print(f"\nX Profile at row {profile_row}:")
@@ -159,7 +242,9 @@ def plot_x_profile_matplotlib(data, profile_row=None, filename="x_profile.png"):
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(x_coords, x_profile, "b-", linewidth=1)
-    ax.scatter(x_coords[::10], x_profile[::10], color="red", s=20)  # Add points every 10th element
+    ax.scatter(
+        x_coords[::10], x_profile[::10], color="red", s=20
+    )  # Add points every 10th element
 
     ax.set_title(f"X Profile at Row {profile_row}")
     ax.set_xlabel("X Coordinate")

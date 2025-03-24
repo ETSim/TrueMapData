@@ -1,160 +1,203 @@
-# 3D Model Exporter
+# Model Export API
 
-The 3D Model Exporter module provides functions to convert height maps to various 3D model formats for visualization, CAD integration, or 3D printing.
+The TMD model export API provides functions for converting heightmaps to various 3D model formats suitable for visualization, 3D printing, simulation, and other applications.
 
-## Overview
-
-This module enables exporting height maps to common 3D model formats:
-
-- **STL** (STereoLithography): The most widely used format for 3D printing
-- **OBJ** (Wavefront Object): Common in 3D graphics and visualization
-- **PLY** (Polygon File Format): Supports additional vertex properties
-
-## Export Functions
-
-::: tmd.exporters.model.convert_heightmap_to_stl
-
-::: tmd.exporters.model.convert_heightmap_to_obj
-
-::: tmd.exporters.model.convert_heightmap_to_ply
-
-## Implementation Options
-
-The module provides two implementation options for each export format:
-
-1. **Custom implementations**: Direct implementations with fine-grained control
-2. **Meshio-based implementations**: Using the meshio library for broader format support
-
-```python
-# Custom implementation
-convert_heightmap_to_stl(height_map, "output.stl")
-
-# Meshio-based implementation
-convert_heightmap_to_stl_meshio(height_map, "output.stl") 
-```
-
-## Examples
-
-### Basic STL Export
+## Basic Usage
 
 ```python
 from tmd.exporters.model import convert_heightmap_to_stl
 
-# Export to STL with default parameters
+# Convert a heightmap to STL
+stl_file = convert_heightmap_to_stl(
+    height_map,         # NumPy array of height values
+    filename="output.stl",
+    z_scale=10.0,       # Exaggerate heights by 10x
+    base_height=1.0     # Add a 1-unit thick base
+)
+```
+
+## Supported Formats
+
+The model export API supports the following formats:
+
+| Format | Function | Description |
+|--------|----------|-------------|
+| STL | `convert_heightmap_to_stl` | Standard Triangle Language - Common for 3D printing |
+| OBJ | `convert_heightmap_to_obj` | Wavefront OBJ - With vertex normals |
+| PLY | `convert_heightmap_to_ply` | Stanford Triangle Format - ASCII or binary |
+| glTF/GLB | `convert_heightmap_to_gltf/glb` | GL Transmission Format - For web applications |
+| Three.js | `convert_heightmap_to_threejs` | Three.js JSON format - For web-based 3D |
+| USDZ | `convert_heightmap_to_usdz` | Universal Scene Description - For Apple's AR |
+| SDF | `export_heightmap_to_sdf` | Signed Distance Field - For simulations |
+| NVBD | `export_heightmap_to_nvbd` | NVIDIA Blast Destructible - For physics simulations |
+
+## STL Export
+
+The Standard Triangle Language (STL) format is widely used for 3D printing and is supported by most CAD software.
+
+```python
+from tmd.exporters.model import convert_heightmap_to_stl
+
+# Basic STL export
 convert_heightmap_to_stl(
     height_map,
-    filename="surface.stl",
+    filename="model.stl",
     z_scale=1.0
 )
 
-# Export with ASCII format
+# STL with adaptive mesh for optimized triangle count
 convert_heightmap_to_stl(
     height_map,
-    filename="surface_ascii.stl",
+    filename="adaptive_model.stl",
     z_scale=1.0,
+    adaptive=True,
+    error_threshold=0.01,
+    max_subdivisions=8
+)
+
+# ASCII STL (larger files but human-readable)
+convert_heightmap_to_stl(
+    height_map,
+    filename="ascii_model.stl",
     ascii=True
 )
 ```
 
-### Custom Physical Dimensions
+## OBJ Export
+
+The Wavefront OBJ format includes vertex normals which can improve rendering quality.
 
 ```python
-from tmd.exporters.model import convert_heightmap_to_stl, convert_heightmap_to_obj
+from tmd.exporters.model import convert_heightmap_to_obj
 
-# Export with specific physical dimensions (in mm)
-convert_heightmap_to_stl(
-    height_map,
-    filename="surface_10mm.stl",
-    x_length=10.0,  # 10mm width
-    y_length=10.0,  # 10mm length 
-    z_scale=2.0,    # Exaggerate height by 2x
-    ascii=False
-)
-
-# Export the same surface to OBJ format
+# Basic OBJ export
 convert_heightmap_to_obj(
     height_map,
-    filename="surface_10mm.obj",
-    x_length=10.0,
-    y_length=10.0,
-    z_scale=2.0
+    filename="model.obj",
+    z_scale=1.0
+)
+
+# OBJ with physical dimensions (e.g., 100mm x 100mm)
+convert_heightmap_to_obj(
+    height_map,
+    filename="sized_model.obj",
+    x_length=100.0,
+    y_length=100.0,
+    z_scale=10.0
 )
 ```
 
-### Adding a Solid Base for 3D Printing
+## Web-Ready Formats
+
+For web-based 3D visualization, the API provides several options:
 
 ```python
-from tmd.exporters.model import convert_heightmap_to_stl
+from tmd.exporters.model import convert_heightmap_to_gltf, convert_heightmap_to_threejs
 
-# Export with a solid base for better 3D printing stability
+# glTF with separate JSON and binary files
+convert_heightmap_to_gltf(
+    height_map,
+    filename="model.gltf",
+    z_scale=1.0
+)
+
+# GLB (binary glTF) - single file format
+convert_heightmap_to_glb(
+    height_map,
+    filename="model.glb",
+    z_scale=1.0
+)
+
+# Three.js JSON format
+convert_heightmap_to_threejs(
+    height_map,
+    filename="model.json",
+    z_scale=1.0
+)
+```
+
+## Specialized Formats
+
+For physics simulations and other specialized applications:
+
+```python
+from tmd.exporters.model import export_heightmap_to_sdf, export_heightmap_to_nvbd
+
+# Export as Signed Distance Field
+export_heightmap_to_sdf(
+    height_map,
+    filename="terrain.sdf",
+    scale=1.0
+)
+
+# Export as NVIDIA Blast Destructible
+export_heightmap_to_nvbd(
+    height_map,
+    filename="destructible.nvbd",
+    scale=1.0,
+    chunk_size=16
+)
+```
+
+## Adaptive Mesh Generation
+
+For efficient mesh generation with triangles distributed according to detail level:
+
+```python
+from tmd.exporters.model import convert_heightmap_to_adaptive_mesh
+
+# Generate an adaptive mesh with more triangles in areas of high detail
+vertices, faces = convert_heightmap_to_adaptive_mesh(
+    height_map,
+    error_threshold=0.01,
+    max_subdivisions=8
+)
+
+# The returned vertices and faces can be exported to any format
+```
+
+## Advanced Usage
+
+### Custom Base
+
+Adding a solid base to the model can improve 3D printing results:
+
+```python
 convert_heightmap_to_stl(
     height_map,
-    filename="surface_with_base.stl",
-    x_length=50.0,   # 50mm width
-    y_length=50.0,   # 50mm length
-    z_scale=1.0,     
-    base_height=2.0  # 2mm thick solid base
+    filename="with_base.stl",
+    z_scale=1.0,
+    base_height=2.0  # Add a 2mm thick base
 )
 ```
 
-### Using Meshio-Based Exporters
+### Physical Dimensions
+
+To specify the physical size of the resulting model:
 
 ```python
-from tmd.exporters.model import convert_heightmap_to_ply_meshio
-
-# Export using meshio implementation
-convert_heightmap_to_ply_meshio(
+convert_heightmap_to_stl(
     height_map,
-    filename="surface.ply",
-    x_length=10.0,
-    y_length=10.0,
-    z_scale=2.0
+    filename="physical_model.stl",
+    x_offset=-50,    # Center model around origin
+    y_offset=-50,
+    x_length=100.0,  # 100mm wide
+    y_length=100.0,  # 100mm deep
+    z_scale=10.0     # 10mm per unit of height
 )
 ```
 
-### Workflow: 3D Printing
+### Using Different Backends
 
-For 3D printing applications, follow these steps:
+For better performance or compatibility with specific toolchains:
 
-1. **Prepare the height map**:
-   ```python
-   # Apply Gaussian filter to reduce noise
-   from tmd.utils.filter import apply_gaussian_filter
-   smoothed_map = apply_gaussian_filter(height_map, sigma=1.0)
-   
-   # Threshold to remove outliers
-   from tmd.utils.processing import threshold_height_map
-   prepared_map = threshold_height_map(
-       smoothed_map, 
-       min_height=smoothed_map.min() * 1.05,
-       max_height=smoothed_map.max() * 0.95
-   )
-   ```
+```python
+from tmd.exporters.model.backends import ModelBackend
 
-2. **Export with appropriate settings**:
-   ```python
-   from tmd.exporters.model import convert_heightmap_to_stl
-   
-   # For 3D printing, use binary STL with height exaggeration and a solid base
-   convert_heightmap_to_stl(
-       prepared_map,
-       filename="print_ready.stl",
-       x_length=50.0,    # 50mm width
-       y_length=50.0,    # 50mm length
-       z_scale=10.0,     # Exaggerate height by 10x for visibility
-       base_height=3.0,  # 3mm solid base for stability
-       ascii=False       # Binary format for smaller file size
-   )
-   ```
-
-3. **Load into slicer software** (Cura, PrusaSlicer, etc.)
-
-## Coordinate Systems
-
-The model exporters use the following coordinate system:
-
-- **X-axis**: Left to right in the height map
-- **Y-axis**: Top to bottom in the height map
-- **Z-axis**: Height value (normal to the surface)
-
-This matches standard 3D coordinate systems with +Z pointing upward.
+# Use optimized backend
+convert_heightmap_to_stl(
+    height_map,
+    filename="fast_model.stl",
+    backend=ModelBackend.NUMPY_STL
+)
+```

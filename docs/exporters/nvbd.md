@@ -7,6 +7,7 @@ The NVBD (NVIDIA Blast Destruction) exporter converts height maps to a format th
 NVIDIA Blast is a destruction physics technology that allows for efficient, highly detailed destruction of 3D objects. The NVBD format used in this library is a simplified version designed to represent height map data in a chunked format suitable for destruction simulations.
 
 Key features of the NVBD format:
+
 - Divides the height map into smaller chunks for efficient destruction
 - Stores height values in a structured format for physics simulations
 - Can be used with NVIDIA Blast or similar destruction frameworks

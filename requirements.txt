@@ -1,19 +1,34 @@
 # Core dependencies
 numpy>=1.20.0
-matplotlib>=3.5.0,<4.0.0
-plotly>=5.10.0
-pillow>=9.0.0
-seaborn>=0.12.0
-scipy>=1.8.0
+matplotlib>=3.4.0
+scipy>=1.7.0
+Pillow>=8.0.0
 
 # CLI tools
-rich>=12.0.0
-typer>=0.7.0
+rich>=10.0.0
+typer>=0.4.0
+tqdm>=4.60.0
 
 # File formats and visualization
 pyvista>=0.37.0  # Optional for 3D visualization
 
 # 3D Model & Image Exporters
-meshio>=5.0.0
+meshio>=5.0.0  # For mesh file formats
+trimesh>=3.9.0  # For 3D model processing
+pygltflib>=1.15.0  # For glTF/GLB processing
 opencv-python>=4.5.0
 polyscope>=1.3.0
+
+# Plotting dependencies
+plotly>=5.0.0
+seaborn>=0.11.0
+ipywidgets>=7.6.0  # For interactive plots in Jupyter
+numpy-stl
+trimesh
+openstl
+python-pptx
+surfalize
+PyWavelets
+moviepy
+usd-core
+scikit-image

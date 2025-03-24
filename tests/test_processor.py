@@ -1,30 +1,31 @@
-"""
+""".
+
 Unit tests for the TMDProcessor class.
 
 These tests verify the functionality of the TMDProcessor class for reading
 and parsing TMD files.
 """
+
 import logging
 import os
 import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
 from tmd.processor import TMDProcessor
-from tmd.utils.utils import create_sample_height_map, generate_synthetic_tmd
+from tmd.utils.utils import generate_synthetic_tmd
 
 # Disable excessive logging during tests
 logging.basicConfig(level=logging.ERROR)
 
 
 class TestTMDProcessor(unittest.TestCase):
-    """Test cases for the TMDProcessor class."""
+    """Test cases for the TMDProcessor class.."""
 
     def setUp(self):
-        """Set up test environment before each test."""
+        """Set up test environment before each test.."""
         # Create a temporary directory to store test files
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_dir = self.temp_dir.name
@@ -44,12 +45,12 @@ class TestTMDProcessor(unittest.TestCase):
         self.processor = TMDProcessor(self.test_tmd_path)
 
     def tearDown(self):
-        """Clean up test environment after each test."""
+        """Clean up test environment after each test.."""
         # Clean up temporary directory
         self.temp_dir.cleanup()
 
     def test_init(self):
-        """Test initialization of TMDProcessor."""
+        """Test initialization of TMDProcessor.."""
         # Test with valid file path
         processor = TMDProcessor(self.test_tmd_path)
         self.assertEqual(processor.file_path, self.test_tmd_path)
@@ -64,7 +65,7 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertEqual(processor.file_path, non_existent_path)
 
     def test_set_debug(self):
-        """Test setting debug mode."""
+        """Test setting debug mode.."""
         # Test enabling debug mode
         result = self.processor.set_debug(True)
         self.assertTrue(self.processor.debug)
@@ -77,24 +78,26 @@ class TestTMDProcessor(unittest.TestCase):
 
     @patch("tmd.processor.logger")
     def test_print_file_header(self, mock_logger):
-        """Test printing file header."""
+        """Test printing file header.."""
         # Test with valid file
         self.processor.print_file_header(num_bytes=32)
         self.assertEqual(mock_logger.info.call_count, 2)
 
         # Test with non-existent file
-        non_existent_processor = TMDProcessor(os.path.join(self.test_dir, "non_existent.tmd"))
+        non_existent_processor = TMDProcessor(
+            os.path.join(self.test_dir, "non_existent.tmd")
+        )
         with self.assertRaises(FileNotFoundError):
             non_existent_processor.print_file_header()
 
     def test_get_stats_without_processing(self):
-        """Test get_stats before processing."""
+        """Test get_stats before processing.."""
         # Should raise ValueError if process() hasn't been called
         with self.assertRaises(ValueError):
             self.processor.get_stats()
 
     def test_process_valid_file(self):
-        """Test processing a valid TMD file."""
+        """Test processing a valid TMD file.."""
         result = self.processor.process()
 
         # Verify the result is a dict
@@ -127,13 +130,15 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertEqual(result["height_map"].shape, (40, 50))
 
     def test_process_nonexistent_file(self):
-        """Test processing a non-existent file."""
-        non_existent_processor = TMDProcessor(os.path.join(self.test_dir, "non_existent.tmd"))
+        """Test processing a non-existent file.."""
+        non_existent_processor = TMDProcessor(
+            os.path.join(self.test_dir, "non_existent.tmd")
+        )
         result = non_existent_processor.process()
         self.assertIsNone(result)
 
     def test_process_tiny_file(self):
-        """Test processing a file that's too small to be valid."""
+        """Test processing a file that's too small to be valid.."""
         tiny_file_path = os.path.join(self.test_dir, "tiny.tmd")
         with open(tiny_file_path, "wb") as f:
             f.write(b"ABC")  # Only 3 bytes
@@ -143,7 +148,7 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_process_with_force_offset(self):
-        """Test processing with forced offset values."""
+        """Test processing with forced offset values.."""
         # Process with forced offset
         forced_offsets = (10.0, 20.0)
         result = self.processor.process(force_offset=forced_offsets)
@@ -153,7 +158,7 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertEqual(result["y_offset"], 20.0)
 
     def test_get_stats_after_processing(self):
-        """Test get_stats after processing."""
+        """Test get_stats after processing.."""
         # Process the file first
         self.processor.process()
 
@@ -162,7 +167,16 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertIsInstance(stats, dict)
 
         # Check for expected keys in stats
-        expected_keys = ["min", "max", "mean", "median", "std", "shape", "non_nan", "nan_count"]
+        expected_keys = [
+            "min",
+            "max",
+            "mean",
+            "median",
+            "std",
+            "shape",
+            "non_nan",
+            "nan_count",
+        ]
         for key in expected_keys:
             self.assertIn(key, stats)
 
@@ -180,7 +194,7 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertEqual(new_stats["test_key"], "test_value")
 
     def test_get_height_map(self):
-        """Test retrieving the height map."""
+        """Test retrieving the height map.."""
         # Before processing, should return None
         self.assertIsNone(self.processor.get_height_map())
 
@@ -193,7 +207,7 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertEqual(height_map.shape, (40, 50))
 
     def test_get_metadata(self):
-        """Test retrieving metadata."""
+        """Test retrieving metadata.."""
         # Before processing, should raise ValueError
         with self.assertRaises(ValueError):
             self.processor.get_metadata()
@@ -210,7 +224,7 @@ class TestTMDProcessor(unittest.TestCase):
         self.assertNotIn("height_map", metadata)
 
     def test_export_metadata(self):
-        """Test exporting metadata to a file."""
+        """Test exporting metadata to a file.."""
         # Before processing, should raise ValueError
         output_path = os.path.join(self.test_dir, "metadata.txt")
         with self.assertRaises(ValueError):
@@ -234,10 +248,10 @@ class TestTMDProcessor(unittest.TestCase):
 
 
 class TestTMDProcessorMocked(unittest.TestCase):
-    """Test cases for TMDProcessor using mocks to simulate errors."""
+    """Test cases for TMDProcessor using mocks to simulate errors.."""
 
     def setUp(self):
-        """Set up test environment before each test."""
+        """Set up test environment before each test.."""
         # Create a mock file path
         self.mock_file_path = "/path/to/mock.tmd"
         self.processor = TMDProcessor(self.mock_file_path)
@@ -245,7 +259,7 @@ class TestTMDProcessorMocked(unittest.TestCase):
     @patch("tmd.processor.process_tmd_file")
     @patch("tmd.processor.Path")
     def test_process_with_exception(self, mock_path, mock_process_tmd):
-        """Test process method when an exception occurs."""
+        """Test process method when an exception occurs.."""
         # Configure mocks
         mock_path_instance = MagicMock()
         mock_path_instance.exists.return_value = True

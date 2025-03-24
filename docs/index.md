@@ -51,6 +51,7 @@ print(f"Mean height: {stats['mean']}")
 The library is organized into several key modules:
 
 ### TMD Processor
+
 The central component for reading and processing TMD files.
 
 ```python
@@ -61,6 +62,7 @@ data = processor.process()
 ```
 
 ### Height Map Processing
+
 Tools for manipulating height maps:
 
 ```python
@@ -77,6 +79,7 @@ filtered = threshold_height_map(height_map, min_height=0.1, max_height=0.9)
 ```
 
 ### Filtering & Analysis
+
 Functions for surface analysis and filtering:
 
 ```python
@@ -90,6 +93,7 @@ roughness = calculate_rms_roughness(height_map)
 ```
 
 ### Visualization
+
 Multiple plotting options for different needs:
 
 ```python
@@ -104,6 +108,7 @@ plot_height_map_3d(height_map, filename="height_map_3d.html")
 ```
 
 ### Export Options
+
 Convert height maps to various formats:
 
 ```python

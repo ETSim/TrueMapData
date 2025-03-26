@@ -1,195 +1,308 @@
-""".
-
-Mesh utility functions for 3D model creation and manipulation.
-
-This module provides utility functions for working with meshes, such as calculating
-normals, smoothing, and other mesh operations.
+"""
+Utility functions for handling 3D meshes.
 """
 
 import numpy as np
-from collections import defaultdict
-from typing import List, Tuple, Dict, Set, Optional
+from typing import List, Tuple, Dict, Any, Optional, Union
+import os
 
-def calculate_vertex_normals(vertices, faces):
+def calculate_vertex_normals(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
     """
     Calculate vertex normals for a mesh.
     
     Args:
-        vertices: List of vertices (x, y, z)
-        faces: List of faces (each face is a list of vertex indices)
+        vertices: Nx3 array of vertex positions
+        faces: Mx3 array of vertex indices
         
     Returns:
-        List of vertex normals (nx, ny, nz)
+        Nx3 array of vertex normals
     """
-    import numpy as np
+    # Initialize normals array
+    normals = np.zeros_like(vertices, dtype=np.float32)
     
-    # Convert to numpy arrays if not already
-    vertices = np.array(vertices)
-    faces = np.array(faces)
-    
-    # Initialize vertex normals with zeros
-    normals = np.zeros_like(vertices, dtype=float)
-    
-    # Calculate face normals and add to vertex normals
+    # Compute face normals and accumulate on vertices
     for face in faces:
-        # Get the three vertices of this face
+        # Skip degenerate faces (faces with repeated vertices)
+        if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:
+            continue
+            
+        # Get vertices of this face
         v0 = vertices[face[0]]
         v1 = vertices[face[1]]
         v2 = vertices[face[2]]
         
-        # Calculate face normal using cross product
+        # Compute face normal using cross product
         edge1 = v1 - v0
         edge2 = v2 - v0
-        normal = np.cross(edge1, edge2)
         
-        # Normalize face normal
-        length = np.linalg.norm(normal)
-        if length > 0:
-            normal = normal / length
-        
-        # Add face normal to all vertices of this face
-        normals[face[0]] += normal
-        normals[face[1]] += normal
-        normals[face[2]] += normal
-    
-    # Normalize vertex normals
-    for i in range(len(normals)):
-        length = np.linalg.norm(normals[i])
-        if length > 0:
-            normals[i] = normals[i] / length
-    
-    return normals
-
-def calculate_face_normals(vertices: List[List[float]], faces: List[List[int]]) -> List[List[float]]:
-    """.
-
-    Calculate normals for each face in a mesh.
-    
-    Args:
-        vertices: List of [x,y,z] coordinates
-        faces: List of [v1,v2,v3] vertex indices
-        
-    Returns:
-        List of normal vectors [nx,ny,nz] for each face
-    """
-    normals = []
-    
-    for face in faces:
-        # Get vertex positions
-        v0 = np.array(vertices[face[0]])
-        v1 = np.array(vertices[face[1]])
-        v2 = np.array(vertices[face[2]])
-        
-        # Calculate face normal using cross product
-        edge1 = v1 - v0
-        edge2 = v2 - v0
+        # Check for zero-length edges
+        if np.allclose(edge1, 0) or np.allclose(edge2, 0):
+            continue
+            
+        # Calculate normal
         face_normal = np.cross(edge1, edge2)
         
-        # Normalize
-        norm = np.linalg.norm(face_normal)
-        if norm > 0:
-            face_normal = face_normal / norm
-        else:
-            # Default normal if degenerate
-            face_normal = np.array([0.0, 0.0, 1.0])
-        
-        normals.append(face_normal.tolist())
+        # Skip faces with zero-area (resulting in zero normal)
+        if np.allclose(face_normal, 0):
+            continue
+            
+        # Add to each vertex of this face
+        normals[face[0]] += face_normal
+        normals[face[1]] += face_normal
+        normals[face[2]] += face_normal
+    
+    # Normalize all vertex normals
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    
+    # Handle zero normals to avoid division by zero
+    mask = norms[:, 0] > 1e-10
+    normals[mask] = normals[mask] / norms[mask]
+    
+    # For vertices with zero normals, use default up vector
+    normals[~mask] = np.array([0, 0, 1])
     
     return normals
 
-def calculate_edge_lengths(vertices: List[List[float]], faces: List[List[int]]) -> List[List[float]]:
-    """.
-
-    Calculate the edge lengths for each face.
+def calculate_face_normals(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    """
+    Calculate face normals for a mesh.
     
     Args:
-        vertices: List of [x,y,z] coordinates
-        faces: List of [v1,v2,v3] vertex indices
+        vertices: Array of 3D vertices
+        faces: Array of face indices
         
     Returns:
-        List of [e1,e2,e3] edge lengths for each face
+        Array of normal vectors for each face
     """
-    edge_lengths = []
+    normals = np.zeros((len(faces), 3), dtype=np.float32)
     
-    for face in faces:
-        # Get vertex positions
-        v0 = np.array(vertices[face[0]])
-        v1 = np.array(vertices[face[1]])
-        v2 = np.array(vertices[face[2]])
+    for i, face in enumerate(faces):
+        # Get vertices of this face
+        v0 = vertices[face[0]]
+        v1 = vertices[face[1]]
+        v2 = vertices[face[2]]
         
-        # Calculate edge lengths
-        e1 = np.linalg.norm(v1 - v0)
-        e2 = np.linalg.norm(v2 - v1)
-        e3 = np.linalg.norm(v0 - v2)
+        # Calculate face normal
+        e1 = v1 - v0
+        e2 = v2 - v0
+        normal = np.cross(e1, e2)
         
-        edge_lengths.append([e1, e2, e3])
+        # Normalize
+        norm = np.linalg.norm(normal)
+        if norm > 1e-10:
+            normal = normal / norm
+            
+        normals[i] = normal
     
-    return edge_lengths
+    return normals
 
-def optimize_mesh(vertices, faces, tolerance=0.0001):
-    """.
+def calculate_heightmap_normals(height_map: np.ndarray) -> np.ndarray:
+    """
+    Calculate normal vectors for a height map.
+    
+    Args:
+        height_map: 2D array of height values
+        
+    Returns:
+        3D array of normal vectors
+    """
+    height, width = height_map.shape
+    normals = np.zeros((height, width, 3), dtype=np.float32)
+    
+    # Calculate gradients
+    gradient_x = np.zeros_like(height_map)
+    gradient_y = np.zeros_like(height_map)
+    
+    # Interior points
+    gradient_x[1:-1, 1:-1] = (height_map[1:-1, 2:] - height_map[1:-1, :-2]) / 2.0
+    gradient_y[1:-1, 1:-1] = (height_map[2:, 1:-1] - height_map[:-2, 1:-1]) / 2.0
+    
+    # Boundary points - forward/backward differences for better accuracy
+    # Left & right edges
+    gradient_x[1:-1, 0] = height_map[1:-1, 1] - height_map[1:-1, 0]
+    gradient_x[1:-1, -1] = height_map[1:-1, -1] - height_map[1:-1, -2]
+    
+    # Top & bottom edges
+    gradient_y[0, 1:-1] = height_map[1, 1:-1] - height_map[0, 1:-1]
+    gradient_y[-1, 1:-1] = height_map[-1, 1:-1] - height_map[-2, 1:-1]
+    
+    # Corners - diagonal differences
+    gradient_x[0, 0] = height_map[0, 1] - height_map[0, 0]
+    gradient_y[0, 0] = height_map[1, 0] - height_map[0, 0]
+    
+    gradient_x[0, -1] = height_map[0, -1] - height_map[0, -2]
+    gradient_y[0, -1] = height_map[1, -1] - height_map[0, -1]
+    
+    gradient_x[-1, 0] = height_map[-1, 1] - height_map[-1, 0]
+    gradient_y[-1, 0] = height_map[-1, 0] - height_map[-2, 0]
+    
+    gradient_x[-1, -1] = height_map[-1, -1] - height_map[-1, -2]
+    gradient_y[-1, -1] = height_map[-1, -1] - height_map[-2, -1]
+    
+    # Construct normals (-grad_x, -grad_y, 1)
+    normals[:, :, 0] = -gradient_x
+    normals[:, :, 1] = -gradient_y
+    normals[:, :, 2] = 1.0
+    
+    # Normalize
+    norm = np.sqrt(np.sum(normals**2, axis=2, keepdims=True))
+    # Avoid division by zero
+    norm[norm < 1e-10] = 1.0
+    normals /= norm
+    
+    return normals.astype(np.float32)  # Ensure float32 type
 
+def ensure_watertight_mesh(
+    vertices: np.ndarray, 
+    faces: np.ndarray, 
+    min_base_height: float = 0.001
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Ensure a mesh is watertight by adding a minimal base if needed.
+    
+    Args:
+        vertices: Array of vertices [x, y, z]
+        faces: Array of triangular faces [v1, v2, v3]
+        min_base_height: Minimum base height to add
+        
+    Returns:
+        Tuple of (vertices, faces) with base added if needed
+    """
+    # Find the minimum z coordinate
+    min_z = np.min(vertices[:, 2])
+    
+    # Add a very thin base at the minimum z coordinate
+    from .base import _add_base_to_mesh
+    return _add_base_to_mesh(vertices.tolist(), faces.tolist(), min_base_height)
+
+def optimize_mesh(
+    vertices: np.ndarray, 
+    faces: np.ndarray, 
+    tolerance: float = 1e-10
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
     Optimize a mesh by merging duplicate vertices and removing degenerate faces.
     
     Args:
-        vertices: List of [x,y,z] coordinates.
-        faces: List of [v1,v2,v3] vertex indices.
-        tolerance: Distance tolerance for merging vertices.
+        vertices: Array of 3D vertices
+        faces: Array of face indices
+        tolerance: Distance tolerance for merging vertices
         
     Returns:
-        tuple: (optimized_vertices, optimized_faces)
+        Tuple of (optimized_vertices, optimized_faces)
     """
-    # Convert to numpy for faster processing
-    vertices_array = np.array(vertices)
-    faces_array = np.array(faces)
-    
-    # Create a mapping from old to new vertex indices
-    unique_vertices = []
+    # Dictionary to track merged vertices
     vertex_map = {}
+    unique_vertices = []
     
-    for i, vertex in enumerate(vertices_array):
-        # Check if vertex is already in the unique list (within tolerance)
-        found = False
-        for j, unique_vertex in enumerate(unique_vertices):
-            if np.linalg.norm(vertex - unique_vertex) < tolerance:
-                vertex_map[i] = j
-                found = True
-                break
+    # Process each vertex
+    for i, vertex in enumerate(vertices):
+        # Convert to tuple for hashability
+        v_tuple = tuple(vertex)
         
-        if not found:
-            vertex_map[i] = len(unique_vertices)
-            unique_vertices.append(vertex)
+        # Check if this vertex is already in the map
+        if v_tuple in vertex_map:
+            vertex_map[i] = vertex_map[v_tuple]
+        else:
+            # Check if this vertex is close to an existing one
+            found = False
+            for j, unique in enumerate(unique_vertices):
+                if np.sum((vertex - unique) ** 2) < tolerance:
+                    vertex_map[i] = j
+                    vertex_map[v_tuple] = j
+                    found = True
+                    break
+            
+            if not found:
+                vertex_map[i] = len(unique_vertices)
+                vertex_map[v_tuple] = len(unique_vertices)
+                unique_vertices.append(vertex)
     
-    # Remap faces
+    # Update face indices
     optimized_faces = []
-    for face in faces_array:
+    for face in faces:
         new_face = [vertex_map[idx] for idx in face]
         
-        # Skip degenerate faces (where vertices are mapped to the same index)
-        if len(set(new_face)) == 3:
+        # Skip degenerate faces (where vertices are duplicated)
+        if len(set(new_face)) == len(face):
             optimized_faces.append(new_face)
     
-    return unique_vertices, optimized_faces
+    return np.array(unique_vertices), np.array(optimized_faces)
 
-def triangulate_quad_mesh(vertices, quads):
-    """.
-
-    Convert a quad mesh to triangles.
+def validate_heightmap(
+    height_map: np.ndarray, 
+    min_size: Tuple[int, int] = (2, 2)
+) -> bool:
+    """
+    Validate that a heightmap is suitable for processing.
     
     Args:
-        vertices: List of [x,y,z] coordinates.
-        quads: List of [v1,v2,v3,v4] vertex indices.
+        height_map: 2D numpy array of height values
+        min_size: Minimum dimensions (height, width)
         
     Returns:
-        list: List of triangular faces [v1,v2,v3]
+        True if valid, False otherwise
     """
-    triangles = []
-    for quad in quads:
-        if len(quad) != 4:
-            continue  # Skip non-quad faces
-        
-        # Split quad into two triangles
-        triangles.append([quad[0], quad[1], quad[2]])
-        triangles.append([quad[0], quad[2], quad[3]])
+    if height_map is None:
+        return False
     
-    return triangles
+    if not isinstance(height_map, np.ndarray):
+        return False
+    
+    if height_map.size == 0:
+        return False
+        
+    if height_map.ndim != 2:
+        return False
+        
+    if height_map.shape[0] < min_size[0] or height_map.shape[1] < min_size[1]:
+        return False
+        
+    return True
+
+def ensure_directory_exists(filepath: str) -> bool:
+    """
+    Ensure the directory for the given file path exists.
+    
+    Args:
+        filepath: Path to a file
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        directory = os.path.dirname(os.path.abspath(filepath))
+        os.makedirs(directory, exist_ok=True)
+        return True
+    except (PermissionError, OSError) as e:
+        print(f"Error creating directory for {filepath}: {e}")
+        return False
+
+def generate_uv_coordinates(vertices: np.ndarray) -> np.ndarray:
+    """
+    Generate UV coordinates for vertices based on their X/Y positions.
+    
+    Args:
+        vertices: Nx3 array of vertex positions
+        
+    Returns:
+        Nx2 array of UV coordinates
+    """
+    # Find min/max x and y coordinates
+    min_x = np.min(vertices[:, 0])
+    max_x = np.max(vertices[:, 0])
+    min_y = np.min(vertices[:, 1])
+    max_y = np.max(vertices[:, 1])
+    
+    # Calculate ranges (avoid division by zero)
+    x_range = max_x - min_x if max_x > min_x else 1.0
+    y_range = max_y - min_y if max_y > min_y else 1.0
+    
+    # Generate normalized UVs
+    u = (vertices[:, 0] - min_x) / x_range
+    v = (vertices[:, 1] - min_y) / y_range
+    
+    # Flip v for texture coordinates (standard in many formats)
+    v = 1.0 - v
+    
+    return np.column_stack((u, v))

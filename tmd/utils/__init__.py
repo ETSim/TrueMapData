@@ -1,4 +1,0 @@
-""".
-
-TMD Utilities module.
-"""

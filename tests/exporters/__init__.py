@@ -1,4 +1,1 @@
-""".
-
-Unit tests for TMD exporter modules.
-"""
+"""Test package for TMD exporters."""

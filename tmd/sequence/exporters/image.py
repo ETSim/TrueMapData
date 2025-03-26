@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
+import tmd.sequence.exporters.npy as np
 
 from .base import BaseExporter
 
@@ -294,3 +294,107 @@ class ImageExporter(BaseExporter):
         normal_map = normal_map / (norm + 1e-10)  # Add small epsilon to avoid division by zero
         
         return normal_map
+
+def export_sequence_to_images(
+    frames: List[np.ndarray],
+    output_directory: str,
+    filename_pattern: str = "frame_{:04d}.png",
+    colormap: str = "terrain",
+    dpi: int = 100,
+    format: str = None,
+    show_progress: bool = True,
+    **kwargs
+) -> Optional[List[str]]:
+    """
+    Export a sequence of height maps as individual image files.
+    
+    Args:
+        frames: List of 2D numpy arrays representing height maps
+        output_directory: Directory to save the images
+        filename_pattern: Pattern for naming files with frame number placeholder
+        colormap: Matplotlib colormap name for rendering
+        dpi: Resolution for rendered images
+        format: Image format (png, jpg, etc.) - overrides extension in pattern
+        show_progress: Whether to show a progress bar
+        **kwargs: Additional arguments passed to matplotlib's savefig
+        
+    Returns:
+        List of paths to created files or None if failed
+    """
+    try:
+        # Check for necessary libraries
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib import cm
+            from tqdm import tqdm
+        except ImportError as e:
+            logger.error(f"Required package not found: {e}")
+            logger.error("Please install matplotlib and tqdm packages")
+            return None
+            
+        # Check frames
+        if not frames or len(frames) == 0:
+            logger.error("No frames provided for image sequence export")
+            return None
+        
+        # Ensure output directory exists
+        os.makedirs(output_directory, exist_ok=True)
+        
+        # Normalize data collectively for consistent color mapping
+        all_min = min(np.min(frame) for frame in frames)
+        all_max = max(np.max(frame) for frame in frames)
+        norm_range = all_max - all_min
+        
+        if norm_range <= 0:
+            norm_range = 1.0  # Avoid division by zero
+        
+        # Create colormap
+        cmap = cm.get_cmap(colormap)
+        
+        # Process each frame (with progress bar if requested)
+        output_files = []
+        frame_iterator = tqdm(enumerate(frames), total=len(frames), desc="Creating images") if show_progress else enumerate(frames)
+        
+        for i, frame in frame_iterator:
+            # Create output filename
+            filename = filename_pattern.format(i)
+            
+            # Override format if specified
+            if format:
+                base, _ = os.path.splitext(filename)
+                filename = f"{base}.{format}"
+                
+            output_path = os.path.join(output_directory, filename)
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(10, 8))
+            
+            # Normalize frame
+            norm_frame = (frame - all_min) / norm_range
+            
+            # Display as image
+            im = ax.imshow(norm_frame, cmap=cmap)
+            ax.axis('off')  # Remove axes
+            
+            # Add colorbar
+            plt.colorbar(im, ax=ax)
+            
+            # Add frame number as title
+            ax.set_title(f"Frame {i}")
+            
+            # Save image
+            fig.savefig(output_path, dpi=dpi, bbox_inches='tight', **kwargs)
+            
+            # Close figure to release memory
+            plt.close(fig)
+            
+            output_files.append(output_path)
+        
+        logger.info(f"Image sequence saved to {output_directory}")
+        return output_files
+        
+    except Exception as e:
+        logger.error(f"Error exporting to image sequence: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

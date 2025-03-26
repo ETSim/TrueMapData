@@ -1,47 +1,45 @@
 #!/usr/bin/env python3
-""".
-
+"""
 TMD to 3D Model Converter
 
 Advanced command-line tool to convert TMD height map files to various 3D model formats
 with additional features like cropping and normal map generation.
 """
 
+# Standard library imports
 import os
 import sys
+import time
+import json
 from enum import Enum
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Dict, Any, Callable, Union, List
 
-import matplotlib.pyplot as plt
+# Third-party imports
+import numpy as np
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.table import Table
 from rich import print as rprint
-import numpy as np
 
+# Local imports
 from tmd.processor import TMDProcessor
 from tmd.utils.processing import crop_height_map
-from tmd.exporters.image.image_io import load_heightmap, save_heightmap  # Updated import
-from tmd.exporters.model import (
-    convert_heightmap_to_stl,
-    convert_heightmap_to_obj,
-    convert_heightmap_to_ply,
-    convert_heightmap_to_gltf,
-    convert_heightmap_to_glb,
-    convert_heightmap_to_threejs,
-    convert_heightmap_to_usdz
+from tmd.exporters.image.image_io import load_image, ImageType
+from tmd.utils.mesh_converter import (
+    convert_heightmap,
+    get_file_extension,
+    print_conversion_stats,
+    is_large_heightmap,
+    get_heightmap_stats,
+    prepare_conversion_info,
+    display_conversion_stats
 )
-from tmd.exporters.image import convert_heightmap_to_normal_map
-
-# For adaptive mesh support
-from tmd.exporters.model.adaptive_mesh import convert_heightmap_to_adaptive_mesh
-
-from tmd.exporters.model.backends import ModelBackend, _check_backend_available
 
 # Initialize Typer app and Rich console
-app = typer.Typer(help="Convert TMD height map files to 3D model formats and more.")
+app = typer.Typer(help="Convert TMD height map files to 3D model formats.")
 console = Console()
 
 # Define format options as an enum for better validation
@@ -51,303 +49,228 @@ class Format(str, Enum):
     ply = "ply"
     gltf = "gltf"
     glb = "glb"
-    threejs = "threejs"
+    usd = "usd"
     usdz = "usdz"
     normal_map = "normal_map"
+    bump_map = "bump_map"
+    ao_map = "ao_map"  # Added ao_map format
+    displacement_map = "displacement_map"  # Added displacement_map format
     heightmap = "heightmap"
+    hillshade = "hillshade"
+    material_set = "material_set"
 
 class ImportType(str, Enum):
     tmd = "tmd"
     image = "image"
-    exr = "exr"
-    numpy = "numpy"
-    auto = "auto"
 
-def process_tmd_file(input_file: str) -> Optional[dict]:
-    """.
+class CoordinateSystem(str, Enum):
+    left_handed = "left-handed"
+    right_handed = "right-handed"
 
-    Process a TMD file and return the data dictionary.
-    Returns None if processing fails.
+
+def load_heightmap_from_file(input_file: str, import_type: ImportType = ImportType.tmd) -> Optional[np.ndarray]:
     """
-    processor = TMDProcessor(input_file)
-    data = processor.process()
-    if not data:
-        rprint(f"[bold red]Error:[/bold red] Could not process TMD file {input_file}")
-        return None
-    return data
-
-def load_heightmap_from_file(input_file: str, import_type: ImportType = ImportType.auto) -> Optional[np.ndarray]:
-    """.
-
     Load a heightmap from a file based on the specified import type.
     
     Args:
         input_file: Path to the input file
-        import_type: Type of file to import (auto, tmd, image, exr, numpy)
+        import_type: Type of file to import (tmd or image)
         
     Returns:
         numpy.ndarray: 2D array of height values or None if loading failed
     """
     try:
-        # Determine file type if auto
-        if import_type == ImportType.auto:
-            ext = os.path.splitext(input_file)[1].lower()
-            if ext == '.tmd':
-                import_type = ImportType.tmd
-            elif ext == '.exr':
-                import_type = ImportType.exr
-            elif ext in ['.npy', '.npz']:
-                import_type = ImportType.numpy
-            else:
-                import_type = ImportType.image
-        
-        # Load based on type
+        # Determine file type if not specified
         if import_type == ImportType.tmd:
-            data = process_tmd_file(input_file)
+            processor = TMDProcessor(input_file)
+            data = processor.process()
             if data and 'height_map' in data:
                 return data['height_map']
             return None
-        elif import_type in [ImportType.image, ImportType.exr, ImportType.numpy]:
-            return load_heightmap(input_file, normalize=True)
-        else:
-            rprint(f"[bold red]Error:[/bold red] Unknown import type: {import_type}")
-            return None
+        else:  # ImportType.image
+            return load_image(input_file, image_type=ImageType.HEIGHTMAP, normalize=True)
     except Exception as e:
         rprint(f"[bold red]Error:[/bold red] Failed to load heightmap: {e}")
         return None
 
-def generate_common_params(height_map, output_file: str, z_scale: float, base_height: float) -> dict:
-    """.
 
-    Generate a common parameter dictionary for conversion functions.
+def apply_transformations(
+    height_map: np.ndarray,
+    crop: Optional[Tuple[int, int, int, int]] = None,
+    mirror_x: bool = False,
+    rotate: int = 0,
+    downscale: Optional[int] = None
+) -> np.ndarray:
     """
-    return {
-        "height_map": height_map,
-        "filename": output_file,
-        "z_scale": z_scale,
-        "base_height": base_height,
-    }
-
-def is_large_heightmap(height_map: np.ndarray, threshold: int = 1000000) -> bool:
-    """.
-
-    Check if a heightmap is considered large (exceeds threshold of total pixels).
+    Apply various transformations to a heightmap.
     
     Args:
-        height_map: The heightmap to check
-        threshold: Number of pixels to consider large (default: 1 million)
+        height_map: The heightmap to transform
+        crop: Crop region (min_row, max_row, min_col, max_col)
+        mirror_x: Whether to mirror along X axis
+        rotate: Rotation angle in degrees (0, 90, 180, 270)
+        downscale: Downscale factor
         
     Returns:
-        bool: True if the heightmap is large
+        The transformed heightmap
     """
-    return height_map.size > threshold
+    result = height_map.copy()
+    
+    # Apply cropping if specified
+    if crop:
+        try:
+            result = crop_height_map(result, crop)
+            rprint(f"[bold green]Cropped[/bold green] height map to region {crop}")
+        except ValueError as e:
+            rprint(f"[bold red]Error:[/bold red] Invalid crop region: {e}")
+            raise
+                
+    # Apply X-mirroring if specified
+    if mirror_x:
+        try:
+            result = np.flip(result, axis=1)
+            rprint(f"[bold green]Mirrored[/bold green] height map along X-axis")
+        except Exception as e:
+            rprint(f"[bold red]Error:[/bold red] Failed to mirror: {e}")
+            raise
+                
+    # Apply rotation if specified
+    if rotate:
+        try:
+            # Ensure rotation is one of the allowed values
+            if rotate not in [0, 90, 180, 270]:
+                rprint(f"[bold yellow]Warning:[/bold yellow] Invalid rotation angle {rotate}. Using 0 degrees.")
+                rotate = 0
+            
+            if rotate > 0:
+                # Calculate number of 90-degree rotations (1, 2, or 3)
+                k = rotate // 90
+                # Apply rotation using numpy.rot90
+                result = np.rot90(result, k=k)
+                rprint(f"[bold green]Rotated[/bold green] height map by {rotate} degrees")
+        except Exception as e:
+            rprint(f"[bold red]Error:[/bold red] Failed to rotate: {e}")
+            raise
 
-# Define available backends
-available_backends = [b for b in ModelBackend if _check_backend_available(b)]
-backend_choices = [b.value for b in available_backends]
+    # Apply downscaling if specified
+    if downscale and downscale > 1:
+        try:
+            from scipy.ndimage import zoom
+            factor = 1.0 / downscale
+            result = zoom(result, factor, order=1)
+            rprint(f"[bold green]Downscaled[/bold green] height map by factor of {downscale}")
+        except ImportError:
+            rprint("[bold yellow]Warning:[/bold yellow] scipy required for downscaling. Proceeding without downscaling.")
+        except Exception as e:
+            rprint(f"[bold red]Error:[/bold red] Failed to downscale: {e}")
+            raise
+            
+    return result
 
-# Add a helper function to prepare STL export parameters
-def fix_stl_coordinates(height_map: np.ndarray, z_scale: float, base_height: float, **kwargs) -> dict:
-    """
-    Prepare parameters for STL export with corrected coordinate system.
-    
-    This helper function creates an improved parameter set for STL export with proper
-    coordinate handling. It ensures the x and y values in the STL file correspond correctly
-    to the heightmap coordinates.
-    
-    Args:
-        height_map: The heightmap data
-        z_scale: Scaling factor for z values
-        base_height: Height of the base 
-        **kwargs: Additional parameters to pass to the exporter
-        
-    Returns:
-        dict: Parameters for STL export with coordinate correction
-    """
-    params = {
-        "height_map": height_map,
-        "z_scale": z_scale,
-        "base_height": base_height,
-        **kwargs
-    }
-    
-    # Set x and y scales to maintain proper aspect ratio
-    height, width = height_map.shape
-    aspect_ratio = width / height
-    
-    # Set scale factors with aspect ratio consideration
-    params["x_scale"] = aspect_ratio  
-    params["y_scale"] = 1.0
-    
-    # Always include coordinate system parameters
-    params["coordinate_system"] = kwargs.get("coordinate_system", "right-handed")
-    params["origin_at_zero"] = kwargs.get("origin_at_zero", True)
-    
-    # Preserve height map orientation by default
-    params["preserve_orientation"] = kwargs.get("preserve_orientation", True)
-    
-    # Handle base inversion
-    params["invert_base"] = kwargs.get("invert_base", False)
-    
-    return params
 
 @app.command()
 def convert(
-    input_file: str = typer.Argument(..., help="Input file path (TMD, image, EXR, etc.)"),
-    output: Optional[str] = typer.Option(
-        None, "--output", "-o", help="Output file path (default: based on input file)"
+    input_file: str = typer.Argument(..., help="Input file path (TMD or image)"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
+    format: Format = typer.Option(Format.stl, "--format", "-f", help="Output format"),
+    z_scale: float = typer.Option(1.0, "--z-scale", "-z", help="Z-axis scaling factor"),
+    base_height: float = typer.Option(0.0, "--base-height", "-b", help="Height of solid base below model"),
+    adaptive: bool = typer.Option(True, "--adaptive/--standard", "-a/-s", help="Use adaptive triangulation"),
+    max_error: float = typer.Option(0.01, "--max-error", "-e", help="Maximum error for adaptive triangulation"),
+    max_triangles: Optional[int] = typer.Option(None, "--max-triangles", "-n", help="Maximum triangle count"),
+    binary: bool = typer.Option(True, "--binary/--ascii", help="Use binary format (STL/PLY)"),
+    crop: Optional[Tuple[int, int, int, int]] = typer.Option(None, "--crop", help="Crop region (min_row,max_row,min_col,max_col)"),
+    rotate: int = typer.Option(0, "--rotate", "-r", help="Rotate heightmap (0, 90, 180, 270 degrees)"),
+    mirror_x: bool = typer.Option(False, "--mirror-x/--no-mirror-x", help="Mirror heightmap along X-axis"),
+    downscale: Optional[int] = typer.Option(None, "--downscale", help="Downscale factor"),
+    normal_map_z_scale: float = typer.Option(1.0, "--normal-z-scale", help="Z-scale for normal map generation"),
+    bump_map_strength: float = typer.Option(1.0, "--bump-strength", help="Strength for bump map generation"),
+    bump_map_blur: float = typer.Option(1.0, "--bump-blur", help="Blur radius for bump map generation"),
+    max_subdivisions: int = typer.Option(8, "--max-subdivisions", "-m", help="Maximum quad tree subdivisions"),
+    coordinate_system: CoordinateSystem = typer.Option(
+        CoordinateSystem.right_handed, "--coordinate-system", "-cs", help="Coordinate system"
     ),
-    format: Format = typer.Option(
-        Format.stl, "--format", "-f", help="Output format"
-    ),
-    z_scale: float = typer.Option(
-        1.0, "--z-scale", "-z", help="Z-axis scaling factor"
-    ),
-    base_height: float = typer.Option(
-        0.0, "--base-height", "-b", help="Height of solid base below model"
-    ),
-    texture: bool = typer.Option(
-        False, "--texture", "-t", help="Add texture to supported formats"
-    ),
-    adaptive: bool = typer.Option(
-        True, "--adaptive/--standard", "-a/-s", help="Use adaptive triangulation for better memory efficiency"
-    ),
-    max_error: float = typer.Option(
-        0.01, "--max-error", "-e", help="Maximum error for adaptive triangulation"
-    ),
-    max_triangles: Optional[int] = typer.Option(
-        None, "--max-triangles", "-n", help="Maximum triangle count for adaptive triangulation"
-    ),
-    binary: bool = typer.Option(
-        True, "--binary/--ascii", help="Use binary format (STL/PLY)"
-    ),
-    crop: Optional[Tuple[int, int, int, int]] = typer.Option(
-        None, "--crop", help="Crop region as min_row,max_row,min_col,max_col"
-    ),
-    rotate: int = typer.Option(
-        180, "--rotate", "-r", help="Rotate heightmap (0, 90, 180, or 270 degrees)"
-    ),
-    mirror_x: bool = typer.Option(
-        True, "--mirror-x/--no-mirror-x", help="Mirror heightmap along the X-axis"
-    ),
-    downscale: Optional[int] = typer.Option(
-        None, "--downscale", help="Downscale factor (e.g., 2 reduces dimensions by half)"
-    ),
-    normal_map_z_scale: float = typer.Option(
-        10.0, "--normal-z-scale", help="Z-scale for normal map generation"
-    ),
-    max_subdivisions: int = typer.Option(
-        8, "--max-subdivisions", "-m", help="Maximum quad tree subdivisions for adaptive algorithm"
-    ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose output"
-    ),
-    heightmap_format: str = typer.Option(
-        "png", "--heightmap-format", help="Format for heightmap export (png, jpg, tiff)"
-    ),
-    invert: bool = typer.Option(
-        False, "--invert", help="Invert heightmap values (black becomes white)"
-    ),
-    normalize: bool = typer.Option(
-        True, "--normalize/--no-normalize", help="Normalize heightmap values to 0-1 range"
-    ),
-    resolution: Optional[int] = typer.Option(
-        None, "--resolution", help="Resolution for heightmap export (max dimension)"
-    ),
-    import_type: ImportType = typer.Option(
-        ImportType.auto, "--import-type", "-i", help="Type of file to import"
-    ),
-    backend: Optional[str] = typer.Option(
-        None, "--backend", "-be", help=f"Backend to use for mesh generation ({', '.join(backend_choices)})"
-    ),
-    coordinate_system: str = typer.Option(
-        "left-handed", "--coordinate-system", "-cs", 
-        help="Coordinate system for STL (right-handed or left-handed)"
-    ),
-    origin_at_zero: bool = typer.Option(
-        True, "--origin-at-zero/--origin-at-corner", 
-        help="Place origin at center (True) or at corner (False)"
-    ),
-    preserve_orientation: bool = typer.Option(
-        True, "--preserve-orientation/--raw-coords", 
-        help="Preserve heightmap orientation in 3D model (default: True)"
-    ),
-    invert_base: bool = typer.Option(
-        False, "--invert-base/--normal-base", 
-        help="Invert the base to create a mold/negative (default: False)"
-    ),
+    origin_at_zero: bool = typer.Option(True, "--origin-at-zero/--origin-at-corner", help="Place origin at center"),
+    invert_base: bool = typer.Option(False, "--invert-base/--normal-base", help="Invert the base (mold/negative)"),
+    bit_depth: int = typer.Option(16, "--bit-depth", help="Bit depth for image export (8 or 16)"),
+    add_texture: bool = typer.Option(True, "--add-texture/--no-texture", help="Add texture to 3D models"),
+    preserve_aspect: bool = typer.Option(True, "--preserve-aspect/--no-preserve-aspect", help="Preserve heightmap aspect ratio"),
+    hillshade_azimuth: float = typer.Option(315.0, "--hillshade-azimuth", help="Azimuth angle for hillshade (0-360)"),
+    hillshade_altitude: float = typer.Option(45.0, "--hillshade-altitude", help="Altitude angle for hillshade (0-90)"),
+    hillshade_z_factor: float = typer.Option(1.0, "--hillshade-z", help="Z factor for hillshade exaggeration"),
+    material_base_name: str = typer.Option("material", "--material-name", help="Base name for material set files")
 ):
-    """.
-
-    Convert height map files to 3D models with various options.
+    """
+    Convert height map files to 3D models or texture maps.
     
     Examples:
+        # Convert TMD to STL
         tmd2model convert input.tmd -f stl
-        tmd2model convert input.exr -f stl -z 10.0 -b 0.5
-        tmd2model convert input.png -f obj -z 5.0
-        tmd2model convert input.tmd -f gltf -t
+        
+        # Convert TMD to STL with higher Z scale and a base
+        tmd2model convert input.tmd -f stl -z 10.0 -b 0.5
+        
+        # Convert TMD to OBJ format
+        tmd2model convert input.tmd -f obj -z 5.0
+        
+        # Convert to normal map
         tmd2model convert input.tmd -f normal_map
-        tmd2model convert input.tmd -f stl --backend openstl
+        
+        # Convert to bump map with custom strength
+        tmd2model convert input.tmd -f bump_map --bump-strength 2.0
+        
+        # Convert to hillshade visualization
+        tmd2model convert input.tmd -f hillshade --hillshade-azimuth 315 --hillshade-altitude 45
+        
+        # Generate a complete material set
+        tmd2model convert input.tmd -f material_set --material-name terrain_material
+        
+        # Convert image to STL
+        tmd2model convert heightmap.png -f stl --adaptive
+        
+        # Convert to glTF with texture
+        tmd2model convert input.tmd -f gltf --add-texture
+        
+        # Export a heightmap image
+        tmd2model convert input.tmd -f heightmap --bit-depth 16
     """
+    # Determine file type from extension
+    ext = os.path.splitext(input_file)[1].lower()
+    
     with console.status("[bold green]Processing input file..."):
-        height_map = load_heightmap_from_file(input_file, import_type)
-        if height_map is None:
-            sys.exit(1)
+        # Load heightmap based on file extension
+        if ext == '.tmd':
+            # Load TMD file
+            processor = TMDProcessor(input_file)
+            data = processor.process()
+            if data and 'height_map' in data:
+                height_map = data['height_map']
+            else:
+                rprint(f"[bold red]Error:[/bold red] Failed to load TMD file {input_file}")
+                sys.exit(1)
+        else:
+            # Try to load as image
+            height_map = load_image(input_file, normalize=True)
+            if height_map is None:
+                rprint(f"[bold red]Error:[/bold red] Failed to load image file {input_file}")
+                sys.exit(1)
+                
         original_shape = height_map.shape
 
-        # Apply cropping if specified
-        if crop:
-            try:
-                height_map = crop_height_map(height_map, crop)
-                rprint(f"[bold green]Cropped[/bold green] height map to region {crop}")
-            except ValueError as e:
-                rprint(f"[bold red]Error:[/bold red] Invalid crop region: {e}")
-                sys.exit(1)
-                
-        # Apply X-mirroring if specified
-        if mirror_x:
-            try:
-                height_map = np.flip(height_map, axis=1)
-                rprint(f"[bold green]Mirrored[/bold green] height map along X-axis")
-            except Exception as e:
-                rprint(f"[bold red]Error:[/bold red] Failed to mirror: {e}")
-                sys.exit(1)
-                
-        # Apply rotation if specified
-        if rotate:
-            try:
-                # Ensure rotation is one of the allowed values
-                if rotate not in [0, 90, 180, 270]:
-                    rprint(f"[bold yellow]Warning:[/bold yellow] Invalid rotation angle {rotate}. Using 0 degrees.")
-                    rotate = 0
-                
-                if rotate > 0:
-                    # Calculate number of 90-degree rotations (1, 2, or 3)
-                    k = rotate // 90
-                    # Apply rotation using numpy.rot90
-                    height_map = np.rot90(height_map, k=k)
-                    rprint(f"[bold green]Rotated[/bold green] height map by {rotate} degrees")
-                    rprint(f"New dimensions: {height_map.shape}")
-            except Exception as e:
-                rprint(f"[bold red]Error:[/bold red] Failed to rotate: {e}")
-                sys.exit(1)
-
-        # Apply downscaling if specified
-        if downscale and downscale > 1:
-            try:
-                from scipy.ndimage import zoom
-                factor = 1.0 / downscale
-                height_map = zoom(height_map, factor, order=1)
-                rprint(f"[bold green]Downscaled[/bold green] height map by factor of {downscale}")
-                rprint(f"New dimensions: {height_map.shape}")
-            except ImportError:
-                rprint("[bold yellow]Warning:[/bold yellow] scipy required for downscaling. Proceeding without downscaling.")
-            except Exception as e:
-                rprint(f"[bold red]Error:[/bold red] Failed to downscale: {e}")
-                sys.exit(1)
+        # Apply transformations
+        try:
+            height_map = apply_transformations(
+                height_map,
+                crop=crop,
+                mirror_x=mirror_x,
+                rotate=rotate,
+                downscale=downscale
+            )
+        except Exception:
+            sys.exit(1)
 
     # Check if heightmap is large 
-    large_heightmap = height_map.size > 1000000  # Over 1 million pixels
+    large_heightmap = is_large_heightmap(height_map)
     if large_heightmap and not adaptive and format == Format.stl:
         rprint("[bold yellow]Warning:[/bold yellow] Large heightmap detected. Using adaptive mesh generation.")
         adaptive = True
@@ -357,87 +280,72 @@ def convert(
         output_file = output
     else:
         base_name = os.path.splitext(os.path.basename(input_file))[0]
-        ext = ".png" if format in [Format.normal_map, Format.heightmap] and not heightmap_format else f".{format.value}"
-        if format == Format.heightmap and heightmap_format:
-            ext = f".{heightmap_format}"
-        output_file = f"{base_name}{ext}"
+        output_file = f"{base_name}{get_file_extension(format.value)}"
 
-    # Show input/output info
+    # Special handling for material_set format
+    if format == Format.material_set:
+        # Create output directory if it doesn't exist
+        if output:
+            output_dir = output
+        else:
+            # Default directory based on input file name
+            base_name = os.path.splitext(os.path.basename(input_file))[0]
+            output_dir = f"{base_name}_materials"
+        
+        # Make sure it's treated as a directory
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = output_dir  # Use directory as output_file for material_set format
+
+    # Get detailed conversion info for reporting
+    info_dict = prepare_conversion_info(
+        input_file=input_file,
+        height_map=height_map,
+        original_shape=original_shape,
+        format_type=format.value,
+        output_file=output_file,
+        z_scale=z_scale,
+        base_height=base_height,
+        mirror_x=mirror_x,
+        rotate=rotate,
+        adaptive=adaptive,
+        max_error=max_error,
+        coordinate_system=coordinate_system,
+        binary=binary,
+        origin_at_zero=origin_at_zero
+    )
+
+    # Show information panel
     info_table = Table.grid(padding=(0, 1))
     info_table.add_row("Input file:", input_file)
     info_table.add_row("Original dimensions:", f"{original_shape[0]}x{original_shape[1]}")
     info_table.add_row("Processing dimensions:", f"{height_map.shape[0]}x{height_map.shape[1]}")
     info_table.add_row("Output format:", format.value)
     info_table.add_row("Output file:", output_file)
+    
     if mirror_x:
         info_table.add_row("X-axis mirroring:", "Applied")
     if rotate:
         info_table.add_row("Rotation applied:", f"{rotate} degrees")
     if adaptive and format == Format.stl:
         info_table.add_row("Using adaptive algorithm:", "Yes")
-    if format == Format.heightmap:
-        info_table.add_row("Heightmap format:", heightmap_format)
-        info_table.add_row("Invert values:", "Yes" if invert else "No")
-    info_table.add_row("Preserve orientation:", "Yes" if preserve_orientation else "No")
+    if format in [Format.bump_map, Format.normal_map]:
+        info_table.add_row("Z-scale for map:", str(normal_map_z_scale if format == Format.normal_map else bump_map_strength))
     if invert_base and base_height > 0:
         info_table.add_row("Base style:", "Inverted (mold)")
     elif base_height > 0:
         info_table.add_row("Base style:", "Standard")
+        
     console.print(Panel(info_table, title="[bold blue]TMD2Model Conversion[/bold blue]", expand=False))
 
-    common_params = generate_common_params(height_map, output_file, z_scale, base_height)
+    # Prepare model dimensions to preserve aspect ratio if requested
+    model_params = {}
+    if preserve_aspect:
+        # Calculate aspect ratio from heightmap
+        aspect_ratio = height_map.shape[1] / height_map.shape[0] if height_map.shape[0] > 0 else 1.0
+        model_params["x_length"] = aspect_ratio
+        model_params["y_length"] = 1.0
 
-    # Validate backend if specified
-    if backend and backend not in backend_choices:
-        rprint(f"[bold yellow]Warning:[/bold yellow] Unknown backend '{backend}'. Available backends: {', '.join(backend_choices)}")
-        rprint(f"[bold yellow]Warning:[/bold yellow] Falling back to default backend")
-        backend = None
-
-    # Handle normal map conversion separately
-    if format == Format.normal_map:
-        with console.status("[bold green]Generating normal map..."):
-            result = convert_heightmap_to_normal_map(
-                common_params["height_map"],
-                output_file,
-                z_scale=normal_map_z_scale,
-                normalize=True
-            )
-        if result:
-            rprint(f"[bold green]Success:[/bold green] Normal map saved to {output_file}")
-            file_size_kb = os.path.getsize(result) / 1024
-            rprint(f"File size: {file_size_kb:.1f} KB")
-            sys.exit(0)
-        else:
-            rprint(f"[bold red]Error:[/bold red] Failed to generate normal map")
-            sys.exit(1)
-    
-    # Handle heightmap export separately
-    if format == Format.heightmap:
-        with console.status("[bold green]Exporting heightmap image..."):
-            try:
-                # Apply normalization if needed
-                if normalize:
-                    height_min, height_max = np.min(height_map), np.max(height_map)
-                    if height_max > height_min:
-                        height_map = (height_map - height_min) / (height_max - height_min)
-                
-                # Apply inversion if needed
-                if invert:
-                    height_map = 1.0 - height_map
-                
-                # Save heightmap
-                output_file = save_heightmap(height_map, output_file, normalize=False)
-                
-                rprint(f"[bold green]Success:[/bold green] Heightmap image saved to {output_file}")
-                file_size_kb = os.path.getsize(output_file) / 1024
-                rprint(f"File size: {file_size_kb:.1f} KB")
-                rprint(f"Dimensions: {height_map.shape[1]}x{height_map.shape[0]} pixels")
-                sys.exit(0)
-            except Exception as e:
-                rprint(f"[bold red]Error:[/bold red] Failed to export heightmap image: {e}")
-                sys.exit(1)
-
-    # Conversion with progress display
+    # Perform conversion with progress display
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold green]{task.description}"),
@@ -447,209 +355,66 @@ def convert(
     ) as progress:
         task = progress.add_task(f"Converting to {format.value.upper()}...", total=100)
         progress.update(task, advance=10)
-        result = None
-
+        
         # Define progress updater function
         def update_progress(percent):
             progress.update(task, completed=int(10 + percent * 0.9))
 
-        if format == Format.stl:
-            # STL format with unified interface
-            progress.update(task, description="[bold green]Generating 3D mesh...")
-            
-            # Prepare STL parameters with correct coordinate handling
-            stl_params = fix_stl_coordinates(
-                height_map=height_map,
-                z_scale=z_scale,
-                base_height=base_height,
-                filename=output_file,
-                ascii=not binary,
-                adaptive=adaptive,
-                max_subdivisions=max_subdivisions,
-                error_threshold=max_error,
-                max_triangles=max_triangles,
-                progress_callback=update_progress,
-                backend=backend,
-                coordinate_system=coordinate_system,
-                origin_at_zero=origin_at_zero,
-                preserve_orientation=preserve_orientation,
-                invert_base=invert_base
-            )
-            
-            # Call the STL exporter with the parameters
-            result = convert_heightmap_to_stl(**stl_params)
-        elif format == Format.obj:
-            progress.update(task, advance=40)
-            result = convert_heightmap_to_obj(**common_params)
-        elif format == Format.ply:
-            progress.update(task, advance=40)
-            result = convert_heightmap_to_ply(
-                **common_params,
-                binary=binary,
-            )
-        elif format == Format.gltf:
-            progress.update(task, advance=40)
-            result = convert_heightmap_to_gltf(
-                **common_params,
-                add_texture=texture,
-            )
-        elif format == Format.glb:
-            progress.update(task, advance=40)
-            result = convert_heightmap_to_glb(
-                **common_params,
-                add_texture=texture,
-            )
-        elif format == Format.threejs:
-            progress.update(task, advance=40)
-            result = convert_heightmap_to_threejs(
-                **common_params,
-                add_texture=texture,
-            )
-        elif format == Format.usdz:
-            progress.update(task, advance=40)
-            result = convert_heightmap_to_usdz(
-                **common_params,
-                add_texture=texture,
-            )
+        # Update task description based on format
+        progress.update(
+            task, 
+            description=f"[bold green]{'Generating' if format in [Format.normal_map, Format.bump_map, Format.heightmap] else 'Creating'} {format.value}..."
+        )
+
+        # Convert with unified function
+        start_time = time.time()
+        result = convert_heightmap(
+            height_map,
+            output_file,
+            format.value,
+            # Common parameters
+            z_scale=z_scale,
+            base_height=base_height,
+            binary=binary,
+            # STL specific parameters
+            adaptive=adaptive and format == Format.stl,
+            max_error=max_error,
+            max_subdivisions=max_subdivisions,
+            max_triangles=max_triangles,
+            coordinate_system=str(coordinate_system),
+            origin_at_zero=origin_at_zero,
+            invert_base=invert_base,
+            # Image specific parameters
+            normal_map_z_scale=normal_map_z_scale,
+            bump_map_strength=bump_map_strength,
+            bump_map_blur=bump_map_blur,
+            bit_depth=bit_depth,
+            # GLTF/USD specific
+            add_texture=add_texture,
+            # Progress callback
+            progress_callback=update_progress,
+            # Pass model dimensions
+            hillshade_azimuth=hillshade_azimuth,
+            hillshade_altitude=hillshade_altitude,
+            hillshade_z_factor=hillshade_z_factor,
+            material_base_name=material_base_name,
+            **model_params
+        )
+        elapsed_time = time.time() - start_time
         progress.update(task, completed=100)
 
+    # Show results
     if result:
-        file_size = os.path.getsize(result)
-        size_str = (
-            f"{file_size / 1024:.1f} KB"
-            if file_size < 1024 * 1024
-            else f"{file_size / (1024 * 1024):.2f} MB"
-        )
-        
-        # Try to get triangle count for the generated model
-        triangle_count = None
-        if format == Format.stl and os.path.exists(result):
-            try:
-                # For binary STL, read triangle count from header
-                if binary:
-                    with open(result, 'rb') as f:
-                        f.seek(80)  # Skip header
-                        triangle_count = int.from_bytes(f.read(4), byteorder='little')
-                # For ASCII STL, estimate triangle count from file size
-                else:
-                    file_size = os.path.getsize(result)
-                    # Typical ASCII STL structure is about 240 bytes per triangle
-                    triangle_count = int(file_size / 240)
-            except Exception:
-                pass
-                
-        # Update summary table
-        summary_table = Table(title="Conversion Result")
-        summary_table.add_column("Property", style="cyan")
-        summary_table.add_column("Value", style="green")
-        summary_table.add_row("Output Format", format.value.upper())
-        summary_table.add_row("Output File", output_file)
-        summary_table.add_row("File Size", size_str)
-        if triangle_count:
-            summary_table.add_row("Triangle Count", f"{triangle_count:,}")
-        if backend:
-            summary_table.add_row("Backend Used", backend)
-        if texture:
-            summary_table.add_row("Texture", "Included")
-        if base_height > 0:
-            summary_table.add_row("Base Height", f"{base_height} units")
-        if adaptive and format == Format.stl:
-            summary_table.add_row("Triangulation", "Adaptive")
-            summary_table.add_row("Error Tolerance", str(max_error))
-        console.print(summary_table)
+        stats = print_conversion_stats(result, format.value)
+        # Add elapsed time to stats
+        stats["elapsed_time"] = f"{elapsed_time:.2f}s"
+        display_conversion_stats(stats)
         rprint("[bold green]Conversion successful![/bold green]")
         sys.exit(0)
     else:
         rprint(f"[bold red]Error:[/bold red] Conversion to {format.value.upper()} failed")
         sys.exit(1)
 
-@app.command()
-def info(
-    input_file: str = typer.Argument(..., help="Input TMD file path"),
-    visualize: bool = typer.Option(False, "--visualize", "-v", help="Generate visualization")
-):
-    """.
-
-    Display information about a TMD file without converting it.
-    
-    Examples:
-        tmd2model info input.tmd
-        tmd2model info input.tmd -v
-    """
-    with console.status("[bold green]Analyzing TMD file..."):
-        data = process_tmd_file(input_file)
-        if not data:
-            sys.exit(1)
-    height_map = data["height_map"]
-    file_table = Table(title=f"TMD File Information: {os.path.basename(input_file)}")
-    file_table.add_column("Property", style="cyan")
-    file_table.add_column("Value", style="green")
-    file_table.add_row("Dimensions", f"{height_map.shape[0]}x{height_map.shape[1]}")
-    
-    # Check if heightmap is large and provide a note
-    if is_large_heightmap(height_map):
-        file_table.add_row("Size Category", "[yellow]Large[/yellow] (consider using --adaptive for exports)")
-    else:
-        file_table.add_row("Size Category", "Standard")
-    metadata_fields = [
-        ("title", "Title"),
-        ("description", "Description"),
-        ("author", "Author"),
-        ("date_created", "Date Created"),
-        ("x_offset", "X Offset"),
-        ("y_offset", "Y Offset"),
-        ("x_length", "X Length"),
-        ("y_length", "Y Length"),
-        ("min_height", "Min Height"),
-        ("max_height", "Max Height"),
-        ("elevation_unit", "Elevation Unit"),
-        ("crs", "Coordinate System"),
-        ("version", "TMD Version"),
-    ]
-    for field, label in metadata_fields:
-        if field in data:
-            file_table.add_row(label, str(data[field]))
-    file_table.add_row("Height Min", f"{np.min(height_map):.6f}")
-    file_table.add_row("Height Max", f"{np.max(height_map):.6f}")
-    file_table.add_row("Height Mean", f"{np.mean(height_map):.6f}")
-    file_table.add_row("Height Std Dev", f"{np.std(height_map):.6f}")
-    console.print(file_table)
-
-    if visualize:
-        try:
-            from tmd.plotters.matplotlib import plot_height_map_3d
-            output_dir = "tmd_info_output"
-            os.makedirs(output_dir, exist_ok=True)
-
-            # 2D visualization
-            plt.figure(figsize=(8, 6))
-            plt.imshow(height_map, cmap="terrain")
-            plt.colorbar(label="Height")
-            plt.title(f"Height Map: {os.path.basename(input_file)}")
-            plt.savefig(os.path.join(output_dir, "height_map_2d.png"), dpi=150)
-            plt.close()
-            rprint(f"[bold green]2D visualization saved to {output_dir}/height_map_2d.png[/bold green]")
-
-            # Only attempt 3D visualization for reasonably sized maps
-            if not is_large_heightmap(height_map, threshold=250000):  # For 3D, use lower threshold
-                try:
-                    fig = plt.figure(figsize=(10, 8))
-                    plot_height_map_3d(height_map, fig=fig, z_scale=1.0)
-                    plt.savefig(os.path.join(output_dir, "height_map_3d.png"), dpi=150)
-                    plt.close()
-                    rprint(f"[bold green]3D visualization saved to {output_dir}/height_map_3d.png[/bold green]")
-                except Exception as e:
-                    if "projection='3d'" in str(e):
-                        rprint("[bold yellow]Warning:[/bold yellow] 3D visualization not available")
-                    else:
-                        rprint(f"[bold yellow]Warning:[/bold yellow] 3D visualization failed: {e}")
-            else:
-                rprint("[bold yellow]Info:[/bold yellow] Skipping 3D visualization for large heightmap")
-        except ImportError:
-            rprint("[bold yellow]Warning:[/bold yellow] Matplotlib required for visualization")
-        except Exception as e:
-            rprint(f"[bold yellow]Warning:[/bold yellow] Visualization failed: {e}")
-    sys.exit(0)
 
 @app.command()
 def batch(
@@ -658,26 +423,58 @@ def batch(
     format: Format = typer.Option(Format.stl, "--format", "-f", help="Output format"),
     z_scale: float = typer.Option(1.0, "--z-scale", "-z", help="Z-axis scaling factor"),
     base_height: float = typer.Option(0.0, "--base-height", "-b", help="Base height"),
-    texture: bool = typer.Option(False, "--texture", "-t", help="Add texture to supported formats"),
     binary: bool = typer.Option(True, "--binary/--ascii", help="Use binary format (STL/PLY)"),
-    recursive: bool = typer.Option(False, "--recursive", "-r", help="Recursively search for TMD files"),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Recursively search for files"),
     pattern: str = typer.Option("*.tmd", "--pattern", "-p", help="File pattern to match"),
-    adaptive: bool = typer.Option(False, "--adaptive", "-a", help="Use adaptive triangulation for better memory efficiency"),
+    adaptive: bool = typer.Option(True, "--adaptive", "-a", help="Use adaptive triangulation"),
     max_error: float = typer.Option(0.01, "--max-error", "-e", help="Maximum error for adaptive triangulation"),
-    rotate: int = typer.Option(180, "--rotate", "--rot", help="Rotate heightmap (0, 90, 180, or 270 degrees)"),
-    mirror_x: bool = typer.Option(True, "--mirror-x/--no-mirror-x", help="Mirror heightmap along the X-axis"),
+    rotate: int = typer.Option(0, "--rotate", "--rot", help="Rotate heightmap (0, 90, 180, 270 degrees)"),
+    mirror_x: bool = typer.Option(False, "--mirror-x/--no-mirror-x", help="Mirror heightmap along X-axis"),
+    coordinate_system: CoordinateSystem = typer.Option(
+        CoordinateSystem.right_handed, "--coordinate-system", "-cs", help="Coordinate system"
+    ),
+    origin_at_zero: bool = typer.Option(True, "--origin-at-zero/--origin-at-corner", help="Place origin at center"),
+    bump_map_strength: float = typer.Option(1.0, "--bump-strength", help="Strength for bump map generation"),
+    bump_map_blur: float = typer.Option(1.0, "--bump-blur", help="Blur radius for bump map"),
+    normal_map_z_scale: float = typer.Option(1.0, "--normal-z-scale", help="Z-scale for normal maps"),
+    ao_strength: float = typer.Option(1.0, "--ao-strength", help="Strength for ambient occlusion maps"),
+    ao_samples: int = typer.Option(16, "--ao-samples", help="Sample count for ambient occlusion maps"),
+    bit_depth: int = typer.Option(16, "--bit-depth", help="Bit depth for image export (8 or 16)"),
+    import_type: ImportType = typer.Option(ImportType.tmd, "--import-type", "-i", help="Type of file to import"),
+    add_texture: bool = typer.Option(True, "--add-texture/--no-texture", help="Add texture to 3D models"),
+    all_maps: bool = typer.Option(False, "--all-maps", help="Generate all image formats (normal, bump, heightmap, ao)"),
+    hillshade_azimuth: float = typer.Option(315.0, "--hillshade-azimuth", help="Azimuth angle for hillshade (0-360)"),
+    hillshade_altitude: float = typer.Option(45.0, "--hillshade-altitude", help="Altitude angle for hillshade (0-90)"),
+    hillshade_z_factor: float = typer.Option(1.0, "--hillshade-z", help="Z factor for hillshade exaggeration"),
+    material_base_name: str = typer.Option("material", "--material-name", help="Base name for material set files")
 ):
-    """.
+    """
     Batch convert multiple TMD files in a directory.
     
     Examples:
+        # Convert all TMD files in current directory to STL
         tmd2model batch .
-        tmd2model batch data/ -f glb -t
-        tmd2model batch data/ -r
+        
+        # Convert all TMD files in data/ to OBJ with recursion
+        tmd2model batch data/ -f obj -r
+        
+        # Convert all TMD files to bump maps
+        tmd2model batch data/ -f bump_map --bump-strength 2.0
+        
+        # Process PNG files instead of TMD
+        tmd2model batch images/ -p "*.png" -i image -f stl
+        
+        # Generate all image maps from TMD files
+        tmd2model batch data/ --all-maps
+        
+        # Generate hillshades with custom lighting
+        tmd2model batch data/ -f hillshade --hillshade-azimuth 315 --hillshade-altitude 45
+        
+        # Generate complete material sets for all files
+        tmd2model batch data/ -f material_set --material-name terrain
     """
-    from pathlib import Path
     input_path = Path(input_dir)
-    output_path = Path(output_dir) if output_dir else input_path / "tmd_batch_output"
+    output_path = Path(output_dir) if output_dir else input_path / f"tmd_batch_{format.value}"
     output_path.mkdir(parents=True, exist_ok=True)
 
     if recursive:
@@ -686,298 +483,298 @@ def batch(
         matches = list(input_path.glob(pattern))
 
     if not matches:
-        rprint(f"[bold yellow]Warning:[/bold yellow] No TMD files found matching {pattern}")
+        rprint(f"[bold yellow]Warning:[/bold yellow] No files found matching {pattern}")
         sys.exit(1)
 
-    rprint(f"[bold blue]Found {len(matches)} TMD files to process[/bold blue]")
+    rprint(f"[bold blue]Found {len(matches)} files to process[/bold blue]")
     successful = 0
     failed = 0
+    total_time = 0.0
+    
+    # If all_maps is specified, determine formats to generate
+    formats_to_generate = []
+    if all_maps:
+        formats_to_generate = [
+            Format.normal_map, 
+            Format.bump_map, 
+            Format.heightmap, 
+            Format.ao_map, 
+            Format.displacement_map,
+            Format.hillshade  # Add hillshade to all_maps
+        ]
+        rprint(f"[bold blue]Generating all image formats for each file[/bold blue]")
+    else:
+        formats_to_generate = [format]
 
     with Progress() as progress:
-        task = progress.add_task("[bold green]Processing files...", total=len(matches))
-        for tmd_file in matches:
-            progress.update(task, description=f"[bold green]Processing {tmd_file.name}...")
-            base_name = tmd_file.stem
-            ext = ".png" if format == Format.normal_map else f".{format.value}"
-            output_file = output_path / f"{base_name}{ext}"
-
-            with console.status(f"[bold green]Processing {tmd_file.name}..."):
-                data = process_tmd_file(str(tmd_file))
-                if not data:
-                    rprint(f"[bold red]Error:[/bold red] Could not process {tmd_file}")
-                    failed += 1
-                    progress.update(task, advance=1)
-                    continue
-                height_map = data["height_map"]
-
-                # Apply X-mirroring if specified
-                if mirror_x:
-                    try:
-                        height_map = np.flip(height_map, axis=1)
-                        rprint(f"[bold green]Mirrored[/bold green] height map along X-axis")
-                    except Exception as e:
-                        rprint(f"[bold red]Error:[/bold red] Failed to mirror: {e}")
-                        failed += 1
-                        progress.update(task, advance=1)
-                        continue
-                
-                # Apply rotation if specified
-                if rotate:
-                    if rotate in [0, 90, 180, 270]:
-                        if rotate > 0:
-                            # Calculate number of 90-degree rotations
-                            k = rotate // 90
-                            # Apply rotation
-                            height_map = np.rot90(height_map, k=k)
-                    else:
-                        rprint(f"[bold yellow]Warning:[/bold yellow] Invalid rotation angle {rotate}. Using 0 degrees.")
-
-            common_params = {
-                "height_map": height_map,
-                "filename": str(output_file),
-                "z_scale": z_scale,
-                "base_height": base_height,
-            }
+        task = progress.add_task("[bold green]Processing files...", total=len(matches) * len(formats_to_generate))
+        
+        for file_path in matches:
+            progress.update(task, description=f"[bold green]Processing {file_path.name}...")
             
-            # Check if heightmap is large and we're exporting STL
-            large_map = is_large_heightmap(height_map)
-            if large_map and format == Format.stl and not adaptive:
-                rprint(f"[bold yellow]Warning:[/bold yellow] Large heightmap in {tmd_file.name}. Using adaptive algorithm.")
-                use_adaptive = True
-            else:
-                use_adaptive = adaptive
-
-            if format == Format.normal_map:
-                result = convert_heightmap_to_normal_map(
-                    height_map,
-                    str(output_file),
-                    z_scale=10.0,
-                    normalize=True,
-                )
-            else:
-                if format == Format.stl:
-                    if use_adaptive:
-                        # Try to use adaptive_mesh for large maps
-                        try:
-                            result = convert_heightmap_to_adaptive_mesh(
-                                height_map=height_map, 
-                                output_file=str(output_file),
-                                z_scale=z_scale,
-                                base_height=base_height,
-                                error_threshold=max_error,
-                            )
-                            if isinstance(result, tuple) and len(result) >= 3:
-                                result = result[2]
-                        except Exception as e:
-                            rprint(f"[bold yellow]Warning:[/bold yellow] Adaptive export failed: {e}")
-                            result = convert_heightmap_to_stl(
-                                **common_params,
-                                ascii=not binary,
-                            )
-                    else:
-                        result = convert_heightmap_to_stl(
-                            **common_params,
-                            ascii=not binary,
-                        )
-                elif format == Format.obj:
-                    result = convert_heightmap_to_obj(**common_params)
-                elif format == Format.ply:
-                    result = convert_heightmap_to_ply(
-                        **common_params,
-                        binary=binary,
-                    )
-                elif format == Format.gltf:
-                    result = convert_heightmap_to_gltf(
-                        **common_params,
-                        add_texture=texture,
-                    )
-                elif format == Format.glb:
-                    result = convert_heightmap_to_glb(
-                        **common_params,
-                        add_texture=texture,
-                    )
-                elif format == Format.threejs:
-                    result = convert_heightmap_to_threejs(
-                        **common_params,
-                        add_texture=texture,
-                    )
-                elif format == Format.usdz:
-                    result = convert_heightmap_to_usdz(
-                        **common_params,
-                        add_texture=texture,
-                    )
-            if result:
-                successful += 1
-            else:
+            # Determine if this is a TMD or image file based on extension
+            current_import_type = import_type
+            if current_import_type == ImportType.tmd and not file_path.suffix.lower() == ".tmd":
+                current_import_type = ImportType.image
+            
+            # Load the heightmap
+            height_map = load_heightmap_from_file(str(file_path), current_import_type)
+            if height_map is None:
+                rprint(f"[bold red]Error:[/bold red] Could not process {file_path}")
                 failed += 1
-            progress.update(task, advance=1)
+                progress.update(task, advance=len(formats_to_generate))
+                continue
 
+            # Apply transformations
+            try:
+                height_map = apply_transformations(
+                    height_map,
+                    mirror_x=mirror_x,
+                    rotate=rotate
+                )
+                
+                # Prepare model dimensions to preserve aspect ratio
+                model_params = {
+                    "x_length": height_map.shape[1] / height_map.shape[0] if height_map.shape[0] > 0 else 1.0,
+                    "y_length": 1.0
+                }
+                
+                # Process each format
+                for current_format in formats_to_generate:
+                    # Special handling for material_set format
+                    if current_format == Format.material_set:
+                        # Create directory for each file's material set
+                        material_dir = output_path / f"{base_name}_materials"
+                        os.makedirs(material_dir, exist_ok=True)
+                        output_file = str(material_dir)
+                    else:
+                        # Generate output filename
+                        base_name = file_path.stem
+                        format_suffix = "_normal" if current_format == Format.normal_map else \
+                                    "_bump" if current_format == Format.bump_map else \
+                                    "_ao" if current_format == Format.ao_map else \
+                                    "_disp" if current_format == Format.displacement_map else \
+                                    "_height" if current_format == Format.heightmap else \
+                                    "_hillshade" if current_format == Format.hillshade else ""
+                        
+                        # Only add format suffix when generating multiple formats
+                        if all_maps:
+                            output_file = output_path / f"{base_name}{format_suffix}{get_file_extension(current_format.value)}"
+                        else:
+                            output_file = output_path / f"{base_name}{get_file_extension(current_format.value)}"
+                    
+                    progress.update(task, description=f"[bold green]Processing {file_path.name} → {current_format.value}...")
+                
+                    # Measure conversion time
+                    start_time = time.time()
+                    
+                    # Convert using the unified function
+                    result = convert_heightmap(
+                        height_map,
+                        str(output_file),
+                        current_format.value,
+                        z_scale=z_scale,
+                        base_height=base_height,
+                        binary=binary,
+                        adaptive=adaptive and current_format == Format.stl,
+                        max_error=max_error,
+                        coordinate_system=str(coordinate_system),
+                        origin_at_zero=origin_at_zero,
+                        normal_map_z_scale=normal_map_z_scale,
+                        bump_map_strength=bump_map_strength,
+                        bump_map_blur=bump_map_blur,
+                        ao_strength=ao_strength,
+                        ao_samples=ao_samples,
+                        bit_depth=bit_depth,
+                        add_texture=add_texture,
+                        # Add hillshade and material set parameters
+                        hillshade_azimuth=hillshade_azimuth,
+                        hillshade_altitude=hillshade_altitude,
+                        hillshade_z_factor=hillshade_z_factor,
+                        material_base_name=material_base_name,
+                        **model_params
+                    )
+                    
+                    elapsed = time.time() - start_time
+                    total_time += elapsed
+                    
+                    if result:
+                        successful += 1
+                        format_label = format_suffix.strip("_") if format_suffix else current_format.value
+                        rprint(f"[green]✓[/green] {file_path.name} → {output_file.name} ({format_label}, {elapsed:.2f}s)")
+                    else:
+                        failed += 1
+                        rprint(f"[red]✗[/red] {file_path.name} conversion to {current_format.value} failed")
+                    
+                    progress.update(task, advance=1)
+                    
+            except Exception as e:
+                rprint(f"[bold red]Error:[/bold red] {e}")
+                failed += 1
+                progress.update(task, advance=len(formats_to_generate) - (formats_to_generate.index(current_format) if 'current_format' in locals() else 0))
+
+    # Display summary
     summary_table = Table(title="Batch Conversion Summary")
     summary_table.add_column("Metric", style="cyan")
     summary_table.add_column("Count", style="green")
     summary_table.add_row("Total Files", str(len(matches)))
+    summary_table.add_row("Total Conversions", str(len(matches) * len(formats_to_generate)))
     summary_table.add_row("Successful", str(successful))
     summary_table.add_row("Failed", f"[red]{failed}[/red]" if failed > 0 else "0")
+    summary_table.add_row("Total Time", f"{total_time:.2f}s")
+    summary_table.add_row("Average Time", f"{total_time/max(1, successful):.2f}s per conversion")
     console.print(summary_table)
 
     if successful > 0:
         rprint(f"[bold green]Output files saved to: {output_path}[/bold green]")
     sys.exit(0 if failed == 0 else 1)
 
+
 @app.command()
-def heightmap(
-    input_file: str = typer.Argument(..., help="Input TMD file path"),
-    output: Optional[str] = typer.Option(
-        None, "--output", "-o", help="Output image file path (default: based on input file)"
-    ),
-    format: str = typer.Option(
-        "png", "--format", "-f", help="Output image format (png, jpg, tiff)"
-    ),
-    invert: bool = typer.Option(
-        False, "--invert", "-i", help="Invert heightmap values (black becomes white)"
-    ),
-    normalize: bool = typer.Option(
-        True, "--normalize/--no-normalize", help="Normalize heightmap values to 0-1 range"
-    ),
-    resolution: Optional[int] = typer.Option(
-        None, "--resolution", "-r", help="Resolution for output image (max dimension)"
-    ),
-    color_map: Optional[str] = typer.Option(
-        None, "--color-map", "-c", help="Apply a colormap (terrain, jet, viridis, etc.)"
-    ),
-    add_colorbar: bool = typer.Option(
-        False, "--colorbar", help="Add a colorbar to the color map image"
-    ),
-    crop: Optional[Tuple[int, int, int, int]] = typer.Option(
-        None, "--crop", help="Crop region as min_row,max_row,min_col,max_col"
-    ),
-    rotate: int = typer.Option(
-        180, "--rotate", "--rot", help="Rotate heightmap (0, 90, 180, or 270 degrees)"
-    ),
-    mirror_x: bool = typer.Option(
-        True, "--mirror-x/--no-mirror-x", help="Mirror heightmap along the X-axis"
-    ),
+def info(
+    input_file: str = typer.Argument(..., help="Input file path (TMD or image)"),
+    import_type: ImportType = typer.Option(ImportType.tmd, "--import-type", "-i", help="Type of file to import"),
 ):
-    """.
-    Extract a heightmap image from a TMD file.
+    """
+    Show information about a heightmap file.
     
     Examples:
-        tmd2model heightmap input.tmd -f png
-        tmd2model heightmap input.tmd -o output.tiff -f tiff --invert
-        tmd2model heightmap input.tmd --color-map terrain --colorbar
+        # Show info about a TMD file
+        tmd2model info input.tmd
+        
+        # Show info about an image file
+        tmd2model info heightmap.png -i image
     """
-    with console.status("[bold green]Processing TMD file..."):
-        data = process_tmd_file(input_file)
-        if not data:
-            sys.exit(1)
-        height_map = data["height_map"]
-        original_shape = height_map.shape
+    with console.status("[bold green]Analyzing file..."):
+        if import_type == ImportType.tmd:
+            processor = TMDProcessor(input_file)
+            data = processor.process()  # Use process() instead of load()
+            if not data:
+                rprint(f"[bold red]Error:[/bold red] Could not load TMD file {input_file}")
+                sys.exit(1)
+                
+            # Get height map
+            height_map = data.get('height_map')
+            if height_map is None:
+                rprint(f"[bold red]Error:[/bold red] No height map found in {input_file}")
+                sys.exit(1)
+                
+            # Extract metadata if available
+            metadata = data.get('metadata', {})
+        else:
+            # Load as image
+            height_map = load_image(input_file, image_type=ImageType.HEIGHTMAP)
+            if height_map is None:
+                rprint(f"[bold red]Error:[/bold red] Could not load image file {input_file}")
+                sys.exit(1)
+            metadata = {}
 
-        # Apply cropping if specified
-        if crop:
-            try:
-                height_map = crop_height_map(height_map, crop)
-                rprint(f"[bold green]Cropped[/bold green] height map to region {crop}")
-            except ValueError as e:
-                rprint(f"[bold red]Error:[/bold red] Invalid crop region: {e}")
-                sys.exit(1)
-                
-        # Apply X-mirroring if specified
-        if mirror_x:
-            try:
-                height_map = np.flip(height_map, axis=1)
-                rprint(f"[bold green]Mirrored[/bold green] height map along X-axis")
-            except Exception as e:
-                rprint(f"[bold red]Error:[/bold red] Failed to mirror: {e}")
-                sys.exit(1)
-                
-        # Apply rotation if specified
-        if rotate:
-            try:
-                # Ensure rotation is one of the allowed values
-                if rotate not in [0, 90, 180, 270]:
-                    rprint(f"[bold yellow]Warning:[/bold yellow] Invalid rotation angle {rotate}. Using 0 degrees.")
-                    rotate = 0
-                
-                if rotate > 0:
-                    # Calculate number of 90-degree rotations (1, 2, or 3)
-                    k = rotate // 90
-                    # Apply rotation using numpy.rot90
-                    height_map = np.rot90(height_map, k=k)
-                    rprint(f"[bold green]Rotated[/bold green] height map by {rotate} degrees")
-                    rprint(f"New dimensions: {height_map.shape}")
-            except Exception as e:
-                rprint(f"[bold red]Error:[/bold red] Failed to rotate: {e}")
-                sys.exit(1)
-
-    # Determine output filename if not specified
-    if output:
-        output_file = output
-    else:
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        ext = f".{format.lower()}"
-        output_file = f"{base_name}_heightmap{ext}"
+    # Use the utility function from mesh_converter
+    stats = get_heightmap_stats(height_map)
     
+    # Display file information
+    file_info = Path(input_file)
+    file_size = file_info.stat().st_size
+    file_size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB"
+    
+    # Create info table
+    info_table = Table(title=f"[bold]File Information: {file_info.name}[/bold]")
+    info_table.add_column("Property", style="cyan")
+    info_table.add_column("Value", style="green")
+    
+    # File properties
+    info_table.add_row("File Type", import_type.value.upper())
+    info_table.add_row("File Size", file_size_str)
+    info_table.add_row("Last Modified", str(file_info.stat().st_mtime))
+    
+    # Height map properties
+    info_table.add_row("Dimensions", f"{stats['width']} x {stats['height']} pixels")
+    info_table.add_row("Total Pixels", f"{stats['total_pixels']:,}")
+    info_table.add_row("Height Range", f"{stats['min_height']:.4f} to {stats['max_height']:.4f}")
+    info_table.add_row("Mean Height", f"{stats['mean_height']:.4f}")
+    info_table.add_row("Height Std Dev", f"{stats['std_dev']:.4f}")
+    
+    # Add metadata if available
+    if metadata:
+        metadata_table = Table(title="Metadata")
+        metadata_table.add_column("Key", style="cyan")
+        metadata_table.add_column("Value", style="green")
+        
+        for key, value in metadata.items():
+            if key != "height_map":
+                metadata_table.add_row(str(key), str(value))
+    else:
+        metadata_table = None
+    
+    # Recommended export formats
+    rec_table = Table(title="Recommended Export Options")
+    rec_table.add_column("Format", style="cyan")
+    rec_table.add_column("Command", style="green")
+    
+    # Large heightmap recommendations
+    if stats["is_large"]:
+        rec_table.add_row(
+            "STL (Adaptive)", 
+            f"tmd2model convert {input_file} -f stl -i {import_type} --adaptive -z 10.0"
+        )
+    else:
+        rec_table.add_row(
+            "STL", 
+            f"tmd2model convert {input_file} -f stl -i {import_type} -z 10.0"
+        )
+    
+    rec_table.add_row(
+        "OBJ", 
+        f"tmd2model convert {input_file} -f obj -i {import_type} -z 10.0"
+    )
+    
+    rec_table.add_row(
+        "Normal Map", 
+        f"tmd2model convert {input_file} -f normal_map -i {import_type}"
+    )
+    
+    # Display information
+    console.print(info_table)
+    
+    if metadata_table:
+        console.print("\n")
+        console.print(metadata_table)
+    
+    console.print("\n")
+    console.print(rec_table)
+    
+    # Preview heightmap visualization if matplotlib is available
     try:
-        from PIL import Image
-        import numpy as np
         import matplotlib.pyplot as plt
-
-        # Normalize if requested
-        if normalize:
-            height_min, height_max = np.min(height_map), np.max(height_map)
-            if height_max > height_min:
-                height_map = (height_map - height_min) / (height_max - height_min)
+        from io import BytesIO
+        import base64
+        from rich.markdown import Markdown
         
-        # Apply colormap if specified
-        if color_map:
-            plt.figure(figsize=(10, 8))
-            img_plot = plt.imshow(height_map, cmap=color_map)
-            if add_colorbar:
-                plt.colorbar(img_plot, label="Height")
-            plt.axis('off')
-            plt.tight_layout()
-            plt.savefig(output_file, bbox_inches='tight', pad_inches=0, dpi=300)
-            plt.close()
+        plt.figure(figsize=(6, 4))
+        plt.imshow(height_map, cmap='terrain')
+        plt.colorbar(label='Height')
+        plt.title(f"Heightmap Preview: {file_info.name}")
+        
+        # Save to BytesIO object
+        buf = BytesIO()
+        plt.savefig(buf, format='png', dpi=75)
+        buf.seek(0)
+        
+        # Convert to base64
+        img_base64 = base64.b64encode(buf.read()).decode('ascii')
+        
+        # Display as Markdown
+        console.print("\n[bold]Heightmap Preview:[/bold]")
+        
+        # Only display if terminal supports it
+        if console.color_system and console.is_terminal:
+            console.print(Markdown(f"![Heightmap Preview](data:image/png;base64,{img_base64})"))
+        else:
+            console.print("[yellow]Preview not available in this terminal[/yellow]")
             
-            rprint(f"[bold green]Success:[/bold green] Colored heightmap saved to {output_file}")
-            file_size_kb = os.path.getsize(output_file) / 1024
-            rprint(f"File size: {file_size_kb:.1f} KB")
-            sys.exit(0)
-        
-        # For grayscale heightmap
-        # Invert if requested
-        if invert:
-            height_map = 1.0 - height_map
-        
-        # Convert to 8-bit grayscale image
-        height_data = (height_map * 255).astype(np.uint8)
-        img = Image.fromarray(height_data)
-        
-        # Resize if resolution is specified
-        if resolution:
-            current_width, current_height = height_data.shape[1], height_data.shape[0]
-            aspect_ratio = current_width / current_height
-            if current_width > current_height:
-                new_width = resolution
-                new_height = int(resolution / aspect_ratio)
-            else:
-                new_height = resolution
-                new_width = int(resolution * aspect_ratio)
-            img = img.resize((new_width, new_height), Image.LANCZOS)
-        
-        # Save the image
-        img.save(output_file)
-        rprint(f"[bold green]Success:[/bold green] Heightmap image saved to {output_file}")
-        file_size_kb = os.path.getsize(output_file) / 1024
-        rprint(f"File size: {file_size_kb:.1f} KB")
-        rprint(f"Dimensions: {img.width}x{img.height} pixels")
-        sys.exit(0)
     except ImportError:
-        rprint("[bold yellow]Warning:[/bold yellow] PIL and Matplotlib required for heightmap export")
-    except Exception as e:
-        rprint(f"[bold red]Error:[/bold red] Failed to export heightmap image: {e}")
-        sys.exit(1)
+        console.print("\n[yellow]Install matplotlib to enable heightmap previews[/yellow]")
+
 
 if __name__ == "__main__":
     app()

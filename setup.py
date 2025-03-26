@@ -4,7 +4,7 @@ Setup configuration for the TMD Processor package.
 This setup.py file is maintained for backward compatibility with older tools.
 The primary build configuration is in pyproject.toml.
 
-Version 0.1.3 - Added support for 3D model exporters (STL, OBJ, PLY) and
+Version 0.1.4 - Added support for 3D model exporters (STL, OBJ, PLY) and
 improved image exporters for material creation.
 """
 
@@ -12,7 +12,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="truemapdata",
-    version="0.1.3",
+    version="0.1.4",
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",
@@ -36,8 +36,8 @@ setup(
             "ipywidgets>=7.6.0",
         ],
     },
-    author="Antoine Gagnon",
-    author_email="antoine.gagnon@example.com",
+    author="Antoine Boucher",
+    author_email="antoine@antoineboucher.info",
     description="A Python library for processing TrueMap Data files",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

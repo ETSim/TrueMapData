@@ -733,7 +733,139 @@ def visualize_height_map_3d(
     return fig
 
 
-# Add more Plotly-based visualization functions as needed
+def visualize_height_map_2d(
+    height_map: np.ndarray,
+    output_file: Optional[str] = None,
+    colormap: str = "viridis",
+    show: bool = True,
+    **kwargs
+) -> Optional[Dict[str, Any]]:
+    """
+    Create a 2D visualization of a height map using Plotly.
+    
+    Args:
+        height_map: 2D array of height values
+        output_file: Optional output HTML file path
+        colormap: Colormap name
+        show: Whether to show the plot
+        **kwargs: Additional options for visualization
+        
+    Returns:
+        Plotly figure object or None if plotly is not available
+    """
+    # Check if plotly is available
+    if not PLOTLY_AVAILABLE or go is None:
+        logger.warning("Plotly is not installed. Install with: pip install plotly")
+        return None
+        
+    try:
+        # Create figure
+        fig = go.Figure()
+        
+        # Add heatmap
+        fig.add_trace(
+            go.Heatmap(
+                z=height_map,
+                colorscale=colormap,
+                showscale=True
+            )
+        )
+        
+        # Set layout options
+        fig.update_layout(
+            title=kwargs.get("title", "Height Map Visualization"),
+            width=kwargs.get("width", 900),
+            height=kwargs.get("height", 700),
+            xaxis=dict(
+                title=kwargs.get("x_label", "X"),
+                constrain="domain"
+            ),
+            yaxis=dict(
+                title=kwargs.get("y_label", "Y"),
+                scaleanchor="x",
+                scaleratio=1
+            )
+        )
+        
+        # Save to file if specified
+        if output_file:
+            os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+            fig.write_html(output_file)
+            logger.info(f"Saved 2D visualization to {output_file}")
+        
+        # Show if requested
+        if show:
+            fig.show()
+            
+        return fig
+            
+    except Exception as e:
+        logger.error(f"Error creating 2D visualization: {e}")
+        return None
+
+def visualize_height_map_3d(
+    height_map: np.ndarray,
+    output_file: Optional[str] = None,
+    colormap: str = "viridis",
+    show: bool = True,
+    **kwargs
+) -> Optional[Dict[str, Any]]:
+    """
+    Create a 3D surface visualization of a height map using Plotly.
+    
+    Args:
+        height_map: 2D array of height values
+        output_file: Optional output HTML file path
+        colormap: Colormap name
+        show: Whether to show the plot
+        **kwargs: Additional options for visualization
+        
+    Returns:
+        Plotly figure object or None if plotly is not available
+    """
+    # Check if plotly is available
+    if not PLOTLY_AVAILABLE or go is None:
+        logger.warning("Plotly is not installed. Install with: pip install plotly")
+        return None
+        
+    try:
+        # Create surface plot
+        fig = go.Figure(data=[
+            go.Surface(
+                z=height_map,
+                colorscale=colormap,
+                showscale=True
+            )
+        ])
+        
+        # Set layout options
+        fig.update_layout(
+            title=kwargs.get("title", "3D Height Map Visualization"),
+            width=kwargs.get("width", 900),
+            height=kwargs.get("height", 700),
+            scene=dict(
+                xaxis_title=kwargs.get("x_label", "X"),
+                yaxis_title=kwargs.get("y_label", "Y"),
+                zaxis_title=kwargs.get("z_label", "Height"),
+                aspectratio=dict(x=1, y=1, z=kwargs.get("z_exaggeration", 0.5))
+            )
+        )
+        
+        # Save to file if specified
+        if output_file:
+            os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+            fig.write_html(output_file)
+            logger.info(f"Saved 3D visualization to {output_file}")
+        
+        # Show if requested
+        if show:
+            fig.show()
+            
+        return fig
+            
+    except Exception as e:
+        logger.error(f"Error creating 3D visualization: {e}")
+        return None
 
 
 # Add unit tests for this module below

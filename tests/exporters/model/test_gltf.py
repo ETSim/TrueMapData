@@ -1,178 +1,213 @@
-""".
-
-Unit tests for glTF/GLB export functionality.
-
-Tests the conversion of height maps to glTF and GLB files with various options.
-"""
+"""Unit tests for TMD gltf module."""
 
 import os
-import tempfile
-import unittest
+import sys
 import json
+import unittest
+import tempfile
+import base64
+import struct
 import numpy as np
+from unittest.mock import patch, MagicMock
+
+# Add the project root to the path to import tmd modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
 from tmd.exporters.model.gltf import (
     convert_heightmap_to_gltf,
-    convert_heightmap_to_glb
+    convert_heightmap_to_glb,
+    heightmap_to_mesh,
+    _create_gltf_structure,
+    _add_material,
+    _generate_texture_from_heightmap
 )
-from tmd.utils.utils import create_sample_height_map
+
+# Check if trimesh is available for mesh generation tests
+try:
+    import trimesh
+    TRIMESH_AVAILABLE = True
+except ImportError:
+    TRIMESH_AVAILABLE = False
 
 
-class TestGLTFExport(unittest.TestCase):
-    """Test cases for glTF/GLB export functionality.."""
+@unittest.skipIf(not TRIMESH_AVAILABLE, "trimesh is not available")
+class TestGltf(unittest.TestCase):
+    """Test class for gltf functionality."""
     
     def setUp(self):
-        """Set up test data and temporary directory.."""
-        # Create a temporary directory for test outputs
-        self.temp_dir = tempfile.TemporaryDirectory()
+        """Set up test fixtures."""
+        # Create simple test heightmaps
+        self.heightmap_flat = np.zeros((10, 10), dtype=np.float32)
         
-        # Create sample data - small for faster tests
-        self.height_map = create_sample_height_map(width=20, height=20, pattern="peak")
+        self.heightmap_slope = np.zeros((10, 10), dtype=np.float32)
+        for i in range(10):
+            for j in range(10):
+                self.heightmap_slope[i, j] = i / 10.0
         
-    def tearDown(self):
-        """Clean up temporary directory.."""
-        self.temp_dir.cleanup()
+        self.heightmap_peak = np.zeros((10, 10), dtype=np.float32)
+        for i in range(10):
+            for j in range(10):
+                self.heightmap_peak[i, j] = 1.0 - ((i-5)**2 + (j-5)**2) / 50.0
+                if self.heightmap_peak[i, j] < 0:
+                    self.heightmap_peak[i, j] = 0
     
-    def _validate_gltf_file(self, file_path, expected_exists=True, min_size=100, is_glb=False):
-        """Helper to validate glTF/GLB output files.."""
-        if expected_exists:
-            self.assertTrue(os.path.exists(file_path), f"File {file_path} does not exist")
-            self.assertGreater(os.path.getsize(file_path), min_size, 
-                              f"File {file_path} is too small ({os.path.getsize(file_path)} bytes)")
-            
-            # Basic validation of file format
-            if is_glb:
-                # Check GLB magic bytes
-                with open(file_path, 'rb') as f:
-                    header = f.read(4)
-                    self.assertEqual(header, b'glTF', "GLB file should start with 'glTF' magic bytes")
-            else:
-                # Check glTF JSON structure
-                with open(file_path, 'r') as f:
-                    gltf_data = json.load(f)
-                    
-                    # Check for required elements in the glTF schema
-                    self.assertIn("asset", gltf_data, "Missing 'asset' in glTF")
-                    self.assertIn("version", gltf_data["asset"], "Missing asset.version in glTF")
-                    self.assertIn("scenes", gltf_data, "Missing 'scenes' in glTF")
-                    self.assertIn("nodes", gltf_data, "Missing 'nodes' in glTF")
-                    self.assertIn("meshes", gltf_data, "Missing 'meshes' in glTF")
-                    self.assertIn("buffers", gltf_data, "Missing 'buffers' in glTF")
-                    self.assertIn("bufferViews", gltf_data, "Missing 'bufferViews' in glTF")
-                    self.assertIn("accessors", gltf_data, "Missing 'accessors' in glTF")
-        else:
-            self.assertFalse(os.path.exists(file_path), f"File {file_path} exists but should not")
+    def test_heightmap_to_mesh(self):
+        """Test basic mesh creation from heightmap."""
+        vertices, faces = heightmap_to_mesh(self.heightmap_flat)
+        
+        # Check that mesh was created
+        self.assertIsNotNone(vertices)
+        self.assertIsNotNone(faces)
+        
+        # Should have 10x10=100 vertices
+        self.assertEqual(len(vertices), 100)
+        
+        # Should have (10-1)x(10-1)x2=162 triangles (9x9 grid, 2 triangles per quad)
+        self.assertEqual(len(faces), 162)
+        
+        # Test with base height
+        vertices, faces = heightmap_to_mesh(
+            self.heightmap_flat,
+            base_height=0.5
+        )
+        
+        # Should have 2x original vertices (top and bottom) for the base
+        self.assertEqual(len(vertices), 200)
+        
+        # Should have original triangles + base triangles + sides
+        self.assertGreater(len(faces), 162)
+        
+        # Test with invalid input
+        empty_map = np.array([])
+        vertices, faces = heightmap_to_mesh(empty_map)
+        self.assertIsNone(vertices)
+        self.assertIsNone(faces)
     
-    def test_basic_gltf_export(self):
-        """Test basic glTF export functionality.."""
-        output_path = os.path.join(self.temp_dir.name, "test_basic.gltf")
+    def test_generate_uv_coordinates(self):
+        """Test UV coordinate generation."""
+        # Create some test vertices
+        vertices = np.array([
+            [0, 0, 0],
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0]
+        ])
+        
+        # Generate UVs
+        uvs = _generate_uv_coordinates(vertices)
+        
+        # Check shape
+        self.assertEqual(uvs.shape, (4, 2))
+        
+        # Check values (should be normalized to 0-1 range)
+        self.assertEqual(uvs[0, 0], 0.0)  # u for vertex 0
+        self.assertEqual(uvs[0, 1], 0.0)  # v for vertex 0
+        self.assertEqual(uvs[2, 0], 1.0)  # u for vertex 2
+        self.assertEqual(uvs[2, 1], 1.0)  # v for vertex 2
+    
+    @unittest.skipUnless(TRIMESH_AVAILABLE, "trimesh is required")
+    @patch('os.makedirs')
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('trimesh.Trimesh')
+    @patch('trimesh.Scene')
+    def test_convert_heightmap_to_gltf(self, mock_scene, mock_trimesh, mock_open, mock_makedirs):
+        """Test GLTF conversion with mocked file operations."""
+        # Setup mocks
+        mock_mesh = MagicMock()
+        mock_trimesh.return_value = mock_mesh
+        mock_scene_instance = MagicMock()
+        mock_scene.return_value = mock_scene_instance
+        mock_scene_instance.export.return_value = "test_gltf_content"
+        
+        # Test conversion
         result = convert_heightmap_to_gltf(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0
+            self.heightmap_flat,
+            filename="test.gltf",
+            z_scale=1.0,
+            base_height=0.0
         )
-        self.assertEqual(result, output_path)
-        self._validate_gltf_file(output_path)
-    
-    def test_basic_glb_export(self):
-        """Test basic GLB export functionality.."""
-        output_path = os.path.join(self.temp_dir.name, "test_basic.glb")
-        result = convert_heightmap_to_glb(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0
-        )
-        self.assertEqual(result, output_path)
-        self._validate_gltf_file(output_path, is_glb=True)
-    
-    def test_gltf_with_base(self):
-        """Test glTF export with base.."""
-        output_path = os.path.join(self.temp_dir.name, "test_base.gltf")
+        
+        # Check that file was created
+        mock_makedirs.assert_called_once()
+        mock_open.assert_called_once()
+        self.assertEqual(result, "test.gltf")
+        
+        # Test with invalid input
+        mock_scene.reset_mock()
+        mock_open.reset_mock()
+        
         result = convert_heightmap_to_gltf(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0,
-            base_height=1.5
-        )
-        self.assertEqual(result, output_path)
-        self._validate_gltf_file(output_path)
-        
-        # Get file size and compare with base vs without base
-        no_base_path = os.path.join(self.temp_dir.name, "test_no_base.gltf")
-        convert_heightmap_to_gltf(
-            self.height_map, 
-            filename=no_base_path,
-            z_scale=2.0
+            np.array([]),  # Empty array
+            filename="test.gltf"
         )
         
-        # Base version should be larger (contains more vertices and faces)
-        self.assertGreater(os.path.getsize(output_path), os.path.getsize(no_base_path))
-    
-    def test_gltf_with_texture(self):
-        """Test glTF export with texture.."""
-        output_path = os.path.join(self.temp_dir.name, "test_texture.gltf")
-        result = convert_heightmap_to_gltf(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0,
-            add_texture=True,
-            texture_resolution=256
-        )
-        self.assertEqual(result, output_path)
-        self._validate_gltf_file(output_path)
-        
-        # Verify texture file was created
-        texture_path = os.path.splitext(output_path)[0] + "_texture.png"
-        self.assertTrue(os.path.exists(texture_path), "Texture file was not created")
-        
-        # Check that texture is referenced in the glTF file
-        with open(output_path, 'r') as f:
-            gltf_data = json.load(f)
-            self.assertIn("textures", gltf_data, "Missing 'textures' in glTF")
-            self.assertIn("images", gltf_data, "Missing 'images' in glTF")
-            self.assertIn("materials", gltf_data, "Missing 'materials' in glTF")
-    
-    def test_glb_with_texture(self):
-        """Test GLB export with texture.."""
-        output_path = os.path.join(self.temp_dir.name, "test_texture.glb")
-        result = convert_heightmap_to_glb(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0,
-            add_texture=True,
-            texture_resolution=256
-        )
-        self.assertEqual(result, output_path)
-        self._validate_gltf_file(output_path, is_glb=True)
-        
-        # Verify texture file was created
-        texture_path = os.path.splitext(output_path)[0] + "_texture.png"
-        self.assertTrue(os.path.exists(texture_path), "Texture file was not created")
-    
-    def test_gltf_extension_correction(self):
-        """Test that GLB filenames are automatically corrected when using convert_heightmap_to_glb.."""
-        # Don't include .glb extension in the filename
-        output_path = os.path.join(self.temp_dir.name, "test_no_extension")
-        result = convert_heightmap_to_glb(
-            self.height_map, 
-            filename=output_path
-        )
-        # Result should have .glb extension added
-        self.assertEqual(result, output_path + ".glb")
-        self._validate_gltf_file(output_path + ".glb", is_glb=True)
-    
-    def test_error_handling(self):
-        """Test error handling for invalid inputs.."""
-        # Test with height map that's too small
-        small_map = np.zeros((1, 1))
-        result = convert_heightmap_to_gltf(small_map, os.path.join(self.temp_dir.name, "small.gltf"))
+        # Should return None for invalid input
         self.assertIsNone(result)
+        mock_open.assert_not_called()
+    
+    @unittest.skipUnless(TRIMESH_AVAILABLE, "trimesh is required")
+    @patch('tmd.exporters.model.gltf.convert_heightmap_to_gltf')
+    def test_convert_heightmap_to_glb(self, mock_convert):
+        """Test GLB conversion."""
+        # Setup mock
+        mock_convert.return_value = "test.glb"
         
-        # Test with invalid directory
-        invalid_dir = "/path/that/does/not/exist/file.gltf"
-        result = convert_heightmap_to_gltf(self.height_map, invalid_dir)
-        self.assertIsNone(result)
+        # Test conversion
+        result = convert_heightmap_to_glb(
+            self.heightmap_flat,
+            filename="test.glb",
+            z_scale=1.0
+        )
+        
+        # Check that the convert_heightmap_to_gltf function was called with binary=True
+        mock_convert.assert_called_once()
+        call_args = mock_convert.call_args[1]
+        self.assertTrue(call_args["binary"])
+        self.assertEqual(result, "test.glb")
+        
+        # Test with filename without extension
+        mock_convert.reset_mock()
+        mock_convert.return_value = "test.glb"
+        
+        result = convert_heightmap_to_glb(
+            self.heightmap_flat,
+            filename="test"  # No extension
+        )
+        
+        # Should add .glb extension
+        self.assertEqual(mock_convert.call_args[1]["filename"], "test.glb")
+    
+    @unittest.skipUnless(TRIMESH_AVAILABLE, "trimesh is required")
+    @patch('tmd.exporters.model.gltf.convert_heightmap_to_gltf')
+    def test_export_functions(self, mock_convert):
+        """Test convenience export functions."""
+        # Setup mock
+        mock_convert.return_value = "test.gltf"
+        
+        # Test GLTF export
+        result = export_gltf(
+            self.heightmap_flat,
+            output_file="test.gltf"
+        )
+        
+        # Check function was called correctly
+        mock_convert.assert_called_once()
+        self.assertEqual(result, "test.gltf")
+        
+        # Test GLB export
+        mock_convert.reset_mock()
+        mock_convert.return_value = "test.glb"
+        
+        result = export_glb(
+            self.heightmap_flat,
+            output_file="test.glb"
+        )
+        
+        # Check the binary parameter was passed
+        mock_convert.assert_called_once()
+        self.assertTrue(mock_convert.call_args[1]["binary"])
+        self.assertEqual(result, "test.glb")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

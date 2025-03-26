@@ -1,21 +1,161 @@
-""".
+"""
+Utility functions for image exporting.
 
-Utility functions for image map generation.
-
-This module contains helper functions for creating and processing various map types.
+This module provides common utility functions used across different image exporters.
 """
 
 import os
 import logging
 import numpy as np
-import cv2
-import matplotlib.pyplot as plt
+from typing import Optional, Union, Tuple, List, Dict
 
+# Set up logging
 logger = logging.getLogger(__name__)
 
-def generate_roughness_map(height_map, kernel_size=3, scale=1.0):
-    """.
+def ensure_directory_exists(filepath: str) -> bool:
+    """
+    Ensure the directory for a file path exists.
+    
+    Args:
+        filepath: Path to a file
+        
+    Returns:
+        True if directory exists or was created, False otherwise
+    """
+    try:
+        directory = os.path.dirname(os.path.abspath(filepath))
+        os.makedirs(directory, exist_ok=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error creating directory for {filepath}: {e}")
+        return False
 
+def normalize_heightmap(height_map: np.ndarray, min_val: float = 0.0, max_val: float = 1.0) -> np.ndarray:
+    """
+    Normalize a heightmap to a specific range.
+    
+    Args:
+        height_map: Input heightmap
+        min_val: Minimum output value
+        max_val: Maximum output value
+        
+    Returns:
+        Normalized heightmap
+    """
+    if height_map is None:
+        return None
+        
+    # Handle empty or constant arrays
+    if height_map.size == 0 or np.max(height_map) == np.min(height_map):
+        return np.zeros_like(height_map, dtype=np.float32)
+    
+    # Scale to target range
+    normalized = min_val + (max_val - min_val) * (height_map - np.min(height_map)) / (np.max(height_map) - np.min(height_map))
+    return normalized.astype(np.float32)
+
+def handle_nan_values(array: np.ndarray, strategy: str = 'mean') -> np.ndarray:
+    """
+    Handle NaN values in an array using the specified strategy.
+    
+    Args:
+        array: Input array
+        strategy: Strategy to use ('mean', 'zero', 'nearest')
+        
+    Returns:
+        Array with NaN values replaced
+    """
+    if array is None or not np.any(np.isnan(array)):
+        return array
+    
+    # Make a copy to avoid modifying the original
+    result = array.copy()
+    
+    if strategy == 'mean':
+        # Replace with mean of non-NaN values
+        result[np.isnan(result)] = np.nanmean(result)
+    elif strategy == 'zero':
+        # Replace with zeros
+        result[np.isnan(result)] = 0.0
+    elif strategy == 'nearest':
+        # Replace with nearest non-NaN values
+        from scipy import ndimage
+        mask = np.isnan(result)
+        result[mask] = 0
+        result = ndimage.distance_transform_edt(mask, return_distances=False, return_indices=True)
+        result = result[~mask]
+    else:
+        # Default to mean
+        result[np.isnan(result)] = np.nanmean(result)
+    
+    return result
+
+
+def array_to_image(
+    array: np.ndarray, 
+    bit_depth: int = 8
+) -> np.ndarray:
+    """
+    Convert a normalized array to an image array.
+    
+    Args:
+        array: Input array (normalized to [0, 1])
+        bit_depth: Output bit depth (8 or 16)
+        
+    Returns:
+        Image array (uint8 or uint16)
+    """
+    # Ensure values are in range [0, 1]
+    array = np.clip(array, 0, 1)
+    
+    # Convert to appropriate bit depth
+    if bit_depth == 16:
+        return (array * 65535).astype(np.uint16)
+    else:
+        return (array * 255).astype(np.uint8)
+
+
+def save_image(
+    image: np.ndarray, 
+    filepath: str,
+    cmap: Optional[str] = None,
+    bit_depth: int = 8
+) -> str:
+    """
+    Save an image array to a file.
+    
+    Args:
+        image: Image data as numpy array
+        filepath: Output filepath
+        cmap: Optional colormap (for grayscale images)
+        bit_depth: Bit depth for output (8 or 16)
+        
+    Returns:
+        Path to saved file
+    """
+    ensure_directory_exists(filepath)
+    
+    if HAS_OPENCV and bit_depth == 16:
+        # Use OpenCV for 16-bit output
+        img_data = array_to_image(image, bit_depth=16)
+        cv2.imwrite(filepath, img_data)
+    elif HAS_MATPLOTLIB:
+        # Use Matplotlib (supports colormaps)
+        kwargs = {}
+        if cmap:
+            kwargs['cmap'] = cmap
+        plt.imsave(filepath, image, **kwargs)
+    else:
+        # Fallback implementation using PIL
+        from PIL import Image
+        img_data = array_to_image(image, bit_depth=8)
+        img = Image.fromarray(img_data)
+        img.save(filepath)
+    
+    return filepath
+
+
+def generate_roughness_map(height_map: np.ndarray, kernel_size: int = 3, scale: float = 1.0) -> np.ndarray:
+    """
     Generate a roughness map using the Laplacian operator to detect texture variations.
 
     Args:
@@ -55,9 +195,8 @@ def generate_roughness_map(height_map, kernel_size=3, scale=1.0):
     return roughness_normalized
 
 
-def create_orm_map(ambient_occlusion, roughness_map, base_color_map):
-    """.
-
+def create_orm_map(ambient_occlusion: np.ndarray, roughness_map: np.ndarray, base_color_map: np.ndarray) -> np.ndarray:
+    """
     Create an ORM map:
       - Red channel: Ambient Occlusion (AO)
       - Green channel: Roughness
@@ -75,16 +214,15 @@ def create_orm_map(ambient_occlusion, roughness_map, base_color_map):
     return np.stack([ambient_occlusion, roughness_map, metallic_map], axis=-1)
 
 
-def generate_edge_map(displacement_map, threshold1=50, threshold2=150):
-    """.
-
+def generate_edge_map(displacement_map: np.ndarray, threshold1: int = 50, threshold2: int = 150) -> np.ndarray:
+    """
     Generate an edge map using Canny edge detection.
-
+    
     Args:
         displacement_map: 2D array representing the displacement map.
         threshold1: First threshold for the hysteresis procedure.
         threshold2: Second threshold for the hysteresis procedure.
-
+        
     Returns:
         Edge map as a 2D numpy array.
     """
@@ -92,9 +230,8 @@ def generate_edge_map(displacement_map, threshold1=50, threshold2=150):
     return cv2.Canny(disp_8u, threshold1, threshold2)
 
 
-def save_texture(texture, filename):
-    """.
-
+def save_texture(texture: Union[np.ndarray, 'PIL.Image.Image'], filename: str) -> None:
+    """
     Save texture to a PNG file.
 
     Args:
@@ -102,7 +239,7 @@ def save_texture(texture, filename):
         filename: Output filename.
     """
     # Ensure output directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
+    ensure_directory_exists(filename)
     
     if isinstance(texture, np.ndarray):
         cv2.imwrite(filename, texture)
@@ -114,9 +251,12 @@ def save_texture(texture, filename):
             raise TypeError("Texture must be a numpy array or PIL Image")
 
 
-def plot_textures(textures, figsize=(20, 20), grid_size=(3, 3), show=True, output_file=None):
-    """.
-
+def plot_textures(textures: List[Tuple[np.ndarray, str]], 
+                  figsize: Tuple[int, int] = (20, 20), 
+                  grid_size: Tuple[int, int] = (3, 3), 
+                  show: bool = True, 
+                  output_file: Optional[str] = None) -> 'plt.Figure':
+    """
     Display textures in a grid.
 
     Args:
@@ -151,7 +291,7 @@ def plot_textures(textures, figsize=(20, 20), grid_size=(3, 3), show=True, outpu
     
     if output_file:
         # Ensure output directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+        ensure_directory_exists(output_file)
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         
     if show:
@@ -161,8 +301,7 @@ def plot_textures(textures, figsize=(20, 20), grid_size=(3, 3), show=True, outpu
 
 
 def normalize_height_map(height_map: np.ndarray, min_val: float = 0.0, max_val: float = 1.0, clip: bool = False) -> np.ndarray:
-    """.
-
+    """
     Normalize a height map to the specified range.
     
     Args:
@@ -195,47 +334,52 @@ def normalize_height_map(height_map: np.ndarray, min_val: float = 0.0, max_val: 
     return h_scaled
 
 
-def apply_colormap(image, colormap='viridis', min_val=None, max_val=None):
-    """.
-
+def apply_colormap(
+    image: np.ndarray,
+    colormap: str = 'viridis',
+    min_val: Optional[float] = None,
+    max_val: Optional[float] = None,
+    vmin: Optional[float] = None,  # For test compatibility
+    vmax: Optional[float] = None   # For test compatibility
+) -> np.ndarray:
+    """
     Apply a colormap to a grayscale image.
     
     Args:
         image: Grayscale image as a 2D numpy array
-        colormap: Name of the matplotlib colormap to use ('viridis', 'jet', etc.)
+        colormap: Name of the matplotlib colormap to use
         min_val: Minimum value for normalization (if None, uses image min)
         max_val: Maximum value for normalization (if None, uses image max)
+        vmin: Alternative to min_val (for test compatibility)
+        vmax: Alternative to max_val (for test compatibility)
         
     Returns:
         RGB image as a 3D numpy array
     """
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
-    import numpy as np
+    if not HAS_MATPLOTLIB:
+        raise ImportError("Matplotlib is required for apply_colormap")
     
+    # Use vmin/vmax if provided (for test compatibility)
+    if vmin is not None:
+        min_val = vmin
+    if vmax is not None:
+        max_val = vmax
+        
     # Normalize the image
-    if min_val is None:
-        min_val = np.min(image)
-    if max_val is None:
-        max_val = np.max(image)
-    
-    if max_val > min_val:
-        normalized = (image - min_val) / (max_val - min_val)
-    else:
-        normalized = np.zeros_like(image)
+    norm_image = normalize_heightmap(image, vmin=min_val, vmax=max_val)
     
     # Apply colormap
     cmap = plt.get_cmap(colormap)
-    colored = cmap(normalized)
+    colored = cmap(norm_image)
     
     # Convert to uint8 [0-255] RGB
     rgb_image = (colored[:, :, :3] * 255).astype(np.uint8)
     
     return rgb_image
 
-def apply_lighting(image, azimuth=315, altitude=45, strength=1.0):
-    """.
 
+def apply_lighting(image: np.ndarray, azimuth: float = 315, altitude: float = 45, strength: float = 1.0) -> np.ndarray:
+    """
     Apply directional lighting to a heightmap or normal map.
     
     Args:
@@ -247,8 +391,6 @@ def apply_lighting(image, azimuth=315, altitude=45, strength=1.0):
     Returns:
         Shaded image as a numpy array
     """
-    import numpy as np
-    
     # If input is a heightmap, convert to normal map first
     if len(image.shape) == 2:
         # It's a heightmap, convert to normal map
@@ -282,9 +424,53 @@ def apply_lighting(image, azimuth=315, altitude=45, strength=1.0):
     
     return shaded
 
-def compose_multi_channel_image(channels):
-    """.
 
+def get_contour_mask(
+    height_map: np.ndarray,
+    threshold_low: float = 0.1,
+    threshold_high: float = 0.9,
+    blur_radius: float = 0.5
+) -> np.ndarray:
+    """
+    Create a mask highlighting contours in a height map.
+    
+    Args:
+        height_map: Input height map
+        threshold_low: Low threshold for contour detection
+        threshold_high: High threshold for contour detection
+        blur_radius: Blur radius for pre-processing
+        
+    Returns:
+        Binary mask image
+    """
+    # Normalize and handle NaNs
+    h_map = normalize_heightmap(height_map)
+    
+    if HAS_OPENCV:
+        # Use OpenCV (more efficient)
+        h_map_8u = (h_map * 255).astype(np.uint8)
+        if blur_radius > 0:
+            h_map_8u = cv2.GaussianBlur(h_map_8u, (0, 0), blur_radius)
+        edges = cv2.Canny(h_map_8u, int(threshold_low*255), int(threshold_high*255))
+        return edges > 0
+    else:
+        # Fallback implementation
+        from scipy import ndimage
+        if blur_radius > 0:
+            h_map = ndimage.gaussian_filter(h_map, sigma=blur_radius)
+        dx = ndimage.sobel(h_map, axis=1)
+        dy = ndimage.sobel(h_map, axis=0)
+        gradient = np.sqrt(dx**2 + dy**2)
+        
+        # Normalize and threshold
+        if np.max(gradient) > 0:
+            gradient = gradient / np.max(gradient)
+        mask = gradient > threshold_low
+        return mask
+
+
+def compose_multi_channel_image(channels: Dict[str, np.ndarray]) -> Optional[np.ndarray]:
+    """
     Combine multiple channels into a single multi-channel image.
     
     Args:

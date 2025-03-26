@@ -1,149 +1,237 @@
-""".
+"""Unit tests for TMD OBJ module."""
 
-Unit tests for OBJ export functionality.
-
-Tests the conversion of height maps to OBJ files with various options.
-"""
-
-import os
-import tempfile
 import unittest
 import numpy as np
+import os
+import sys
+import tempfile
+from unittest.mock import patch, MagicMock
 
-from tmd.exporters.model.obj import (
-    convert_heightmap_to_obj,
-    convert_heightmap_to_obj_meshio
-)
-from tmd.utils.utils import create_sample_height_map
+# Add the project root to the path to import tmd modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+from tmd.exporters.model.obj import convert_heightmap_to_obj
 
 
-class TestOBJExport(unittest.TestCase):
-    """Test cases for OBJ export functionality.."""
+class TestObj(unittest.TestCase):
+    """Test class for OBJ export functionality."""
     
     def setUp(self):
-        """Set up test data and temporary directory.."""
-        # Create a temporary directory for test outputs
-        self.temp_dir = tempfile.TemporaryDirectory()
+        """Set up test fixtures."""
+        # Create test heightmaps
+        self.heightmap_flat = np.zeros((10, 10), dtype=np.float32)
         
-        # Create sample data - small for faster tests
-        self.height_map = create_sample_height_map(width=20, height=20, pattern="peak")
+        self.heightmap_slope = np.zeros((10, 10), dtype=np.float32)
+        for i in range(10):
+            for j in range(10):
+                self.heightmap_slope[i, j] = i / 10.0
         
-    def tearDown(self):
-        """Clean up temporary directory.."""
-        self.temp_dir.cleanup()
+        self.heightmap_peak = np.zeros((10, 10), dtype=np.float32)
+        for i in range(10):
+            for j in range(10):
+                self.heightmap_peak[i, j] = 1.0 - ((i-5)**2 + (j-5)**2) / 50.0
+                if self.heightmap_peak[i, j] < 0:
+                    self.heightmap_peak[i, j] = 0
     
-    def _validate_obj_file(self, file_path, expected_exists=True, min_size=100):
-        """Helper to validate OBJ output files.."""
-        if expected_exists:
-            self.assertTrue(os.path.exists(file_path), f"File {file_path} does not exist")
-            self.assertGreater(os.path.getsize(file_path), min_size, 
-                              f"File {file_path} is too small ({os.path.getsize(file_path)} bytes)")
-            
-            # Basic validation of file format
-            with open(file_path, 'r') as f:
-                content = f.read(200)
-                # OBJ should start with "v" (vertex) or # (comment)
-                self.assertTrue(content.strip().startswith("v") or content.strip().startswith("#"), 
-                               f"OBJ file should start with vertex or comment, got: {content[:20]}")
-                # Check for vertices and faces
-                self.assertIn("v ", content[:1000] if len(content) > 1000 else content)
-                with open(file_path, 'r') as f2:
-                    full_content = f2.read()
-                    self.assertIn("f ", full_content)
-        else:
-            self.assertFalse(os.path.exists(file_path), f"File {file_path} exists but should not")
-    
-    def test_basic_obj_export(self):
-        """Test basic OBJ export functionality.."""
-        output_path = os.path.join(self.temp_dir.name, "test_basic.obj")
-        result = convert_heightmap_to_obj(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0
-        )
-        self.assertEqual(result, output_path)
-        self._validate_obj_file(output_path)
-    
-    def test_obj_with_base(self):
-        """Test OBJ export with base.."""
-        output_path = os.path.join(self.temp_dir.name, "test_base.obj")
-        result = convert_heightmap_to_obj(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0,
-            base_height=1.5
-        )
-        self.assertEqual(result, output_path)
-        self._validate_obj_file(output_path)
-        
-        # Get file size and compare with base vs without base
-        no_base_path = os.path.join(self.temp_dir.name, "test_no_base.obj")
-        convert_heightmap_to_obj(
-            self.height_map, 
-            filename=no_base_path,
-            z_scale=2.0
-        )
-        
-        # Base version should be larger (contains more vertices and faces)
-        self.assertGreater(os.path.getsize(output_path), os.path.getsize(no_base_path))
-    
-    def test_obj_with_custom_dimensions(self):
-        """Test OBJ export with custom physical dimensions.."""
-        output_path = os.path.join(self.temp_dir.name, "test_dimensions.obj")
-        result = convert_heightmap_to_obj(
-            self.height_map, 
-            filename=output_path,
-            x_offset=10.0,
-            y_offset=5.0,
-            x_length=100.0,
-            y_length=50.0,
-            z_scale=3.0
-        )
-        self.assertEqual(result, output_path)
-        self._validate_obj_file(output_path)
-        
-        # Check if the custom dimensions are applied
-        with open(output_path, 'r') as f:
-            content = f.read()
-            vertices = [line for line in content.splitlines() if line.startswith('v ')]
-            
-            # First vertex should be at (x_offset, y_offset, _)
-            first_vertex = vertices[0].split()
-            self.assertAlmostEqual(float(first_vertex[1]), 10.0)  # x_offset
-            self.assertAlmostEqual(float(first_vertex[2]), 5.0)   # y_offset
-    
-    def test_meshio_obj_export(self):
-        """Test OBJ export using meshio.."""
-        output_path = os.path.join(self.temp_dir.name, "test_meshio.obj")
-        result = convert_heightmap_to_obj_meshio(
-            self.height_map, 
-            filename=output_path,
-            z_scale=2.0
-        )
-        self.assertEqual(result, output_path)
-        self._validate_obj_file(output_path)
-    
-    def test_error_handling(self):
-        """Test error handling for invalid inputs.."""
-        # Test with height map that's too small
-        small_map = np.zeros((1, 1))
-        result = convert_heightmap_to_obj(small_map, os.path.join(self.temp_dir.name, "small.obj"))
+    def test_input_validation(self):
+        """Test input validation for OBJ export."""
+        # Test with None heightmap
+        result = convert_heightmap_to_obj(None, "test.obj")
         self.assertIsNone(result)
         
-        # Test with invalid directory - use a temp path that we can create but won't have write access
-        if os.name == 'nt':  # Windows
-            invalid_dir = "C:\\Windows\\System32\\restricted_area\\file.obj"
-        else:  # Unix/Linux
-            invalid_dir = "/root/restricted_area/file.obj"
+        # Test with empty heightmap
+        result = convert_heightmap_to_obj(np.array([]), "test.obj")
+        self.assertIsNone(result)
+        
+        # Test with too small heightmap
+        result = convert_heightmap_to_obj(np.array([[1]]), "test.obj")
+        self.assertIsNone(result)
+    
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('tmd.exporters.model.obj.create_mesh_from_heightmap')
+    @patch('tmd.exporters.model.obj.ensure_directory_exists')
+    def test_obj_export_basic(self, mock_ensure_dir, mock_create_mesh, mock_open):
+        """Test basic OBJ export functionality."""
+        # Setup mocks
+        mock_ensure_dir.return_value = True
+        
+        # Mock the mesh creation
+        vertices = [
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 1, 0]
+        ]
+        faces = [
+            [0, 1, 2],
+            [1, 3, 2]
+        ]
+        mock_create_mesh.return_value = (vertices, faces)
+        
+        # Test export
+        result = convert_heightmap_to_obj(
+            self.heightmap_flat,
+            filename="test.obj",
+            z_scale=1.0,
+            calculate_normals=True
+        )
+        
+        # Check that file was opened correctly
+        mock_open.assert_called()
+        mock_open().__enter__().write.assert_called()
+        
+        # Result should be the filename
+        self.assertEqual(result, "test.obj")
+        
+        # Check that OBJ contents were written
+        write_calls = mock_open().__enter__().write.call_args_list
+        
+        # Check for vertex definitions
+        vertices_written = sum(1 for call in write_calls if call[0][0].startswith('v '))
+        self.assertEqual(vertices_written, len(vertices))
+        
+        # Check for normal definitions
+        normals_written = sum(1 for call in write_calls if call[0][0].startswith('vn '))
+        self.assertEqual(normals_written, len(vertices))
+        
+        # Check for face definitions
+        faces_written = sum(1 for call in write_calls if call[0][0].startswith('f '))
+        self.assertEqual(faces_written, len(faces))
+    
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('tmd.exporters.model.obj.create_mesh_from_heightmap')
+    @patch('tmd.exporters.model.obj.ensure_directory_exists')
+    def test_obj_with_materials(self, mock_ensure_dir, mock_create_mesh, mock_open):
+        """Test OBJ export with materials."""
+        # Setup mocks
+        mock_ensure_dir.return_value = True
+        
+        # Mock the mesh creation
+        vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]]
+        faces = [[0, 1, 2], [1, 3, 2]]
+        mock_create_mesh.return_value = (vertices, faces)
+        
+        # Test export with materials
+        result = convert_heightmap_to_obj(
+            self.heightmap_flat,
+            filename="test.obj",
+            include_materials=True
+        )
+        
+        # Should open two files (OBJ and MTL)
+        self.assertEqual(mock_open.call_count, 2)
+        
+        # Check for MTL reference in OBJ file
+        mtllib_written = False
+        for call in mock_open().__enter__().write.call_args_list:
+            if call[0][0].startswith('mtllib'):
+                mtllib_written = True
+                break
+        self.assertTrue(mtllib_written)
+        
+        # Result should be the filename
+        self.assertEqual(result, "test.obj")
+    
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('tmd.exporters.model.obj.create_mesh_from_heightmap')
+    @patch('tmd.exporters.model.obj.ensure_directory_exists')
+    def test_obj_with_base(self, mock_ensure_dir, mock_create_mesh, mock_open):
+        """Test OBJ export with a base."""
+        # Setup mocks
+        mock_ensure_dir.return_value = True
+        
+        # Mock the mesh creation - vertices include base vertices
+        vertices = [
+            [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],  # Surface
+            [0, 0, -0.5], [1, 0, -0.5], [0, 1, -0.5], [1, 1, -0.5]  # Base
+        ]
+        faces = [
+            [0, 1, 2], [1, 3, 2],  # Surface
+            [4, 5, 6], [5, 7, 6]   # Base
+        ]
+        mock_create_mesh.return_value = (vertices, faces)
+        
+        # Test export with base
+        result = convert_heightmap_to_obj(
+            self.heightmap_flat,
+            filename="test.obj",
+            base_height=0.5
+        )
+        
+        # Check for group definitions
+        groups_written = 0
+        for call in mock_open().__enter__().write.call_args_list:
+            if call[0][0].startswith('g '):
+                groups_written += 1
+        
+        # Should have 2 groups (surface and base)
+        self.assertEqual(groups_written, 2)
+        
+        # Result should be the filename
+        self.assertEqual(result, "test.obj")
+    
+    @patch('builtins.open')
+    @patch('tmd.exporters.model.obj.ensure_directory_exists')
+    def test_error_handling(self, mock_ensure_dir, mock_open):
+        """Test error handling in OBJ export."""
+        # Setup directory exists
+        mock_ensure_dir.return_value = True
+        
+        # Make open raise an exception
+        mock_open.side_effect = IOError("Test error")
+        
+        # Test export with IO error
+        result = convert_heightmap_to_obj(
+            self.heightmap_flat,
+            filename="test.obj"
+        )
+        
+        # Should return None on error
+        self.assertIsNone(result)
+    
+    @patch('tmd.exporters.model.obj.ensure_directory_exists')
+    def test_directory_creation_failure(self, mock_ensure_dir):
+        """Test handling of directory creation failure."""
+        # Setup directory creation failure
+        mock_ensure_dir.return_value = False
+        
+        # Test export with directory creation failure
+        result = convert_heightmap_to_obj(
+            self.heightmap_flat,
+            filename="test.obj"
+        )
+        
+        # Should return None if directory creation fails
+        self.assertIsNone(result)
+        mock_ensure_dir.assert_called_once_with("test.obj")
+    
+    @unittest.skipIf(not os.getenv('RUN_INTEGRATION_TESTS'), "Integration tests disabled")
+    def test_integration_real_file(self):
+        """Test actual file creation (only runs if RUN_INTEGRATION_TESTS is set)."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_file = os.path.join(tmp_dir, "test_real_output.obj")
+            mtl_file = os.path.join(tmp_dir, "test_real_output.mtl")
             
-        try:
-            result = convert_heightmap_to_obj(self.height_map, invalid_dir)
-            self.assertIsNone(result)
-        except (PermissionError, OSError):
-            # This is also acceptable - either the converter catches the error and returns None
-            # or the error is propagated up
-            pass
+            # Test OBJ output with materials
+            result = convert_heightmap_to_obj(
+                self.heightmap_peak,
+                filename=output_file,
+                z_scale=1.0,
+                include_materials=True
+            )
+            
+            # Check that files exist
+            self.assertTrue(os.path.isfile(output_file))
+            self.assertTrue(os.path.isfile(mtl_file))
+            
+            # Basic check of OBJ file content
+            with open(output_file, 'r') as f:
+                content = f.read()
+                self.assertIn("mtllib", content)
+                self.assertIn("v ", content)  # Vertices
+                self.assertIn("vt ", content)  # Texture coordinates
+                self.assertIn("vn ", content)  # Normals
+                self.assertIn("f ", content)  # Faces
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

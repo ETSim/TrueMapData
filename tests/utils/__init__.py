@@ -1,4 +1,1 @@
-""".
-
-Unit tests for TMD utility modules.
-"""
+"""Test package for TMD utils."""

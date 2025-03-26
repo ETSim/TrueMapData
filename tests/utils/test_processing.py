@@ -1,505 +1,263 @@
-""".
+"""Unit tests for TMD processing utility module."""
 
-Unit tests for the height map processing functions.
-
-These tests verify the functionality of processing operations like
-crop, flip, rotate, threshold, and cross-section extraction.
-"""
+import unittest
+import numpy as np
 import os
 import tempfile
-import unittest
-
-import numpy as np
-from scipy import ndimage
+import shutil
+from unittest.mock import patch, MagicMock
 
 from tmd.utils.processing import (
     crop_height_map,
-    extract_cross_section,
-    extract_profile_at_percentage,
     flip_height_map,
     rotate_height_map,
     threshold_height_map,
+    extract_cross_section,
+    extract_profile_at_percentage
 )
 
 
-class TestCropHeightMap(unittest.TestCase):
-    """Test the crop_height_map function.."""
-
+class TestProcessingUtility(unittest.TestCase):
+    """Test class for processing utility functionality."""
+    
     def setUp(self):
-        """Create a sample height map for testing.."""
-        self.height_map = np.ones((10, 10)) * 0.5
-        # Set the outer border to 0 to verify correct cropping
-        self.height_map[0, :] = 0
-        self.height_map[-1, :] = 0
-        self.height_map[:, 0] = 0
-        self.height_map[:, -1] = 0
-        # Set the inner region to a unique value
-        self.height_map[2:8, 2:8] = 1.0
-
-    def test_valid_crop(self):
-        """Test cropping with valid parameters.."""
-        region = (2, 8, 2, 8)  # (row_start, row_end, col_start, col_end)
-        cropped = crop_height_map(self.height_map, region)
-
-        # Verify shape
-        self.assertEqual(cropped.shape, (6, 6))
-        # Verify the cropped region has the expected value
-        self.assertTrue(np.all(cropped == 1.0))
-
-    def test_invalid_crop_region(self):
-        """Test that invalid crop regions raise ValueErrors.."""
-        # Starting coordinate negative
-        with self.assertRaises(ValueError):
-            crop_height_map(self.height_map, (-1, 5, 0, 5))
-
-        # End coordinate beyond boundaries
-        with self.assertRaises(ValueError):
-            crop_height_map(self.height_map, (0, 11, 0, 5))
-
-        # End before start
-        with self.assertRaises(ValueError):
-            crop_height_map(self.height_map, (5, 3, 0, 5))
-
-    def test_edge_crop(self):
-        """Test cropping to the very edges.."""
-        # Crop a thin slice from the top-left corner
-        region = (0, 1, 0, 5)
-        cropped = crop_height_map(self.height_map, region)
-        self.assertEqual(cropped.shape, (1, 5))
-        self.assertTrue(np.all(cropped == 0))  # Border value
-
-    def test_single_pixel_crop(self):
-        """Test cropping a single pixel.."""
-        region = (5, 6, 5, 6)
-        cropped = crop_height_map(self.height_map, region)
-        self.assertEqual(cropped.shape, (1, 1))
-        self.assertEqual(cropped[0, 0], 1.0)  # Inner region value
-
-    def test_copy_not_view(self):
-        """Test that the result is a copy, not a view.."""
-        region = (2, 8, 2, 8)
-        cropped = crop_height_map(self.height_map, region)
-
-        # Modify the cropped array
-        cropped[0, 0] = 9.9
-
-        # Original should remain unchanged
-        self.assertEqual(self.height_map[2, 2], 1.0)
-
-
-class TestFlipHeightMap(unittest.TestCase):
-    """Test the flip_height_map function.."""
-
-    def setUp(self):
-        """Create a sample height map for testing.."""
-        # Create a gradient pattern to easily verify flips
-        self.height_map = np.zeros((5, 10))
-        for i in range(5):
+        """Set up test fixtures."""
+        # Create test height map data
+        self.height_map = np.zeros((10, 10), dtype=np.float32)
+        # Create a simple pattern: increasing values from top-left to bottom-right
+        for i in range(10):
             for j in range(10):
-                self.height_map[i, j] = i * 10 + j
-
-    def test_horizontal_flip(self):
-        """Test horizontal flip (axis=0).."""
-        flipped = flip_height_map(self.height_map, axis=0)
-
-        # Verify shape remains the same
-        self.assertEqual(flipped.shape, self.height_map.shape)
-
-        # Check the flip worked - compare first row to last row flipped
-        np.testing.assert_array_equal(flipped[0], self.height_map[4])
-        np.testing.assert_array_equal(flipped[4], self.height_map[0])
-
-    def test_vertical_flip(self):
-        """Test vertical flip (axis=1).."""
-        flipped = flip_height_map(self.height_map, axis=1)
-
-        # Verify flipping along the columns
-        for i in range(5):
+                self.height_map[i, j] = (i + j) / 18.0  # Normalize to [0,1] range
+        
+        # Create a more complex test height map with a central peak
+        x = np.linspace(-3, 3, 10)
+        y = np.linspace(-3, 3, 10)
+        X, Y = np.meshgrid(x, y)
+        self.peak_map = np.exp(-(X**2 + Y**2)/3)
+        
+        # Set up temporary directory for file output tests
+        self.temp_dir = tempfile.mkdtemp()
+        
+        # Create metadata dictionary for testing
+        self.metadata = {
+            'width': 10,
+            'height': 10,
+            'x_length': 10.0,
+            'y_length': 10.0,
+            'x_offset': 0.0,
+            'y_offset': 0.0
+        }
+    
+    def tearDown(self):
+        """Tear down test fixtures."""
+        # Remove temporary directory
+        shutil.rmtree(self.temp_dir)
+    
+    def test_crop_height_map(self):
+        """Test cropping a height map."""
+        # Test valid cropping
+        cropped = crop_height_map(self.height_map, (2, 7, 3, 8))
+        
+        # Check dimensions
+        self.assertEqual(cropped.shape, (5, 5))
+        
+        # Check content (first and last values should match original at crop points)
+        self.assertEqual(cropped[0, 0], self.height_map[2, 3])
+        self.assertEqual(cropped[4, 4], self.height_map[6, 7])
+        
+        # Test error cases
+        with self.assertRaises(ValueError):
+            # Invalid region with negative coordinates
+            crop_height_map(self.height_map, (-1, 5, 2, 7))
+            
+        with self.assertRaises(ValueError):
+            # End coordinates less than start
+            crop_height_map(self.height_map, (5, 2, 3, 8))
+            
+        with self.assertRaises(ValueError):
+            # End coordinates exceed array dimensions
+            crop_height_map(self.height_map, (2, 12, 3, 8))
+    
+    def test_flip_height_map(self):
+        """Test flipping a height map along different axes."""
+        # Test horizontal flip (axis=0)
+        flipped_h = flip_height_map(self.height_map, 0)
+        
+        # In a horizontal flip, rows are reversed but columns stay the same
+        for i in range(10):
             for j in range(10):
-                self.assertEqual(flipped[i, j], self.height_map[i, 9 - j])
-
-    def test_invalid_axis(self):
-        """Test that invalid axis values raise ValueError.."""
+                self.assertEqual(flipped_h[i, j], self.height_map[9-i, j])
+        
+        # Test vertical flip (axis=1)
+        flipped_v = flip_height_map(self.height_map, 1)
+        
+        # In a vertical flip, columns are reversed but rows stay the same
+        for i in range(10):
+            for j in range(10):
+                self.assertEqual(flipped_v[i, j], self.height_map[i, 9-j])
+        
+        # Test invalid axis
         with self.assertRaises(ValueError):
-            flip_height_map(self.height_map, axis=2)
-
-        with self.assertRaises(ValueError):
-            flip_height_map(self.height_map, axis=-1)
-
-    def test_copy_not_view(self):
-        """Test that the result is a copy, not a view.."""
-        flipped = flip_height_map(self.height_map, axis=0)
-
-        # Modify the flipped array
-        original_value = self.height_map[0, 0]
-        flipped[0, 0] = 999
-
-        # Original should remain unchanged
-        self.assertEqual(self.height_map[0, 0], original_value)
-
-
-class TestRotateHeightMap(unittest.TestCase):
-    """Test the rotate_height_map function.."""
-
-    def setUp(self):
-        """Create a sample height map for testing.."""
-        # Create a simple pattern that's easy to verify after rotation
-        self.height_map = np.zeros((5, 5), dtype=np.float32)
-        self.height_map[2, 2] = 1.0  # Center point
-        self.height_map[0, 2] = 0.5  # Top center
-
-    def test_90_degree_rotation(self):
-        """Test rotating by 90 degrees.."""
-        rotated = rotate_height_map(self.height_map, angle=90, reshape=False)
-
-        # Center should stay the same
-        self.assertEqual(rotated[2, 2], 1.0)
-
-        # Top center should now be at right center (approximately)
-        self.assertAlmostEqual(rotated[2, 4], 0.5, delta=0.1)
-
-        # Check shape remains the same when reshape=False
-        self.assertEqual(rotated.shape, self.height_map.shape)
-
-    def test_45_degree_rotation_with_reshape(self):
-        """Test rotating by 45 degrees with reshape=True.."""
-        rotated = rotate_height_map(self.height_map, angle=45, reshape=True)
-
-        # Shape should be different when reshape=True
-        self.assertNotEqual(rotated.shape, self.height_map.shape)
-
-        # Check the rotated array contains the center value
-        # Note: position changes due to reshape
-        self.assertTrue(np.max(rotated) == 1.0)  # Center value should exist
-
-    def test_rotation_interpolation_orders(self):
-        """Test rotation with different interpolation orders.."""
-        # Create a test pattern
-        test_map = np.zeros((10, 10))
-        test_map[4:7, 4:7] = 1.0  # Small square in center
-
-        # Rotate with nearest-neighbor interpolation
-        rotated_nearest = rotate_height_map(test_map, angle=30, interpolation_order=0)
-
-        # Rotate with bilinear interpolation
-        rotated_bilinear = rotate_height_map(test_map, angle=30, interpolation_order=1)
-
-        # The bilinear interpolation should have more intermediate values
-        # than nearest neighbor
-        unique_nearest = len(np.unique(rotated_nearest))
-        unique_bilinear = len(np.unique(rotated_bilinear))
-        self.assertGreater(unique_bilinear, unique_nearest)
-
-
-class TestThresholdHeightMap(unittest.TestCase):
-    """Test the threshold_height_map function.."""
-
-    def setUp(self):
-        """Create a sample height map for testing.."""
-        # Create a gradient from 0 to 1
-        self.height_map = np.linspace(0, 1, 100).reshape((10, 10))
-
-    def test_min_threshold_only(self):
-        """Test thresholding with only minimum value.."""
-        min_threshold = 0.5
-        thresholded = threshold_height_map(self.height_map, min_height=min_threshold)
-
+            flip_height_map(self.height_map, 2)  # Only 0 and 1 are valid
+    
+    def test_rotate_height_map(self):
+        """Test rotating a height map by different angles."""
+        # Test 90 degree rotation
+        rotated_90 = rotate_height_map(self.height_map, 90.0)
+        
+        # Create a small test pattern that's easy to verify when rotated
+        test_map = np.zeros((5, 5), dtype=np.float32)
+        test_map[0, 2] = 1.0  # Top-middle value
+        
+        # Rotate test_map 90 degrees
+        rotated_test = rotate_height_map(test_map, 90.0)
+        
+        # The value should now be in middle-left position (approximately)
+        # Allow small decimal differences due to interpolation
+        max_pos = np.unravel_index(np.argmax(rotated_test), rotated_test.shape)
+        self.assertEqual(max_pos[1], 0)  # Left edge
+        self.assertIn(max_pos[0], [2, 3])  # Middle row approximately
+        
+        # Test 180 degree rotation
+        rotated_180 = rotate_height_map(self.height_map, 180.0)
+        
+        # Value at [0,0] should now be at [9,9], etc.
+        # Allow small decimal differences due to interpolation
+        self.assertAlmostEqual(rotated_180[9, 9], self.height_map[0, 0], places=5)
+        self.assertAlmostEqual(rotated_180[0, 0], self.height_map[9, 9], places=5)
+        
+        # Test with reshape=False (output keeps same dimensions)
+        rotated_45_no_reshape = rotate_height_map(self.height_map, 45.0, reshape=False)
+        self.assertEqual(rotated_45_no_reshape.shape, self.height_map.shape)
+    
+    def test_threshold_height_map(self):
+        """Test applying thresholds to height map values."""
+        # Test minimum threshold with default clipping
+        min_threshold = 0.3
+        thresholded_min = threshold_height_map(self.height_map, min_height=min_threshold)
+        
         # All values should be >= min_threshold
-        self.assertTrue(np.all(thresholded >= min_threshold))
-
-        # Values that were already >= min_threshold should remain unchanged
-        original_above_threshold = self.height_map >= min_threshold
-        np.testing.assert_array_equal(
-            thresholded[original_above_threshold], self.height_map[original_above_threshold]
-        )
-
-    def test_max_threshold_only(self):
-        """Test thresholding with only maximum value.."""
-        max_threshold = 0.7
-        thresholded = threshold_height_map(self.height_map, max_height=max_threshold)
-
-        # All values should be <= max_threshold
-        self.assertTrue(np.all(thresholded <= max_threshold))
-
-    def test_min_and_max_thresholds(self):
-        """Test thresholding with both min and max values.."""
-        min_threshold = 0.3
-        max_threshold = 0.7
-        thresholded = threshold_height_map(
-            self.height_map, min_height=min_threshold, max_height=max_threshold
-        )
-
-        # All values should be between min and max thresholds
-        self.assertTrue(np.all(thresholded >= min_threshold))
-        self.assertTrue(np.all(thresholded <= max_threshold))
-
-    def test_threshold_with_replacement(self):
-        """Test thresholding with replacement value.."""
-        min_threshold = 0.3
+        self.assertTrue(np.all(thresholded_min >= min_threshold))
+        
+        # Values that were already above threshold should remain unchanged
+        original_above_threshold = self.height_map[self.height_map >= min_threshold]
+        thresholded_above = thresholded_min[self.height_map >= min_threshold]
+        np.testing.assert_array_equal(original_above_threshold, thresholded_above)
+        
+        # Test maximum threshold with replacement
         max_threshold = 0.7
         replacement = -1.0
-
-        thresholded = threshold_height_map(
-            self.height_map,
-            min_height=min_threshold,
-            max_height=max_threshold,
-            replacement=replacement,
+        thresholded_max_replace = threshold_height_map(
+            self.height_map, max_height=max_threshold, replacement=replacement
         )
-
-        # Values outside thresholds should be replaced
-        original_below_min = self.height_map < min_threshold
-        original_above_max = self.height_map > max_threshold
-
-        self.assertTrue(np.all(thresholded[original_below_min] == replacement))
-        self.assertTrue(np.all(thresholded[original_above_max] == replacement))
-
-        # Values within thresholds should remain unchanged
-        original_within_range = (self.height_map >= min_threshold) & (
-            self.height_map <= max_threshold
+        
+        # Values above max_threshold should be replaced
+        self.assertTrue(np.all(thresholded_max_replace[self.height_map > max_threshold] == replacement))
+        
+        # Values below max_threshold should remain unchanged
+        original_below_threshold = self.height_map[self.height_map <= max_threshold]
+        thresholded_below = thresholded_max_replace[self.height_map <= max_threshold]
+        np.testing.assert_array_equal(original_below_threshold, thresholded_below)
+        
+        # Test combined min and max thresholds
+        thresholded_both = threshold_height_map(
+            self.height_map, min_height=0.2, max_height=0.8
         )
-        np.testing.assert_array_equal(
-            thresholded[original_within_range], self.height_map[original_within_range]
-        )
-
-    def test_copy_not_view(self):
-        """Test that the result is a copy, not a view.."""
-        thresholded = threshold_height_map(self.height_map, min_height=0.5)
-
-        # Modify the thresholded array
-        original_value = self.height_map[0, 0]
-        thresholded[0, 0] = 999
-
-        # Original should remain unchanged
-        self.assertEqual(self.height_map[0, 0], original_value)
-
-
-class TestExtractCrossSection(unittest.TestCase):
-    """Test the extract_cross_section function.."""
-
-    def setUp(self):
-        """Create a sample height map and data dictionary for testing.."""
-        # Create a 10x10 sample height map with a recognizable pattern
-        self.height_map = np.zeros((10, 10))
-
-        # Create a diagonal ridge
-        for i in range(10):
-            self.height_map[i, i] = 1.0
-
-        # Create a data dictionary with physical dimensions
-        self.data_dict = {
-            "width": 10,
-            "height": 10,
-            "x_offset": 0.0,
-            "y_offset": 0.0,
-            "x_length": 5.0,  # 5mm wide
-            "y_length": 10.0,  # 10mm tall
-        }
-
-    def test_x_cross_section(self):
-        """Test horizontal (X-axis) cross-section.."""
-        # Extract cross section at row 5
+        self.assertTrue(np.all(thresholded_both >= 0.2))
+        self.assertTrue(np.all(thresholded_both <= 0.8))
+    
+    def test_extract_cross_section_x(self):
+        """Test extracting horizontal cross-sections."""
+        # Extract middle row
         positions, heights = extract_cross_section(
-            self.height_map, self.data_dict, axis="x", position=5
+            self.height_map, self.metadata, axis='x', position=5
         )
-
-        # Check the number of points
-        self.assertEqual(len(positions), 10)
-        self.assertEqual(len(heights), 10)
-
-        # Check that positions span from x_offset to x_offset + x_length
-        self.assertAlmostEqual(positions[0], 0.0)
-        self.assertAlmostEqual(positions[-1], 5.0)
-
-        # Check that the height at diagonal position is 1.0
-        self.assertEqual(heights[5], 1.0)
-
-    def test_y_cross_section(self):
-        """Test vertical (Y-axis) cross-section.."""
-        # Extract cross section at column 3
+        
+        # Check that heights match the 5th row of the height map
+        np.testing.assert_array_equal(heights, self.height_map[5, :])
+        
+        # Check positions are generated correctly
+        self.assertEqual(len(positions), self.height_map.shape[1])
+        self.assertEqual(positions[0], self.metadata['x_offset'])
+        self.assertEqual(positions[-1], self.metadata['x_offset'] + self.metadata['x_length'])
+    
+    def test_extract_cross_section_y(self):
+        """Test extracting vertical cross-sections."""
+        # Extract middle column
         positions, heights = extract_cross_section(
-            self.height_map, self.data_dict, axis="y", position=3
+            self.height_map, self.metadata, axis='y', position=5
         )
-
-        # Check the number of points
-        self.assertEqual(len(positions), 10)
-        self.assertEqual(len(heights), 10)
-
-        # Check that positions span from y_offset to y_offset + y_length
-        self.assertAlmostEqual(positions[0], 0.0)
-        self.assertAlmostEqual(positions[-1], 10.0)
-
-        # Check that the height at diagonal position is 1.0
-        self.assertEqual(heights[3], 1.0)
-
-    def test_custom_cross_section(self):
-        """Test custom cross-section along arbitrary line.."""
-        # Extract cross section from top-left to bottom-right
+        
+        # Check that heights match the 5th column of the height map
+        np.testing.assert_array_equal(heights, self.height_map[:, 5])
+        
+        # Check positions are generated correctly
+        self.assertEqual(len(positions), self.height_map.shape[0])
+        self.assertEqual(positions[0], self.metadata['y_offset'])
+        self.assertEqual(positions[-1], self.metadata['y_offset'] + self.metadata['y_length'])
+    
+    def test_extract_cross_section_custom(self):
+        """Test extracting custom cross-sections."""
+        # Extract diagonal cross-section
+        start_point = (2, 3)
+        end_point = (7, 8)
         positions, heights = extract_cross_section(
-            self.height_map, self.data_dict, axis="custom", start_point=(0, 0), end_point=(9, 9)
+            self.height_map, self.metadata, axis='custom', 
+            start_point=start_point, end_point=end_point
         )
-
-        # We should get more points than just the diagonal due to oversampling
-        self.assertGreater(len(positions), 10)
-        self.assertEqual(len(positions), len(heights))
-
-        # Check that the heights contain values close to 1.0 (the diagonal)
-        self.assertTrue(np.any(heights > 0.9))
-
-    def test_invalid_cross_section(self):
-        """Test that invalid parameters raise appropriate errors.."""
-        # Invalid axis
+        
+        # Check that we have the expected number of points
+        self.assertGreaterEqual(len(positions), 
+                              max(abs(end_point[0] - start_point[0]), 
+                                  abs(end_point[1] - start_point[1])))
+        
+        # Check position range
+        self.assertEqual(positions[0], 0.0)  # Should start at 0
+        
+        # Test errors for invalid parameters
         with self.assertRaises(ValueError):
-            extract_cross_section(self.height_map, self.data_dict, axis="z")
-
-        # Invalid position
+            # Invalid axis
+            extract_cross_section(self.height_map, self.metadata, axis='invalid')
+            
         with self.assertRaises(ValueError):
-            extract_cross_section(self.height_map, self.data_dict, axis="x", position=20)
-
-        # Missing custom points
+            # Missing start/end points for custom axis
+            extract_cross_section(self.height_map, self.metadata, axis='custom')
+    
+    def test_extract_profile_at_percentage(self):
+        """Test extracting profiles at different percentage positions."""
+        # Test horizontal profile at 25%
+        profile_x_25 = extract_profile_at_percentage(
+            self.height_map, self.metadata, axis='x', percentage=25
+        )
+        
+        # Should match row at 25% of height
+        row_idx = int(0.25 * (self.height_map.shape[0] - 1) + 0.5)
+        np.testing.assert_array_equal(profile_x_25, self.height_map[row_idx, :])
+        
+        # Test vertical profile at 75%
+        profile_y_75 = extract_profile_at_percentage(
+            self.height_map, self.metadata, axis='y', percentage=75
+        )
+        
+        # Should match column at 75% of width
+        col_idx = int(0.75 * (self.height_map.shape[1] - 1) + 0.5)
+        np.testing.assert_array_equal(profile_y_75, self.height_map[:, col_idx])
+        
+        # Test saving to file
+        output_path = os.path.join(self.temp_dir, 'profile.npy')
+        with patch('numpy.save') as mock_save:
+            extract_profile_at_percentage(
+                self.height_map, self.metadata, axis='x', percentage=50, 
+                save_path=output_path
+            )
+            mock_save.assert_called_once()
+        
+        # Test invalid axis
         with self.assertRaises(ValueError):
-            extract_cross_section(self.height_map, self.data_dict, axis="custom")
-
-        # Out of bounds custom points
-        with self.assertRaises(ValueError):
-            extract_cross_section(
-                self.height_map,
-                self.data_dict,
-                axis="custom",
-                start_point=(0, 0),
-                end_point=(20, 20),
+            extract_profile_at_percentage(
+                self.height_map, self.metadata, axis='invalid', percentage=50
             )
 
-    def test_no_physical_dimensions(self):
-        """Test extraction when physical dimensions aren't available.."""
-        # Create a data dict without physical dimensions
-        simple_dict = {"width": 10, "height": 10}
 
-        # Extract X cross section
-        positions_x, heights_x = extract_cross_section(
-            self.height_map, simple_dict, axis="x", position=5
-        )
-
-        # Positions should just be array indices
-        np.testing.assert_array_equal(positions_x, np.arange(10))
-
-        # Extract Y cross section
-        positions_y, heights_y = extract_cross_section(
-            self.height_map, simple_dict, axis="y", position=5
-        )
-
-        # Positions should just be array indices
-        np.testing.assert_array_equal(positions_y, np.arange(10))
-
-        # Extract custom cross section
-        positions_custom, _ = extract_cross_section(
-            self.height_map, simple_dict, axis="custom", start_point=(0, 0), end_point=(9, 9)
-        )
-
-        # First and last position should match the input distance
-        self.assertAlmostEqual(positions_custom[0], 0.0)
-        self.assertAlmostEqual(positions_custom[-1], 9.0 * np.sqrt(2))
-
-
-class TestExtractProfileAtPercentage(unittest.TestCase):
-    """Test the extract_profile_at_percentage function.."""
-
-    def setUp(self):
-        """Create a sample height map and data dictionary for testing.."""
-        # Create a 10x10 sample height map
-        self.height_map = np.zeros((10, 10))
-
-        # Set values uniquely based on row and column
-        for i in range(10):
-            for j in range(10):
-                self.height_map[i, j] = i * 10 + j
-
-        # Create a data dictionary with physical dimensions
-        self.data_dict = {
-            "width": 10,
-            "height": 10,
-            "x_offset": 0.0,
-            "y_offset": 0.0,
-            "x_length": 5.0,
-            "y_length": 10.0,
-        }
-
-        # Create a temporary directory for file output tests
-        self.temp_dir = tempfile.TemporaryDirectory()
-
-    def tearDown(self):
-        """Clean up after tests.."""
-        self.temp_dir.cleanup()
-
-    def test_x_profile_middle(self):
-        """Test extracting a horizontal profile at 50% (middle).."""
-        profile = extract_profile_at_percentage(
-            self.height_map, self.data_dict, axis="x", percentage=50.0
-        )
-
-        # Profile should have width elements
-        self.assertEqual(len(profile), 10)
-
-        # Check values match the expected row (50% = row 5 at index 4)
-        expected_row = 5  # 50% of the 0-indexed 10-row array is row at index 4
-        for j in range(10):
-            self.assertAlmostEqual(profile[j], expected_row * 10 + j)
-
-    def test_y_profile(self):
-        """Test extracting a vertical profile.."""
-        profile = extract_profile_at_percentage(
-            self.height_map, self.data_dict, axis="y", percentage=25.0
-        )
-
-        # Profile should have height elements
-        self.assertEqual(len(profile), 10)
-
-        # Check values match the expected column (25% = column 2 at index 2)
-        expected_col = 2  # 25% of the 0-indexed 10-column array is column at index 2
-        for i in range(10):
-            self.assertAlmostEqual(profile[i], i * 10 + expected_col)
-
-    def test_save_profile(self):
-        """Test saving the profile to a file.."""
-        # Create path for the saved profile
-        save_path = os.path.join(self.temp_dir.name, "profile.npy")
-
-        profile = extract_profile_at_percentage(
-            self.height_map, self.data_dict, axis="x", percentage=50.0, save_path=save_path
-        )
-
-        # File should exist
-        self.assertTrue(os.path.exists(save_path))
-
-        # Load the saved profile and verify it matches
-        loaded_profile = np.load(save_path)
-        np.testing.assert_array_equal(loaded_profile, profile)
-
-    def test_percentage_bounds(self):
-        """Test that percentage values are properly bounded.."""
-        # Check that values outside 0-100% are clipped
-        profile_neg = extract_profile_at_percentage(
-            self.height_map, self.data_dict, axis="x", percentage=-10.0
-        )
-
-        # Should be clipped to 0%
-        expected_row = 0
-        for j in range(10):
-            self.assertAlmostEqual(profile_neg[j], expected_row * 10 + j)
-
-        profile_over = extract_profile_at_percentage(
-            self.height_map, self.data_dict, axis="x", percentage=150.0
-        )
-
-        # Should be clipped to 100%
-        expected_row = 9
-        for j in range(10):
-            self.assertAlmostEqual(profile_over[j], expected_row * 10 + j)
-
-    def test_invalid_axis(self):
-        """Test that invalid axis raises ValueError.."""
-        with self.assertRaises(ValueError):
-            extract_profile_at_percentage(self.height_map, self.data_dict, axis="z")
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

@@ -1,38 +1,71 @@
-""".
+"""
+Model exporters for heightmaps.
 
-This package contains modules for converting heightmaps to various 3D model formats.
+This module provides various exporters for converting heightmaps to 3D models.
 """
 
-from .stl import convert_heightmap_to_stl
-from .obj import convert_heightmap_to_obj
-from .ply import convert_heightmap_to_ply
-from .threejs import convert_heightmap_to_threejs
-from .gltf import convert_heightmap_to_gltf, convert_heightmap_to_glb
-from .usd import (
-    convert_heightmap_to_usd, 
-    convert_heightmap_to_usdz, 
-    convert_heightmap_to_usdz_with_texture,
-    export_heightmap_to_usd,
-    export_heightmap_to_usdz
+# Import all exportable functions from modules
+from .base import create_mesh_from_heightmap
+from .gltf import (
+    convert_heightmap_to_gltf,
+    convert_heightmap_to_glb,
+    export_gltf, 
+    export_glb,
+    heightmap_to_mesh
 )
-from .sdf import convert_heightmap_to_sdf
-from .nvbd import convert_heightmap_to_nvbd
-from .base import export_heightmap_to_model, create_mesh_from_heightmap
+from .stl import (
+    convert_heightmap_to_stl,
+    export_stl,
+    _ensure_watertight_mesh
+)
+from .obj import (
+    convert_heightmap_to_obj,
+    export_obj
+)
+from .ply import (
+    convert_heightmap_to_ply
+)
+from .nvbd import (
+    convert_heightmap_to_nvbd
+)
+from .usd import (
+    convert_heightmap_to_usd,
+    convert_heightmap_to_usdz
+)
+from .adaptive_mesh import (
+    convert_heightmap_to_adaptive_mesh
+)
 
+# Define the list of functions that should be exposed from this package
 __all__ = [
-    'convert_heightmap_to_stl',
-    'convert_heightmap_to_obj',
-    'convert_heightmap_to_ply',
-    'convert_heightmap_to_threejs',
+    # Base mesh creation
+    'create_mesh_from_heightmap',
+    'heightmap_to_mesh',
+    
+    # GLTF/GLB exporters
     'convert_heightmap_to_gltf',
     'convert_heightmap_to_glb',
+    'export_gltf',
+    'export_glb',
+    
+    # STL exporter
+    'convert_heightmap_to_stl',
+    'export_stl',
+    
+    # OBJ exporter
+    'convert_heightmap_to_obj',
+    'export_obj',
+    
+    # PLY exporter
+    'convert_heightmap_to_ply',
+    
+    # NVIDIA binary data exporter
+    'convert_heightmap_to_nvbd',
+    
+    # USD/USDZ exporters
     'convert_heightmap_to_usd',
     'convert_heightmap_to_usdz',
-    'convert_heightmap_to_usdz_with_texture',
-    'export_heightmap_to_usd',
-    'export_heightmap_to_usdz',
-    'convert_heightmap_to_sdf',
-    'convert_heightmap_to_nvbd',
-    'export_heightmap_to_model',
-    'create_mesh_from_heightmap'
+    
+    # Adaptive mesh generator
+    'convert_heightmap_to_adaptive_mesh'
 ]

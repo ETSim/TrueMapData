@@ -1,65 +1,81 @@
-""".
+"""
+Image exporters for TMD height maps.
 
-Image export modules for heightmaps.
-
-This package contains modules for converting heightmaps to various image formats
-suitable for visualization, texture mapping, and material creation.
+This module provides functions for converting height maps to various image formats
+such as normal maps, displacement maps, etc.
 """
 
-from .displacement_map import convert_heightmap_to_displacement_map
-from .normal_map import convert_heightmap_to_normal_map
-from .bump_map import convert_heightmap_to_bump_map
-from .ao_map import convert_heightmap_to_ao_map
-from .multi_channel import export_multi_channel_image, convert_heightmap_to_multi_channel_map
-from .hillshade import generate_hillshade
-from .material_set import generate_maps_from_tmd, generate_all_maps
-from .utils import (
-    generate_roughness_map,
-    create_orm_map,
-    generate_edge_map,
-    save_texture,
-    plot_textures,
-    normalize_height_map,
-    apply_colormap,
-    apply_lighting,
-    compose_multi_channel_image
+# Import from submodules
+from .normal_map import (
+    create_normal_map,
+    export_normal_map,
+    convert_heightmap_to_normal_map,
+    normal_map_to_rgb,
+    rgb_to_normal_map
 )
 
+from .bump_map import convert_heightmap_to_bump_map
+
+from .ao_map import (
+    convert_heightmap_to_ao_map,
+    create_ambient_occlusion_map,
+    export_ambient_occlusion
+)
+
+from .displacement_map import (
+    export_displacement_map,
+    process_displacement_map,
+    convert_heightmap_to_displacement_map
+)
+
+from .heightmap import (
+    convert_heightmap_to_heightmap,
+    export_heightmap
+)
+
+from .hillshade import (
+    generate_hillshade,
+    create_hillshade,
+    generate_multi_hillshade,
+    blend_hillshades,
+    convert_heightmap_to_hillshade
+)
+
+from .material_set import generate_material_set
+
+# Define the list of exportable functions
 __all__ = [
-    'convert_heightmap_to_displacement_map',
+    # Normal maps
+    'create_normal_map',
+    'export_normal_map',
     'convert_heightmap_to_normal_map',
+    'normal_map_to_rgb',
+    'rgb_to_normal_map',
+    
+    # Bump maps
     'convert_heightmap_to_bump_map',
+    
+    # AO maps
     'convert_heightmap_to_ao_map',
-    'convert_heightmap_to_multi_channel_map',
-    'export_multi_channel_image',
+    'create_ambient_occlusion_map',
+    'export_ambient_occlusion',
+    
+    # Displacement maps
+    'export_displacement_map',
+    'process_displacement_map',
+    'convert_heightmap_to_displacement_map',
+    
+    # Heightmaps
+    'convert_heightmap_to_heightmap',
+    'export_heightmap',
+    
+    # Hillshade
     'generate_hillshade',
-    'generate_maps_from_tmd',
-    'generate_all_maps',
-    'generate_roughness_map',
-    'create_orm_map',
-    'generate_edge_map',
-    'save_texture',
-    'plot_textures',
-    'normalize_height_map'
+    'create_hillshade',
+    'generate_multi_hillshade',
+    'blend_hillshades',
+    'convert_heightmap_to_hillshade',
+    
+    # Material sets
+    'generate_material_set'
 ]
-
-def convert_heightmap_to_image(height_map, filename="heightmap.png", format="png", normalize=True):
-    """.
-
-    Converts a height map to a standard image file (PNG, JPEG, etc.).
-    
-    Args:
-        height_map: 2D numpy array of height values.
-        filename: Output image path.
-        format: Output format (png, jpg, tiff, etc.)
-        normalize: Whether to normalize values to [0,1] range.
-        
-    Returns:
-        str: Path to the saved image file.
-    """
-    from .displacement_map import convert_heightmap_to_displacement_map
-    
-    # Simply use displacement map function which already handles this case
-    convert_heightmap_to_displacement_map(height_map, filename, units=None)
-    
-    return filename

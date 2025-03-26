@@ -21,11 +21,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Version information
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __author__ = "TMD Contributors"
 __license__ = "MIT"
 
-# Import main components (avoiding circular imports)
 try:
     from .processor import TMDProcessor
 except ImportError as e:

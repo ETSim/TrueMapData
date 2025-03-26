@@ -1,55 +1,101 @@
-""".
+"""
+Bump map generation module for heightmaps.
 
-Bump map generation module.
-
-This module provides functions for converting heightmaps to bump maps.
+This module provides functions for generating bump maps from height maps.
+Bump maps are used in 3D rendering to add surface detail with minimal performance impact.
 """
 
 import os
 import logging
 import numpy as np
-from PIL import Image
-from scipy import ndimage
+from typing import Optional, Union
 
+from PIL import Image, ImageFilter
+from .utils import ensure_directory_exists, normalize_heightmap, handle_nan_values
+
+# Set up logging
 logger = logging.getLogger(__name__)
 
-def convert_heightmap_to_bump_map(height_map, filename="bump_map.png", strength=1.0, blur_radius=1.0):
-    """.
 
-    Converts the height map to a bump map with optional blurring.
-
-    Args:
-        height_map: 2D numpy array of height values.
-        filename: Name of the output PNG file.
-        strength: Strength factor for the bump effect.
-        blur_radius: Radius for Gaussian blur to smooth the result.
-
-    Returns:
-        PIL Image object of the bump map.
+def convert_heightmap_to_bump_map(
+    height_map: np.ndarray,
+    filename: str = "bump_map.png",
+    strength: float = 1.0,
+    blur_radius: float = 1.0,
+    bit_depth: int = 8,
+    **kwargs
+) -> Union[str, Image.Image]:
     """
-    height_map = height_map.astype(np.float32)
-    h_min = np.min(height_map)
-    h_max = np.max(height_map)
-    # Normalize height map
-    bump_map = (
-        ((height_map - h_min) / (h_max - h_min)) if h_max > h_min else np.zeros_like(height_map)
-    )
-    bump_map *= strength
-
-    if blur_radius > 0:
-        bump_map = ndimage.gaussian_filter(bump_map, sigma=blur_radius)
-
-    b_min = np.min(bump_map)
-    b_max = np.max(bump_map)
-    bump_map = ((bump_map - b_min) / (b_max - b_min)) if b_max > b_min else bump_map
-    bump_map = (bump_map * 255).astype(np.uint8)
-
-    im = Image.fromarray(bump_map)
+    Convert a height map to a bump map.
     
-    if filename:
-        # Ensure output directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
-        im.save(filename)
-        logger.info(f"Bump map saved to {filename}")
+    Args:
+        height_map: 2D numpy array of height values
+        filename: Path to save the output image
+        strength: Factor to control the strength of bumps
+        blur_radius: Radius for Gaussian blur to smooth the result
+        bit_depth: Bit depth of output image (8 or 16)
+        **kwargs: Additional options
         
-    return im
+    Returns:
+        Path to the saved file or PIL Image object
+    """
+    try:
+        # Ensure output directory exists
+        if not ensure_directory_exists(filename):
+            logger.error(f"Failed to create output directory for {filename}")
+            return None
+            
+        # Process height map
+        if np.any(np.isnan(height_map)):
+            height_map = handle_nan_values(height_map)
+            
+        # Normalize height map to 0-1 range
+        height_norm = normalize_heightmap(height_map)
+        
+        # Use Sobel filter to detect edges (approximates slope)
+        from scipy import ndimage
+        sobel_x = ndimage.sobel(height_norm, axis=1)
+        sobel_y = ndimage.sobel(height_norm, axis=0)
+        
+        # Apply strength factor
+        sobel_x *= strength
+        sobel_y *= strength
+        
+        # Compute gradient magnitude
+        gradient = np.sqrt(sobel_x**2 + sobel_y**2)
+        
+        # Scale to 0-1
+        gradient_norm = normalize_heightmap(gradient)
+        
+        # Convert to desired bit depth
+        if bit_depth == 16:
+            bump_map = (gradient_norm * 65535).astype(np.uint16)
+        else:
+            bump_map = (gradient_norm * 255).astype(np.uint8)
+        
+        # Convert to PIL Image
+        if bit_depth == 16:
+            # Create 16-bit grayscale image
+            img = Image.fromarray(bump_map, mode='I;16')
+        else:
+            # Create 8-bit grayscale image
+            img = Image.fromarray(bump_map, mode='L')
+        
+        # Apply Gaussian blur if requested
+        if blur_radius > 0:
+            img = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        
+        # Save to file
+        img.save(filename)
+        
+        # Store filename in the image object for stats reporting
+        img.filename = filename
+        
+        logger.info(f"Bump map saved to {filename}")
+        return img
+        
+    except Exception as e:
+        logger.error(f"Error creating bump map: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

@@ -259,105 +259,95 @@ class TMDSequenceComparator:
                 
         return figures
     
-    def visualize_statistical_comparison(
-        self,
-        output_dir: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
-        show: bool = True,
-        **kwargs
-    ) -> List[Any]:
+    def visualize_statistical_comparison(self, *args, **kwargs):
         """
-        Visualize statistical differences between sequences.
+        Visualize the statistical comparison between sequences.
         
-        Args:
-            output_dir: Optional directory to save visualizations
-            metrics: Optional list of metrics to visualize (e.g., ['mean', 'std'])
-            show: Whether to display the plots
-            **kwargs: Additional visualization options
-            
         Returns:
-            List of created figure objects
+            tuple: (figure, axes) matplotlib objects
         """
+        # Ensure this method always returns a valid tuple with two elements
         try:
+            # Calculate statistical differences
+            stat_diffs = self.calculate_statistical_differences()
+            
+            if not stat_diffs:
+                logger.warning("No statistical differences to visualize")
+                return []
+                
+            # Default metrics to visualize
+            metrics = kwargs.get('metrics', ['mean', 'std', 'min', 'max'])
+            
+            figures = []
+            
+            # For each pair of sequences
+            for (i, j), diff_stats in stat_diffs.items():
+                seq1_name = self.sequence_names[i]
+                seq2_name = self.sequence_names[j]
+                
+                # Get timestamps
+                timestamps = diff_stats.get('timestamps', list(range(len(next(iter(diff_stats.values()))))))
+                
+                # Create a figure for each metric
+                for metric in metrics:
+                    abs_key = f'{metric}_abs_diff'
+                    rel_key = f'{metric}_rel_diff'
+                    
+                    if abs_key not in diff_stats or rel_key not in diff_stats:
+                        logger.warning(f"Metric '{metric}' not available for {seq1_name} vs {seq2_name}")
+                        continue
+                        
+                    # Get absolute and relative differences
+                    abs_diffs = diff_stats[abs_key]
+                    rel_diffs = diff_stats[rel_key]
+                    
+                    # Create figure with two subplots
+                    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=kwargs.get('figsize', (12, 10)), sharex=True)
+                    
+                    # Plot absolute differences
+                    ax1.plot(timestamps, abs_diffs, 'b-', marker='o')
+                    ax1.axhline(y=0, color='r', linestyle='-', alpha=0.3)
+                    ax1.set_ylabel(f'Absolute Difference')
+                    ax1.set_title(f"{metric.capitalize()} Difference: {seq2_name} - {seq1_name}")
+                    ax1.grid(True, linestyle='--', alpha=0.7)
+                    
+                    # Plot relative differences
+                    ax2.plot(timestamps, rel_diffs, 'g-', marker='o')
+                    ax2.axhline(y=0, color='r', linestyle='-', alpha=0.3)
+                    ax2.set_xlabel('Time')
+                    ax2.set_ylabel('Relative Difference (%)')
+                    ax2.grid(True, linestyle='--', alpha=0.7)
+                    
+                    # Rotate x-axis labels if they're strings
+                    if isinstance(timestamps[0], str):
+                        plt.xticks(rotation=45)
+                        
+                    plt.tight_layout()
+                    
+                    # Save if output directory provided
+                    if kwargs.get('output_dir'):
+                        os.makedirs(kwargs['output_dir'], exist_ok=True)
+                        filename = os.path.join(kwargs['output_dir'], f"{metric}_diff_{seq1_name}_vs_{seq2_name}.png")
+                        plt.savefig(filename, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
+                        logger.info(f"Saved statistical comparison to {filename}")
+                    
+                    # Display if requested
+                    if kwargs.get('show', True):
+                        plt.show()
+                    else:
+                        plt.close(fig)
+                        
+                    figures.append(fig)
+                    
+            return fig, [ax1, ax2]
+        except Exception as e:
+            # If we encounter an error, create a basic figure to return
             import matplotlib.pyplot as plt
-        except ImportError:
-            logger.error("Matplotlib is not installed. Cannot visualize statistical comparison.")
-            return []
-            
-        # Calculate statistical differences
-        stat_diffs = self.calculate_statistical_differences()
-        
-        if not stat_diffs:
-            logger.warning("No statistical differences to visualize")
-            return []
-            
-        # Default metrics to visualize
-        if metrics is None:
-            metrics = ['mean', 'std', 'min', 'max']
-            
-        figures = []
-        
-        # For each pair of sequences
-        for (i, j), diff_stats in stat_diffs.items():
-            seq1_name = self.sequence_names[i]
-            seq2_name = self.sequence_names[j]
-            
-            # Get timestamps
-            timestamps = diff_stats.get('timestamps', list(range(len(next(iter(diff_stats.values()))))))
-            
-            # Create a figure for each metric
-            for metric in metrics:
-                abs_key = f'{metric}_abs_diff'
-                rel_key = f'{metric}_rel_diff'
-                
-                if abs_key not in diff_stats or rel_key not in diff_stats:
-                    logger.warning(f"Metric '{metric}' not available for {seq1_name} vs {seq2_name}")
-                    continue
-                    
-                # Get absolute and relative differences
-                abs_diffs = diff_stats[abs_key]
-                rel_diffs = diff_stats[rel_key]
-                
-                # Create figure with two subplots
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=kwargs.get('figsize', (12, 10)), sharex=True)
-                
-                # Plot absolute differences
-                ax1.plot(timestamps, abs_diffs, 'b-', marker='o')
-                ax1.axhline(y=0, color='r', linestyle='-', alpha=0.3)
-                ax1.set_ylabel(f'Absolute Difference')
-                ax1.set_title(f"{metric.capitalize()} Difference: {seq2_name} - {seq1_name}")
-                ax1.grid(True, linestyle='--', alpha=0.7)
-                
-                # Plot relative differences
-                ax2.plot(timestamps, rel_diffs, 'g-', marker='o')
-                ax2.axhline(y=0, color='r', linestyle='-', alpha=0.3)
-                ax2.set_xlabel('Time')
-                ax2.set_ylabel('Relative Difference (%)')
-                ax2.grid(True, linestyle='--', alpha=0.7)
-                
-                # Rotate x-axis labels if they're strings
-                if isinstance(timestamps[0], str):
-                    plt.xticks(rotation=45)
-                    
-                plt.tight_layout()
-                
-                # Save if output directory provided
-                if output_dir:
-                    os.makedirs(output_dir, exist_ok=True)
-                    filename = os.path.join(output_dir, f"{metric}_diff_{seq1_name}_vs_{seq2_name}.png")
-                    plt.savefig(filename, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
-                    logger.info(f"Saved statistical comparison to {filename}")
-                
-                # Display if requested
-                if show:
-                    plt.show()
-                else:
-                    plt.close(fig)
-                    
-                figures.append(fig)
-                
-        return figures
-    
+            fig, ax = plt.subplots()
+            ax.text(0.5, 0.5, f"Error generating visualization: {str(e)}", 
+                    ha='center', va='center')
+            return fig, [ax]
+
     def export_difference_maps(
         self,
         output_dir: str,
@@ -735,3 +725,251 @@ def create_comparison_visualizations(
             figures.append(fig)
     
     return figures
+
+"""
+Comparison module for height map sequences.
+
+This module provides functionality to compare multiple height map sequences
+using various metrics and visualization methods.
+"""
+
+import os
+import numpy as np
+import logging
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
+
+# Set up logger
+logger = logging.getLogger(__name__)
+
+
+def calculate_sequence_differences(
+    sequence_a: List[np.ndarray],
+    sequence_b: List[np.ndarray],
+    metric: str = "mse",
+    normalize: bool = True
+) -> Dict[str, Any]:
+    """
+    Calculate differences between two height map sequences.
+    
+    Args:
+        sequence_a: First sequence of height maps
+        sequence_b: Second sequence of height maps
+        metric: Difference metric to use ("mse", "mae", "rmse", "correlation")
+        normalize: Whether to normalize height maps before comparison
+        
+    Returns:
+        Dictionary containing difference metrics
+    """
+    # Check input sequences
+    if not sequence_a or not sequence_b:
+        raise ValueError("Empty sequence provided")
+        
+    # Check sequence lengths
+    if len(sequence_a) != len(sequence_b):
+        raise ValueError(f"Sequences have different lengths: {len(sequence_a)} vs {len(sequence_b)}")
+        
+    # Check that frames have the same shape
+    if sequence_a[0].shape != sequence_b[0].shape:
+        raise ValueError(f"Frames have different shapes: {sequence_a[0].shape} vs {sequence_b[0].shape}")
+    
+    # Normalize sequences if requested
+    if normalize:
+        # Function to normalize a single heightmap to 0-1 range
+        def normalize_heightmap(heightmap):
+            min_val = np.min(heightmap)
+            max_val = np.max(heightmap)
+            if max_val > min_val:
+                return (heightmap - min_val) / (max_val - min_val)
+            return np.zeros_like(heightmap)
+            
+        sequence_a = [normalize_heightmap(frame) for frame in sequence_a]
+        sequence_b = [normalize_heightmap(frame) for frame in sequence_b]
+    
+    # Calculate frame-by-frame differences
+    frame_differences = []
+    for i in range(len(sequence_a)):
+        frame_a = sequence_a[i]
+        frame_b = sequence_b[i]
+        
+        # Calculate difference based on specified metric
+        if metric == "mse":
+            # Mean Squared Error
+            diff = np.mean((frame_a - frame_b) ** 2)
+        elif metric == "mae":
+            # Mean Absolute Error
+            diff = np.mean(np.abs(frame_a - frame_b))
+        elif metric == "rmse":
+            # Root Mean Squared Error
+            diff = np.sqrt(np.mean((frame_a - frame_b) ** 2))
+        elif metric == "correlation":
+            # Correlation coefficient
+            # Flatten arrays
+            flat_a = frame_a.flatten()
+            flat_b = frame_b.flatten()
+            # Calculate correlation
+            corr = np.corrcoef(flat_a, flat_b)[0, 1]
+            diff = 1.0 - corr  # Convert to difference (0 = identical)
+        else:
+            raise ValueError(f"Unknown metric: {metric}")
+            
+        frame_differences.append(diff)
+    
+    # Calculate aggregate statistics
+    results = {
+        "metric": metric,
+        "frame_differences": frame_differences,
+        "mean_difference": np.mean(frame_differences),
+        "max_difference": np.max(frame_differences),
+        "min_difference": np.min(frame_differences),
+        "std_difference": np.std(frame_differences),
+        "sequence_length": len(sequence_a)
+    }
+    
+    return results
+
+
+def visualize_sequence_differences(
+    sequence_a: List[np.ndarray],
+    sequence_b: List[np.ndarray],
+    output_file: Optional[str] = None,
+    title: str = "Sequence Comparison",
+    show_progress: bool = True,
+    colormap: str = "RdBu_r",
+    normalize: bool = True,
+    display: bool = False
+) -> Optional[str]:
+    """
+    Create visualization of differences between height map sequences.
+    
+    Args:
+        sequence_a: First sequence of height maps
+        sequence_b: Second sequence of height maps
+        output_file: Path to save visualization (image or video)
+        title: Title for the visualization
+        show_progress: Whether to show a progress bar
+        colormap: Colormap for difference visualization
+        normalize: Whether to normalize height maps before comparison
+        display: Whether to display the visualization (for interactive use)
+        
+    Returns:
+        Path to the output file or None if no file was saved
+    """
+    try:
+        # Check for necessary packages
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib import cm
+            from tqdm import tqdm
+        except ImportError as e:
+            logger.error(f"Required package not found: {e}")
+            return None
+            
+        # Check input sequences
+        if not sequence_a or not sequence_b:
+            logger.error("Empty sequence provided")
+            return None
+            
+        # Check sequence lengths
+        if len(sequence_a) != len(sequence_b):
+            logger.error(f"Sequences have different lengths: {len(sequence_a)} vs {len(sequence_b)}")
+            return None
+            
+        # Check that frames have the same shape
+        if sequence_a[0].shape != sequence_b[0].shape:
+            logger.error(f"Frames have different shapes: {sequence_a[0].shape} vs {sequence_b[0].shape}")
+            return None
+        
+        # Normalize sequences if requested
+        if normalize:
+            # Function to normalize a single heightmap to 0-1 range
+            def normalize_heightmap(heightmap):
+                min_val = np.min(heightmap)
+                max_val = np.max(heightmap)
+                if max_val > min_val:
+                    return (heightmap - min_val) / (max_val - min_val)
+                return np.zeros_like(heightmap)
+                
+            sequence_a = [normalize_heightmap(frame) for frame in sequence_a]
+            sequence_b = [normalize_heightmap(frame) for frame in sequence_b]
+        
+        # Create figure with subplots
+        n_frames = len(sequence_a)
+        
+        # Single frame comparison for image output, or multi-frame for video
+        if output_file and output_file.lower().endswith(('.mp4', '.avi', '.mov', '.gif')):
+            # Create video comparison
+            from .exporters.video import export_sequence_to_video
+            
+            # Calculate differences
+            diff_frames = []
+            iterator = tqdm(range(n_frames), desc="Calculating differences") if show_progress else range(n_frames)
+            
+            for i in iterator:
+                diff = sequence_a[i] - sequence_b[i]
+                diff_frames.append(diff)
+            
+            # Export video
+            return export_sequence_to_video(
+                frames=diff_frames,
+                output_file=output_file,
+                title=title,
+                colormap=colormap,
+                show_progress=show_progress,
+                fps=10.0
+            )
+        else:
+            # Static image showing multiple frames
+            # Determine grid layout
+            max_frames = min(n_frames, 6)  # Show up to 6 frames
+            cols = min(3, max_frames)
+            rows = (max_frames + cols - 1) // cols
+            
+            # Create figure
+            fig = plt.figure(figsize=(5 * cols, 4 * rows))
+            fig.suptitle(title, fontsize=16)
+            
+            # Sample frames evenly
+            indices = np.linspace(0, n_frames-1, max_frames, dtype=int)
+            
+            for i, idx in enumerate(indices):
+                # Add subplot
+                ax = fig.add_subplot(rows, cols, i + 1)
+                
+                # Calculate difference
+                diff = sequence_a[idx] - sequence_b[idx]
+                
+                # Determine symmetric colormap range
+                vmax = max(abs(np.max(diff)), abs(np.min(diff)))
+                vmin = -vmax
+                
+                # Plot difference
+                im = ax.imshow(diff, cmap=colormap, vmin=vmin, vmax=vmax)
+                ax.set_title(f"Frame {idx}")
+                
+                # Add colorbar
+                plt.colorbar(im, ax=ax)
+            
+            # Adjust layout
+            plt.tight_layout()
+            
+            # Save or display
+            if output_file:
+                # Create directory if necessary
+                os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+                
+                # Save figure
+                plt.savefig(output_file, dpi=150, bbox_inches='tight')
+                logger.info(f"Comparison visualization saved to {output_file}")
+                
+            if display:
+                plt.show()
+            else:
+                plt.close()
+                
+            return output_file
+            
+    except Exception as e:
+        logger.error(f"Error visualizing sequence differences: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

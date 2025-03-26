@@ -1,1 +1,1 @@
-"""TMD library tests package.."""
+"""Test package for TMD project."""

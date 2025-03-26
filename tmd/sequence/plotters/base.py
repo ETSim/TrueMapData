@@ -1,121 +1,107 @@
-"""
-Base plotter module for TMD sequence data.
-
-This module provides the abstract base class for all sequence plotters.
-"""
+"""Base class for sequence plotters in TMD."""
 
 import logging
+import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 class BasePlotter(ABC):
-    """
-    Abstract base class for sequence plotters.
-    
-    All sequence plotting classes should inherit from this class and implement
-    its abstract methods.
-    """
+    """Base class for all sequence plotters."""
     
     def __init__(self):
-        """Initialize the base plotter."""
-        self._has_dependencies = self.check_dependencies()
-    
-    def check_dependencies(self) -> bool:
+        """Initialize the plotter."""
+        self._has_dependencies = self._check_dependencies()
+        
+    def _check_dependencies(self) -> bool:
         """
         Check if required dependencies are available.
         
         Returns:
-            True if dependencies are available, False otherwise
+            True if all dependencies are available, False otherwise
         """
-        # Base implementation always reports success
-        # Subclasses should override this method to check their specific dependencies
+        # Base implementation always passes
+        # Override in subclasses to check specific dependencies
         return True
     
     @abstractmethod
-    def visualize_sequence(
-        self,
-        frames_data: List[np.ndarray],
-        timestamps: Optional[List[Any]] = None,
-        **kwargs
-    ) -> Any:
+    def create_animation(self, frames_data: List[np.ndarray], **kwargs) -> Any:
         """
-        Visualize a sequence of height maps.
+        Create an animation from sequence data.
         
         Args:
-            frames_data: List of height map arrays
-            timestamps: Optional list of timestamps or labels
+            frames_data: List of 2D arrays containing frame data
             **kwargs: Additional visualization options
             
         Returns:
-            Visualization object or None if visualization failed
+            Animation object (implementation-specific)
         """
         pass
     
     @abstractmethod
-    def create_animation(
-        self,
-        frames_data: List[np.ndarray],
-        timestamps: Optional[List[Any]] = None,
-        filename: Optional[str] = None,
-        **kwargs
-    ) -> Any:
+    def visualize_sequence(self, frames_data: List[np.ndarray], **kwargs) -> Any:
         """
-        Create an animation from a sequence of height maps.
+        Visualize sequence data.
         
         Args:
-            frames_data: List of height map arrays
-            timestamps: Optional list of timestamps or labels
-            filename: Optional filename to save the animation
-            **kwargs: Additional animation options
+            frames_data: List of 2D arrays containing frame data
+            **kwargs: Additional visualization options
             
         Returns:
-            Animation object or None if animation creation failed
+            Visualization object (implementation-specific)
         """
         pass
     
     @abstractmethod
-    def visualize_statistics(
-        self,
-        stats_data: Dict[str, Any],
-        **kwargs
-    ) -> Any:
+    def visualize_statistics(self, stats_data: Dict[str, List[float]], **kwargs) -> Any:
         """
-        Visualize statistics about a sequence.
+        Visualize statistical data from a sequence.
         
         Args:
             stats_data: Dictionary of statistical data
             **kwargs: Additional visualization options
             
         Returns:
-            Visualization object or None if visualization failed
+            Visualization object (implementation-specific)
         """
         pass
     
-    def save_figure(
-        self, 
-        figure: Any,
-        filename: str,
-        **kwargs
-    ) -> Optional[str]:
+    def has_dependencies(self) -> bool:
         """
-        Save a figure to a file.
+        Check if the plotter has all required dependencies.
+        
+        Returns:
+            True if all dependencies are available, False otherwise
+        """
+        return self._has_dependencies
+    
+    def save_figure(self, fig: Any, filename: str, **kwargs) -> Optional[str]:
+        """
+        Save a figure to disk.
         
         Args:
-            figure: Figure object to save
+            fig: Figure object to save
             filename: Output filename
-            **kwargs: Additional save options
+            **kwargs: Additional saving options
             
         Returns:
             Path to saved file or None if saving failed
         """
-        # Default implementation - subclasses should override as needed
-        logger.warning("save_figure not implemented in base class")
-        return None
+        try:
+            # Ensure output directory exists
+            os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
+            
+            # Implementation needs to be provided in subclasses
+            logger.warning("save_figure method not implemented in subclass")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error saving figure: {e}")
+            return None
+
 
 class TestingPlotter(BasePlotter):
     """
@@ -127,25 +113,22 @@ class TestingPlotter(BasePlotter):
     def visualize_sequence(
         self,
         frames_data: List[np.ndarray],
-        timestamps: Optional[List[Any]] = None,
         **kwargs
     ) -> Any:
         """Implementation for testing."""
-        return {"frames": frames_data, "timestamps": timestamps}
+        return {"frames": frames_data}
     
     def create_animation(
         self,
         frames_data: List[np.ndarray],
-        timestamps: Optional[List[Any]] = None,
-        filename: Optional[str] = None,
         **kwargs
     ) -> Any:
         """Implementation for testing."""
-        return {"frames": frames_data, "timestamps": timestamps, "filename": filename}
+        return {"frames": frames_data}
     
     def visualize_statistics(
         self,
-        stats_data: Dict[str, Any],
+        stats_data: Dict[str, List[float]],
         **kwargs
     ) -> Any:
         """Implementation for testing."""

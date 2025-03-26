@@ -32,3 +32,4 @@ PyWavelets
 moviepy
 usd-core
 scikit-image
+open3d

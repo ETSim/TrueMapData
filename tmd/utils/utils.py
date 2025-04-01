@@ -286,18 +286,22 @@ class TMDUtils:
                 # Read comment section
                 try:
                     comment_bytes = f.read(24)
-                    null_idx = comment_bytes.find(b'\0')
-                    if null_idx >= 0:
-                        comment_bytes = comment_bytes[:null_idx]
-                    metadata["comment"] = comment_bytes.decode("ascii", errors="ignore").strip()
+                    metadata["comment"] =  comment_bytes.decode("ascii").strip()
                     if debug and metadata["comment"]:
                         print(f"Comment: {metadata['comment']}")
                 except Exception as e:
                     if debug:
                         print(f"Error reading comment: {e}")
                     # Ensure we're in the right position for the next block
-                    f.seek(32 + 24)
+                    metadata["comment"] = None
+                    try:
+                        f.read(24)
+                        f.seek(33)
+                    except Exception:
+                        metadata["comment"] = None
+                        f.seek(33)
             else:
+                logger.error(f"Unsupported TMD file version: {version}")
                 raise TMDDataError(f"Unsupported TMD file version: {version}")
             
             # Read and extract dimensions
@@ -332,6 +336,7 @@ class TMDUtils:
         except Exception as e:
             logger.error(f"Error reading TMD file: {e}")
             # Return default empty height map on error
+            logger.error((metadata["height"], metadata["width"]))
             return metadata, np.zeros((metadata["height"], metadata["width"]), dtype=np.float32)
 
     @staticmethod

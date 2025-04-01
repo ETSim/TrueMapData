@@ -45,8 +45,13 @@ def export_map(map_type: str, input_file: Path, output_file: Path, **kwargs):
 
         # Add scale info from metadata for normal maps
         if map_type == "normal" and metadata:
-            kwargs['strength'] = kwargs.get('strength', metadata.get('z_scale', 1.0))
+            # Make sure to pass both strength and metadata
+            kwargs['strength'] = kwargs.get('strength', 1.0)
+            kwargs['metadata'] = metadata
 
+        # Pass metadata for all map types
+        kwargs['metadata'] = metadata
+        
         # Add default colormap for height maps
         if map_type == "height":
             kwargs.setdefault('colormap', 'viridis')

@@ -21,7 +21,6 @@ import numpy as np
 from tmd.utils.utils import TMDUtils
 from tmd.utils.files import TMDFileUtilities
 from tmd.surface.metadata import compute_stats, export_metadata
-# Fix the import to use factory instead of base
 from tmd.plotters.factory import TMDPlotterFactory, TMDSequencePlotterFactory
 from tmd.exceptions import TMDProcessingError
 

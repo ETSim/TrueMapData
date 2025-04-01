@@ -44,6 +44,10 @@ def display_file_info_command(
         True if successful, False otherwise
     """
     try:
+        # Ensure tmd_file is a Path object
+        if isinstance(tmd_file, str):
+            tmd_file = Path(tmd_file)
+            
         data = load_tmd_file(tmd_file, with_console_status=True)
         if not data:
             return False

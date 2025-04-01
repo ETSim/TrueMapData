@@ -7,98 +7,14 @@ various 3D model exporters (STL, OBJ, PLY, GLTF, USD, etc.) for height map data.
 
 import os
 import logging
-from abc import ABC, abstractmethod
+import importlib
 from typing import Dict, Type, Optional, Any, List, Callable, Union
 import numpy as np
 
+from .base import ModelExporter, export_heightmap_to_model
+
 # Setup logging
 logger = logging.getLogger(__name__)
-
-class ModelExporter(ABC):
-    """
-    Abstract base class for all model exporters.
-    """
-    
-    @classmethod
-    @abstractmethod
-    def export(cls, 
-               height_map: np.ndarray, 
-               filename: str, 
-               x_offset: float = 0.0,
-               y_offset: float = 0.0,
-               x_length: float = 1.0,
-               y_length: float = 1.0,
-               z_scale: float = 1.0,
-               base_height: float = 0.0,
-               **kwargs) -> Optional[str]:
-        """
-        Export a height map to a 3D model file.
-        
-        Args:
-            height_map: 2D numpy array of height values
-            filename: Output filename
-            x_offset: X-axis offset for the model
-            y_offset: Y-axis offset for the model
-            x_length: Physical length in X direction
-            y_length: Physical length in Y direction
-            z_scale: Scale factor for Z-axis values
-            base_height: Height of solid base to add below the model
-            **kwargs: Additional format-specific parameters
-            
-        Returns:
-            Path to the created file if successful, None otherwise
-        """
-        pass
-    
-    @classmethod
-    def get_extension(cls) -> str:
-        """
-        Get the file extension for this exporter format.
-        
-        Returns:
-            File extension without leading dot (e.g., 'stl', 'obj')
-        """
-        return ""
-    
-    @classmethod
-    def get_format_name(cls) -> str:
-        """
-        Get the human-readable format name.
-        
-        Returns:
-            Format name (e.g., 'STL', 'Wavefront OBJ')
-        """
-        return ""
-    
-    @classmethod
-    def supports_binary(cls) -> bool:
-        """
-        Check if this format supports binary export.
-        
-        Returns:
-            True if binary export is supported, False otherwise
-        """
-        return False
-    
-    @classmethod
-    def ensure_extension(cls, filename: str) -> str:
-        """
-        Ensure filename has the correct extension for this format.
-        
-        Args:
-            filename: Original filename
-            
-        Returns:
-            Filename with correct extension
-        """
-        ext = cls.get_extension()
-        if not ext:
-            return filename
-            
-        if not filename.lower().endswith(f".{ext.lower()}"):
-            filename = f"{filename}.{ext}"
-            
-        return filename
 
 
 class ModelExporterFactory:
@@ -107,6 +23,27 @@ class ModelExporterFactory:
     """
     
     _exporters: Dict[str, Type[ModelExporter]] = {}
+    
+    # Define format dependencies and class mappings as class variables
+    STRATEGY_DEPENDENCIES = {
+        "stl": [],  # STL has no external dependencies
+        "obj": [],  # OBJ has no external dependencies
+        "ply": ["open3d"],  # PLY can use Open3D but falls back to custom implementation
+        "gltf": ["matplotlib.pyplot"],  # For texture generation
+        "glb": ["matplotlib.pyplot"],  # For texture generation
+        "usdz": ["pxr"],  # USD requires Pixar's USD library
+        "nvbd": []  # NVBD has no external dependencies
+    }
+    
+    STRATEGY_CLASSES = {
+        "stl": "tmd.exporters.model.stl.STLExporter",
+        "obj": "tmd.exporters.model.obj.OBJExporter",
+        "ply": "tmd.exporters.model.ply.PLYExporter",
+        "gltf": "tmd.exporters.model.gltf.GLTFExporter",
+        "glb": "tmd.exporters.model.gltf.GLTFExporter",
+        "usdz": "tmd.exporters.model.usd.USDExporter",
+        "nvbd": "tmd.exporters.model.nvbd.NVBDExporter"
+    }
     
     @classmethod
     def register_exporter(cls, format_name: str, exporter_class: Type[ModelExporter]) -> None:
@@ -141,10 +78,45 @@ class ModelExporterFactory:
         format_name = format_name.lower()
         exporter_class = cls._exporters.get(format_name)
         
+        # If not found in registry, try to import it
+        if not exporter_class:
+            # Check if this is a known format
+            if format_name in cls.STRATEGY_CLASSES:
+                try:
+                    # Try to import the exporter class
+                    exporter_class = cls._import_class(cls.STRATEGY_CLASSES[format_name])
+                    # Register the exporter for future use
+                    cls.register_exporter(format_name, exporter_class)
+                    logger.debug(f"Dynamically imported exporter for format: {format_name}")
+                except ImportError:
+                    logger.warning(f"Failed to import exporter for format: {format_name}")
+
         if not exporter_class:
             logger.warning(f"No exporter found for format: {format_name}")
             
         return exporter_class
+    
+    @classmethod
+    def _import_class(cls, class_path: str) -> Type:
+        """
+        Import a class from a dotted path.
+        
+        Args:
+            class_path: String in the format "package.module.Class"
+            
+        Returns:
+            The imported class
+            
+        Raises:
+            ImportError: If the class cannot be imported
+        """
+        try:
+            module_path, class_name = class_path.rsplit('.', 1)
+            module = importlib.import_module(module_path)
+            return getattr(module, class_name)
+        except (ImportError, AttributeError) as e:
+            logger.error(f"Failed to import {class_path}: {e}")
+            raise ImportError(f"Failed to import {class_path}: {e}") from e
     
     @classmethod
     def export_heightmap(cls, 
@@ -250,6 +222,51 @@ class ModelExporterFactory:
             })
             
         return sorted(info, key=lambda x: x['name'])
+    
+    @classmethod
+    def _check_dependency(cls, dependency: str) -> bool:
+        """
+        Check if a dependency is available.
+        
+        Args:
+            dependency: Name of the module to check
+            
+        Returns:
+            True if the dependency is available, False otherwise
+        """
+        try:
+            importlib.import_module(dependency)
+            return True
+        except ImportError:
+            return False
+    
+    @classmethod
+    def list_available_formats(cls) -> Dict[str, bool]:
+        """
+        List all export formats and their availability status.
+        
+        Returns:
+            Dictionary with format names as keys and availability status as values
+        """
+        formats = {}
+        
+        # Check registered exporters
+        for name, exporter in cls._exporters.items():
+            formats[name] = True
+        
+        # Check known formats from STRATEGY_CLASSES that might not be registered yet
+        for name, class_path in cls.STRATEGY_CLASSES.items():
+            if name not in formats:
+                # Check dependencies
+                available = True
+                for dep in cls.STRATEGY_DEPENDENCIES.get(name, []):
+                    if not cls._check_dependency(dep):
+                        available = False
+                        break
+                        
+                formats[name] = available
+        
+        return formats
 
 
 # Register all available exporters
@@ -305,51 +322,3 @@ def _register_all_exporters():
 
 # Register exporters when the module is imported
 _register_all_exporters()
-
-
-# Provide a simplified function that uses the factory
-def export_heightmap_to_model(
-    height_map: np.ndarray,
-    filename: str,
-    format_name: str,
-    x_offset: float = 0,
-    y_offset: float = 0,
-    x_length: float = 1,
-    y_length: float = 1,
-    z_scale: float = 1,
-    base_height: float = 0.0,
-    binary: bool = False,
-    **kwargs
-) -> Optional[str]:
-    """
-    Export a height map to a 3D model file using the factory.
-
-    Args:
-        height_map: 2D numpy array of height values
-        filename: Output filename
-        format_name: Format name for the model (e.g., 'stl', 'obj', 'ply')
-        x_offset: X-axis offset for the model
-        y_offset: Y-axis offset for the model
-        x_length: Physical length in X direction
-        y_length: Physical length in Y direction
-        z_scale: Scale factor for Z-axis values
-        base_height: Height of solid base to add below the model
-        binary: Whether to use binary format if supported
-        **kwargs: Additional keyword arguments to pass to the specific exporter
-
-    Returns:
-        str: Path to the created file or None if failed
-    """
-    return ModelExporterFactory.export_heightmap(
-        height_map=height_map,
-        filename=filename,
-        format_name=format_name,
-        x_offset=x_offset,
-        y_offset=y_offset,
-        x_length=x_length,
-        y_length=y_length,
-        z_scale=z_scale,
-        base_height=base_height,
-        binary=binary,
-        **kwargs
-    )

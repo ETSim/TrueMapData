@@ -69,7 +69,13 @@ python tmd_cli.py visualize profile Dime.tmd --row 50
 python tmd_cli.py visualize profile Dime.tmd --row 75 --plotter seaborn
 
 # Interactive 3D visualization with Polyscope
-python tmd_cli.py visualize polyscope Dime.tmd --wireframe
+python tmd_cli.py visualize ps-3d Dime.tmd --z-scale 2.0
+
+# Point cloud visualization with Polyscope
+python tmd_cli.py visualize ps-pointcloud Dime.tmd --sample-rate 2 --point-size 3.0
+
+# Triangle mesh visualization with Polyscope
+python tmd_cli.py visualize ps-mesh Dime.tmd --wireframe --smooth
 
 # Create animation from multiple TMD files
 python tmd_cli.py visualize polyscope-animate tmd_sequence/*.tmd --fps 30
@@ -105,6 +111,39 @@ python tmd_cli.py config set default_plotter matplotlib
 
 # Reset configuration to defaults
 python tmd_cli.py config reset
+```
+
+## Map Export Examples
+
+```bash
+# List available map types
+python tmd_cli.py maps list
+
+# Export individual maps
+python tmd_cli.py maps ao input.tmd --samples 32 --strength 1.5
+python tmd_cli.py maps bump input.tmd --scale 2.0
+python tmd_cli.py maps roughness input.tmd --kernel-size 5
+python tmd_cli.py maps metallic input.tmd --threshold 0.5
+python tmd_cli.py maps displacement input.tmd --scale 1.0
+python tmd_cli.py maps height input.tmd --normalize
+python tmd_cli.py maps hillshade input.tmd --azimuth 315 --altitude 45
+
+# Export all maps
+python tmd_cli.py maps all input.tmd --output-dir textures/
+
+# Export specific maps
+python tmd_cli.py maps all input.tmd --output-dir textures/ --types ao bump roughness
+
+# Export with options
+python tmd_cli.py maps all input.tmd --output-dir textures/ \\
+    --ao-samples 32 \\
+    --ao-strength 1.5 \\
+    --bump-scale 2.0 \\
+    --roughness-kernel 5 \\
+    --metallic-threshold 0.5 \\
+    --displacement-scale 1.0 \\
+    --height-normalize true \\
+    --hillshade-azimuth 315
 ```
 """
 

@@ -21,7 +21,8 @@ import numpy as np
 from tmd.utils.utils import TMDUtils
 from tmd.utils.files import TMDFileUtilities
 from tmd.surface.metadata import compute_stats, export_metadata
-from tmd.plotters.base import TMDPlotterFactory, TMDSequencePlotterFactory
+# Fix the import to use factory instead of base
+from tmd.plotters.factory import TMDPlotterFactory, TMDSequencePlotterFactory
 from tmd.exceptions import TMDProcessingError
 
 # Configure logging for the module
@@ -494,32 +495,49 @@ class TMDProcessor:
 class TMD:
     """Main TMD class for working with topographic mesh data."""
     
-    def __init__(self, height_map: np.ndarray = None, metadata: Dict[str, Any] = None):
+    def __init__(self, height_map_or_path=None, metadata=None):
         """
         Initialize a TMD object with height map and metadata.
         
         Args:
-            height_map: 2D NumPy array containing height values
+            height_map_or_path: 2D NumPy array or path to TMD file
             metadata: Dictionary containing metadata about the height map
         """
-        # Set defaults if not provided
-        if height_map is None:
-            height_map = np.zeros((0, 0))
-        if metadata is None:
-            metadata = {}
+        # Check if height_map_or_path is a file path string
+        if isinstance(height_map_or_path, (str, Path)):
+            # Load the file
+            self._filepath = Path(height_map_or_path)
+            self._load_from_file(self._filepath)
+        else:
+            # Set defaults if not provided
+            if height_map_or_path is None:
+                height_map_or_path = np.zeros((0, 0))
+            if metadata is None:
+                metadata = {}
+                
+            self._height_map = height_map_or_path
+            self._metadata = metadata
             
-        self._height_map = height_map
-        self._metadata = metadata
-        
-        # Set up analysis tools
-        self._initialize_analysis()
-        
+            # Set up analysis tools
+            self._initialize_analysis()
+            
         # Default plotting strategy
         self._default_plotter_strategy = "matplotlib"
+        
+    def _load_from_file(self, filepath):
+        """Load TMD data from a file."""
+        processor = TMDProcessor(filepath)
+        result = processor.process()
+        self._height_map = result["height_map"]
+        self._metadata = result["metadata"]
+        self._stats = {}  # Initialize stats to be computed later
+        
+        # Initialize analysis tools
+        self._initialize_analysis()
 
     def _initialize_analysis(self):
         """Initialize analysis tools and compute initial statistics."""
-        if self._height_map.size > 0:
+        if hasattr(self, '_height_map') and isinstance(self._height_map, np.ndarray) and self._height_map.size > 0:
             try:
                 self._stats = compute_stats(self._height_map)
             except Exception as e:

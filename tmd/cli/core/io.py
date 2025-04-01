@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional, Any, List, Dict, Union, Tuple, Callable
 
 # Terminal interface libraries
-from tmd.cli.core.ui import console, print_warning, print_error, print_success, HAS_RICH
+from tmd.cli.core.ui import console, print_warning, print_error, print_success
 from tmd.cli.core.config import load_config
 from tmd.cli.exceptions import FileError
 
@@ -139,8 +139,10 @@ def get_output_filename(tmd_file: Path, plotter: str, viz_type: str,
     
     result = output_dir / f"{file_stem}_{viz_type}_{plotter}{ext}"
     
-    if HAS_RICH:
+    try:
         console.print(f"[blue]Output will be saved to:[/blue] {result}")
+    except Exception:
+        print(f"Output will be saved to: {result}")
         
     return result
 
@@ -172,11 +174,11 @@ def load_tmd_file(file_path: Path, with_console_status: bool = False,
                 if with_console_status:
                     print_success(f"Loaded {file_path.name} from cache")
                     
-                # Create TMD object from cached data
+                # Create TMD object from cached data - Fix the constructor call
                 from tmd import TMD
-                tmd_obj = TMD(height_map=height_map, metadata=metadata)
+                tmd_obj = TMD(height_map, metadata)  # Remove the keyword argument
                 return tmd_obj
-            
+        
         # Fall back to normal loading if not using cache or not in cache
         if with_console_status:
             # Enhanced rich progress display for file loading
@@ -219,8 +221,13 @@ def load_tmd_file(file_path: Path, with_console_status: bool = False,
             print_error(error_msg)
             
             # Provide more detailed error information
-            console.print(Panel(str(e), title="Detailed Error Information", 
-                               border_style="red"))
+            try:
+                from rich.panel import Panel
+                console.print(Panel(str(e), title="Detailed Error Information", 
+                                  border_style="red"))
+            except ImportError:
+                print(f"Detailed error: {str(e)}")
+                
             # Check file existence and permissions
             if not file_path.exists():
                 console.print("[yellow]File does not exist[/yellow]")
@@ -247,27 +254,44 @@ def find_files_by_pattern(directory: Path, pattern: str = "*.tmd",
         files = list(directory.glob(f"**/{pattern}"))
     else:
         files = list(directory.glob(pattern))
-        
-    if files:
-        file_table = Table(title=f"Found {len(files)} files")
-        file_table.add_column("Index", style="cyan")
-        file_table.add_column("Filename", style="green")
-        file_table.add_column("Size (KB)", justify="right")
-        
-        for i, file in enumerate(files[:10]):  # Show first 10 files only
-            try:
-                size_kb = file.stat().st_size / 1024
-                size_str = f"{size_kb:.1f}"
-            except Exception:
-                size_str = "N/A"
+    
+    try:    
+        if files:
+            from rich.table import Table
+            file_table = Table(title=f"Found {len(files)} files")
+            file_table.add_column("Index", style="cyan")
+            file_table.add_column("Filename", style="green")
+            file_table.add_column("Size (KB)", justify="right")
+            
+            for i, file in enumerate(files[:10]):  # Show first 10 files only
+                try:
+                    size_kb = file.stat().st_size / 1024
+                    size_str = f"{size_kb:.1f}"
+                except Exception:
+                    size_str = "N/A"
+                    
+                file_table.add_row(str(i+1), file.name, size_str)
                 
-            file_table.add_row(str(i+1), file.name, size_str)
-            
-        if len(files) > 10:
-            file_table.add_row("...", "...", "...")
-            
-        console.print(file_table)
-    else:
-        console.print(f"[yellow]No files matching '{pattern}' found in {directory}[/yellow]")
+            if len(files) > 10:
+                file_table.add_row("...", "...", "...")
+                
+            console.print(file_table)
+        else:
+            console.print(f"[yellow]No files matching '{pattern}' found in {directory}[/yellow]")
+    except (ImportError, NameError):
+        # Fallback if rich is not available
+        if files:
+            print(f"Found {len(files)} files matching '{pattern}' in {directory}")
+            for i, file in enumerate(files[:10]):
+                try:
+                    size_kb = file.stat().st_size / 1024
+                    size_str = f"{size_kb:.1f} KB"
+                except Exception:
+                    size_str = "N/A"
+                print(f"{i+1}: {file.name} ({size_str})")
+            if len(files) > 10:
+                print("...")
+        else:
+            print(f"No files matching '{pattern}' found in {directory}")
             
     return files

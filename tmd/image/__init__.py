@@ -1,121 +1,128 @@
 """
-TMD Image Export Package
+Image processing package for texture map generation.
 
-This module provides functionality for generating and exporting various map types
-from heightmaps:
-  - Base classes: ExportStrategy, MapExporter
-  - Factory classes: ImageExportRegistry, ImageExporterFactory 
-  - Utility functions for image operations and export
+This package provides tools for generating various types of maps from height maps,
+such as normal maps, roughness maps, ambient occlusion maps, etc.
 """
+import logging
 
-# Import base classes and utilities
-from .base import (
-    ExportStrategy, 
-    MapExporter, 
-    save_image,
-    normalize_heightmap,
+# Set up logger
+logger = logging.getLogger(__name__)
+
+# Import core functionality
+from .core.image_utils import (
+    normalize_array,
     handle_nan_values,
-    load_image,
-    load_heightmap
+    prepare_height_map,
+    save_image,
+    resize_image
 )
 
-# Import factory classes
-from .factory import (
-    ImageExportRegistry, 
-    ImageExporterFactory,
-    ExportRegistry,  # Alias for backward compatibility
-    MapExporterFactory  # Alias for backward compatibility
-)
+# Import export functionality
+from .export.registry import MapRegistry, register_generator
+from .export.exporter import MapExporter
 
-# Make key functions directly available
-def get_registered_exporters():
-    """
-    Get a list of available export strategies.
-    
-    Returns:
-        List[str]: List of registered export strategy names
-    """
-    return ImageExportRegistry.list_strategies()
+# Import map generators
+from .maps.base_generator import MapGenerator
+from .maps.ao import AOMapGenerator
+from .maps.normal import NormalMapGenerator
+from .maps.roughness import RoughnessMapGenerator
+from .maps.bump import BumpMapGenerator
+from .maps.metallic import MetallicMapGenerator
+from .maps.displacement import DisplacementMapGenerator
+from .maps.heightmap import HeightMapGenerator
+from .maps.hillshade import HillshadeMapGenerator
 
-def export_map(height_map, output_file, map_type, **kwargs):
-    """
-    Export a height map as the specified map type.
-    
-    This is the central function for all map exports and uses the factory pattern
-    to determine the appropriate exporter.
-    
-    Args:
-        height_map: Input height map
-        output_file: Path to save the output
-        map_type: Type of map to export (normal, ao, roughness, etc.)
-        **kwargs: Additional parameters specific to the map type
-        
-    Returns:
-        Path to the saved file or None if failed
-    """
-    return ImageExporterFactory.export_map(
-        height_map=height_map,
-        output_file=output_file,
-        map_type=map_type,
-        **kwargs
-    )
+# Register generators with registry
+MapRegistry.register("ao", AOMapGenerator)
+MapRegistry.register("normal", NormalMapGenerator)
+MapRegistry.register("bump", BumpMapGenerator)
+MapRegistry.register("roughness", RoughnessMapGenerator)
+MapRegistry.register("metallic", MetallicMapGenerator)
+MapRegistry.register("displacement", DisplacementMapGenerator)
+MapRegistry.register("height", HeightMapGenerator)
+MapRegistry.register("hillshade", HillshadeMapGenerator)
 
-# Import specific export functions - these modules will register their strategies
-from .normal_map import export_normal_map, create_normal_map
-from .roughness_map import export_roughness_map, create_roughness_map 
-from .metallic_map import export_metallic_map, generate_metallic_map
-from .ao_map import export_ambient_occlusion, create_ambient_occlusion_map
-from .bump_map import convert_heightmap_to_bump_map
-from .displacement_map import export_displacement_map
-from .heightmap import export_heightmap
-from .hillshade import export_hillshade, generate_hillshade
-from .material_set import export_material_set
+# Convenience export functions
+def export_ao_map(height_map, output_file, **kwargs):
+    """Export an ambient occlusion map."""
+    return MapExporter.export_map(height_map, output_file, "ao", **kwargs)
 
-# Import multi-channel exporters if available
-try:
-    from .multi_channel import export_multi_channel_image
-    from .rgbd import export_rgbd_map
-except ImportError:
-    pass
+def export_normal_map(height_map, output_file, **kwargs):
+    """Export a normal map."""
+    return MapExporter.export_map(height_map, output_file, "normal", **kwargs)
 
-# Define __all__ for explicit exports
+def export_bump_map(height_map, output_file, **kwargs):
+    """Export a bump map."""
+    return MapExporter.export_map(height_map, output_file, "bump", **kwargs)
+
+def export_roughness_map(height_map, output_file, **kwargs):
+    """Export a roughness map."""
+    return MapExporter.export_map(height_map, output_file, "roughness", **kwargs)
+
+def export_metallic_map(height_map, output_file, **kwargs):
+    """Export a metallic map."""
+    return MapExporter.export_map(height_map, output_file, "metallic", **kwargs)
+
+def export_displacement_map(height_map, output_file, **kwargs):
+    """Export a displacement map."""
+    return MapExporter.export_map(height_map, output_file, "displacement", **kwargs)
+
+def export_height_map(height_map, output_file, **kwargs):
+    """Export a height map."""
+    kwargs.setdefault('colormap', 'viridis')  # Set default colormap
+    return MapExporter.export_map(height_map, output_file, "height", **kwargs)
+
+def export_hillshade_map(height_map, output_file, **kwargs):
+    """Export a hillshade map."""
+    return MapExporter.export_map(height_map, output_file, "hillshade", **kwargs)
+
+# Get list of available map types
+def get_available_map_types():
+    """Get a list of available map types."""
+    return [
+        "normal", 
+        "ao", 
+        "bump", 
+        "roughness", 
+        "metallic", 
+        "displacement", 
+        "height", 
+        "hillshade"
+    ]
+
 __all__ = [
-    # Base classes
-    'ExportStrategy', 
+    # Core functionality
+    'normalize_array',
+    'handle_nan_values',
+    'prepare_height_map',
+    'save_image',
+    'resize_image',
+    
+    # Map generators
+    'MapGenerator',
+    'AOMapGenerator',
+    'NormalMapGenerator',
+    'BumpMapGenerator',
+    'RoughnessMapGenerator',
+    'MetallicMapGenerator',
+    'DisplacementMapGenerator',
+    'HeightMapGenerator',
+    'HillshadeMapGenerator',
+    
+    # Export functionality
+    'MapRegistry',
+    'register_generator',
     'MapExporter',
     
-    # Factory classes
-    'ImageExportRegistry', 
-    'ImageExporterFactory',
-    'ExportRegistry',
-    'MapExporterFactory',
-    
-    # Utility functions
-    'save_image',
-    'normalize_heightmap',
-    'handle_nan_values',
-    'load_image',
-    'load_heightmap',
-    'get_registered_exporters',
-    
-    # Main export function
-    'export_map',
-    
-    # Specific export functions
+    # Convenience export functions
+    'export_ao_map',
     'export_normal_map',
+    'export_bump_map',
     'export_roughness_map',
     'export_metallic_map',
-    'export_ambient_occlusion',
-    'convert_heightmap_to_bump_map',
     'export_displacement_map',
-    'export_heightmap',
-    'export_hillshade',
-    'export_material_set',
-    
-    # Generation functions
-    'create_normal_map',
-    'create_roughness_map',
-    'generate_metallic_map',
-    'create_ambient_occlusion_map',
-    'generate_hillshade'
+    'export_height_map',
+    'export_hillshade_map',
+    'get_available_map_types'
 ]

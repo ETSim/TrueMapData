@@ -9,6 +9,7 @@ and can be imported and used by different CLI interfaces.
 from tmd.cli.commands.base import BaseCommand, check_dependencies_and_install
 from tmd.cli.commands.compress import compress_tmd_command, display_file_info_command
 from tmd.cli.commands.batch import BatchProcessor
+from tmd.cli.commands.model import generate_model_command
 
 __all__ = [
     'BaseCommand',
@@ -16,4 +17,5 @@ __all__ = [
     'compress_tmd_command',
     'display_file_info_command',
     'BatchProcessor',
+    'generate_model_command',
 ]

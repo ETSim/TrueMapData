@@ -1,388 +1,309 @@
 """
-TMD Plotter Factories
+Factory classes for TMD visualization.
 
-This module defines two factory classes:
-  - TMDPlotterFactory: Creates plotters for single TMD height maps.
-  - TMDSequencePlotterFactory: Creates plotters for TMD sequences.
-  
-Design Patterns:
-  - Factory: Instantiate the appropriate plotter based on a strategy string.
-  
-Usage Example:
-    from tmd.plotters.factory import TMDPlotterFactory, TMDSequencePlotterFactory
-
-    # Create a single TMD plotter using Matplotlib
-    plotter = TMDPlotterFactory.create_plotter("matplotlib")
-    fig = plotter.plot(height_map, title="My TMD Height Map")
-    fig.show()
-
-    # Create a sequence plotter using Matplotlib for sequences
-    seq_plotter = TMDSequencePlotterFactory.create_plotter("matplotlib")
-    fig_seq = seq_plotter.visualize_sequence(frames_data, n_frames=5, mode="2d")
-    fig_seq.show()
+This module provides the factory classes for creating appropriate plotters
+based on the requested visualization backend. It implements the Factory Method
+pattern to decouple plotter creation from the client code.
 """
 
 import logging
-import importlib
-from typing import Any, Optional, Union, Type, Dict, List, ClassVar
+from typing import Dict, List, Type, Optional, Any, ClassVar, Union
+import inspect
 
-# Import base classes
-from tmd.plotters.base import BasePlotter, BaseSequencePlotter, BasePlotterFactory
-from tmd.utils.files import TMDFileUtilities
+# Import base classes with a TYPE_CHECKING check to avoid circular imports
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from tmd.plotters.base import BasePlotter, BaseSequencePlotter
 
+# Set up logger
 logger = logging.getLogger(__name__)
 
-class PlotterFactoryBase:
-    """Base class for plotter factories implementing common functionality."""
+class TMDPlotterFactory:
+    """
+    Factory class for creating plotters for TMD height maps.
     
-    # Constants for dependency mapping - to be overridden by subclasses
-    STRATEGY_DEPENDENCIES: ClassVar[Dict[str, List[str]]] = {}
-    STRATEGY_CLASSES: ClassVar[Dict[str, str]] = {}
-    DEFAULT_STRATEGY: ClassVar[str] = "matplotlib"
+    This class implements the Factory Method pattern to create appropriate
+    plotter instances based on the requested backend (e.g., matplotlib, plotly).
+    """
+    
+    # Class variable to store registered plotter classes
+    _plotter_registry: ClassVar[Dict[str, Type['BasePlotter']]] = {}
     
     @classmethod
-    def check_strategy_availability(cls, strategy: str) -> bool:
+    def register(cls, name: str, plotter_class: Type['BasePlotter']) -> None:
         """
-        Check if the requested plotting strategy is available.
+        Register a plotter class with the factory.
         
         Args:
-            strategy: The strategy name to check
+            name: Name of the plotter (e.g., "matplotlib", "plotly")
+            plotter_class: Plotter class to register
+        """
+        # Dynamic check to avoid circular imports
+        from tmd.plotters.base import BasePlotter
+        
+        if not inspect.isclass(plotter_class) or not issubclass(plotter_class, BasePlotter):
+            raise TypeError(f"Plotter class must be a subclass of BasePlotter")
+        
+        cls._plotter_registry[name.lower()] = plotter_class
+        logger.debug(f"Registered plotter '{name}' with class {plotter_class.__name__}")
+    
+    @classmethod
+    def create_plotter(cls, name: str) -> 'BasePlotter':
+        """
+        Create a plotter instance for the specified backend.
+        
+        Args:
+            name: Name of the plotter to create (e.g., "matplotlib", "plotly")
             
         Returns:
-            Boolean indicating if all dependencies for the strategy are available
+            Instance of the requested plotter
             
         Raises:
-            ValueError: If the strategy is not supported
+            ValueError: If the requested plotter is not registered or available
         """
-        if strategy not in cls.STRATEGY_DEPENDENCIES:
-            raise ValueError(f"Plotting strategy '{strategy}' not supported. "
-                            f"Available options: {', '.join(cls.STRATEGY_DEPENDENCIES.keys())}")
-            
-        deps = cls.STRATEGY_DEPENDENCIES[strategy]
-        dep_status = cls._check_dependencies(deps)
-        return all(dep_status.values())
-    
-    @classmethod
-    def _check_dependencies(cls, dependencies: List[str]) -> Dict[str, bool]:
-        """Check if all dependencies are available."""
-        status = {}
-        for dep in dependencies:
-            module = TMDFileUtilities.import_optional_dependency(dep)
-            status[dep] = module is not None
-        return status
-    
-    @classmethod
-    def get_missing_dependencies(cls, strategy: str) -> List[str]:
-        """
-        Get a list of missing dependencies for a strategy.
+        name = name.lower()
         
-        Args:
-            strategy: The strategy name to check
-            
-        Returns:
-            List of missing dependency names
-        """
-        if strategy not in cls.STRATEGY_DEPENDENCIES:
-            raise ValueError(f"Plotting strategy '{strategy}' not supported. "
-                            f"Available options: {', '.join(cls.STRATEGY_DEPENDENCIES.keys())}")
-            
-        deps = cls.STRATEGY_DEPENDENCIES[strategy]
-        dep_status = cls._check_dependencies(deps)
-        return [k for k, v in dep_status.items() if not v]
+        if name not in cls._plotter_registry:
+            raise ValueError(f"Plotter '{name}' not registered")
+        
+        plotter_class = cls._plotter_registry[name]
+        
+        # Check if the plotter has the required dependencies
+        if hasattr(plotter_class, 'REQUIRED_DEPENDENCIES'):
+            try:
+                # Try to instantiate the plotter
+                plotter = plotter_class()
+                return plotter
+            except ImportError as e:
+                # Handle missing dependencies
+                dependencies = getattr(plotter_class, 'REQUIRED_DEPENDENCIES', [])
+                raise ValueError(
+                    f"Plotter '{name}' requires dependencies that are not available: {dependencies}. "
+                    f"Error: {str(e)}"
+                )
+        else:
+            # If no dependencies specified, just instantiate
+            return plotter_class()
     
     @classmethod
     def list_available_strategies(cls) -> Dict[str, bool]:
         """
-        List all available plotting strategies and their availability status.
+        List all registered plotters and their availability.
         
         Returns:
-            Dictionary with strategy names as keys and availability (bool) as values
+            Dictionary mapping plotter names to their availability status (bool)
         """
-        strategies = {strategy: False for strategy in cls.STRATEGY_DEPENDENCIES}
+        available_plotters = {}
         
-        for strategy, deps in cls.STRATEGY_DEPENDENCIES.items():
-            dep_status = cls._check_dependencies(deps)
-            strategies[strategy] = all(dep_status.values())
-            
-        return strategies
-
-    @classmethod
-    def _import_class(cls, class_path: str) -> Type:
-        """
-        Import a class from a dotted path.
-        
-        Args:
-            class_path: String in the format "package.module.Class"
-            
-        Returns:
-            The imported class
-            
-        Raises:
-            ImportError: If the class cannot be imported
-        """
-        try:
-            module_path, class_name = class_path.rsplit('.', 1)
-            module = importlib.import_module(module_path)
-            return getattr(module, class_name)
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Failed to import {class_path}: {e}")
-            raise ImportError(f"Failed to import {class_path}: {e}") from e
-
-
-class TMDPlotterFactory(PlotterFactoryBase, BasePlotterFactory):
-    """
-    Factory class for creating TMD plotters for single height maps.
-
-    Strategies:
-      - "matplotlib": Returns a MatplotlibTMDPlotter instance.
-      - "plotly": Returns a PlotlyTMDPlotter instance.
-      - "polyscope": Returns a PolyscopePlotter instance.
-      - "seaborn": Returns a SeabornTMDPlotter instance.
-    """
-    # Define strategy dependencies and class mappings as class variables
-    STRATEGY_DEPENDENCIES = {
-        "matplotlib": ["matplotlib.pyplot"],
-        "plotly": ["plotly", "plotly.graph_objects"],
-        "polyscope": ["polyscope"],
-        "seaborn": ["seaborn"]
-    }
-    
-    STRATEGY_CLASSES = {
-        "matplotlib": "tmd.plotters.matplotlib.MatplotlibHeightMapPlotter",
-        "plotly": "tmd.plotters.plotly.PlotlyHeightMapVisualizer",
-        "polyscope": "tmd.plotters.polyscope.PolyscopePlotter",
-        "seaborn": "tmd.plotters.seaborn.SeabornHeightMapPlotter"
-    }
-    
-    DEFAULT_STRATEGY = "matplotlib"
-    
-    # Initialize registry to avoid AttributeError
-    _registry = {}
-
-    @classmethod
-    def create_plotter(cls, strategy: str = None) -> BasePlotter:
-        """
-        Create a plotter instance based on the specified strategy.
-        
-        Args:
-            strategy: The strategy name (e.g., "matplotlib", "plotly").
-                     If None, tries to use the default strategy.
-        
-        Returns:
-            A plotter instance for the requested strategy.
-            
-        Raises:
-            ValueError: If no strategy is available.
-        """
-        # If no strategy provided, use default
-        if strategy is None:
-            strategy = cls.DEFAULT_STRATEGY
-        
-        # Convert to lowercase for case-insensitive matching
-        strategy = strategy.lower() if strategy else cls.DEFAULT_STRATEGY.lower()
-        
-        # Try direct import if matplotlib is requested
-        if strategy == "matplotlib":
+        for name, plotter_class in cls._plotter_registry.items():
             try:
-                import matplotlib.pyplot as plt
-                # If we got here, matplotlib is available
-                if "matplotlib" not in cls._registry:
-                    # Try to import the specific plotter class
-                    try:
-                        from tmd.plotters.matplotlib import MatplotlibHeightMapPlotter
-                        cls.register("matplotlib", MatplotlibHeightMapPlotter)
-                    except ImportError:
-                        # Fallback to direct import via class path
-                        plotter_class = cls._import_class(cls.STRATEGY_CLASSES["matplotlib"])
-                        cls.register("matplotlib", plotter_class)
-                
-                # At this point, matplotlib should be in the registry
-                if "matplotlib" in cls._registry:
-                    return cls._registry["matplotlib"]()
+                # Check if dependencies are available
+                if hasattr(plotter_class, 'REQUIRED_DEPENDENCIES'):
+                    # Try to import each dependency
+                    for dependency in plotter_class.REQUIRED_DEPENDENCIES:
+                        # Simple import check
+                        parts = dependency.split('.')
+                        __import__(parts[0])
+                    available_plotters[name] = True
+                else:
+                    # If no dependencies specified, assume available
+                    available_plotters[name] = True
             except ImportError:
-                logger.warning("Matplotlib is not available")
-                # Fall through to try other strategies
+                available_plotters[name] = False
         
-        # Try to use the strategy from the registry first
-        if strategy in cls._registry:
-            plotter_class = cls._registry[strategy]
-            try:
-                logger.debug(f"Creating plotter from registry: {strategy}")
-                return plotter_class()
-            except Exception as e:
-                logger.warning(f"Failed to create plotter from registry: {e}")
-                # Fall through to dynamic imports if registry fails
-        
-        # Check which strategies are actually available
-        available_strategies = {}
-        for name, deps in cls.STRATEGY_DEPENDENCIES.items():
-            try:
-                # Try importing the first dependency as a quick check
-                if deps:
-                    __import__(deps[0])
-                    available_strategies[name] = True
-            except ImportError:
-                available_strategies[name] = False
-        
-        # Filter to only the available ones
-        truly_available = [s for s, status in available_strategies.items() if status]
-        
-        # If requested strategy is available, try to create it
-        if strategy in truly_available:
-            try:
-                plotter_class = cls._import_class(cls.STRATEGY_CLASSES[strategy])
-                cls.register(strategy, plotter_class)
-                return plotter_class()
-            except (ImportError, KeyError) as e:
-                logger.error(f"Failed to create plotter for '{strategy}': {e}")
-        
-        # If requested strategy is not available, try to find an alternative
-        if truly_available:
-            alt_strategy = truly_available[0]
-            logger.warning(f"Strategy '{strategy}' not available. Using '{alt_strategy}' instead.")
-            try:
-                plotter_class = cls._import_class(cls.STRATEGY_CLASSES[alt_strategy])
-                cls.register(alt_strategy, plotter_class)
-                return plotter_class()
-            except (ImportError, KeyError) as e:
-                logger.error(f"Failed to create plotter for '{alt_strategy}': {e}")
-        
-        # If all else fails, raise an informative error
-        registered = list(cls._registry.keys())
-        if registered:
-            raise ValueError(f"Could not create plotter for '{strategy}'. "
-                           f"Registered but unavailable: {', '.join(registered)}")
-        else:
-            raise ValueError("No plotting backends available. Please install at least one of: "
-                           f"{', '.join(cls.STRATEGY_DEPENDENCIES.keys())}")
+        return available_plotters
+    
 
-
-class TMDSequencePlotterFactory(PlotterFactoryBase, BasePlotterFactory):
+class TMDSequencePlotterFactory:
     """
-    Factory class for creating TMD sequence plotters.
-
-    Strategies:
-      - "matplotlib": Returns a MatplotlibSequencePlotter instance.
-      - "plotly": Returns a PlotlySequenceVisualizer instance for sequences.
-      - "polyscope": Returns a PolyscopePlotter instance configured for sequences.
-      - "seaborn": Returns a SeabornSequencePlotter for sequence analysis.
+    Factory class for creating plotters for TMD sequences.
+    
+    This class implements the Factory Method pattern to create appropriate
+    sequence plotter instances based on the requested backend.
     """
-    # Define strategy dependencies and class mappings as class variables
-    STRATEGY_DEPENDENCIES = {
-        "matplotlib": ["matplotlib.pyplot", "matplotlib.animation"],
-        "plotly": ["plotly", "plotly.graph_objects"],
-        "polyscope": ["polyscope"],
-        "seaborn": ["seaborn"]
-    }
     
-    STRATEGY_CLASSES = {
-        "matplotlib": "tmd.plotters.matplotlib.MatplotlibSequencePlotter",
-        "plotly": "tmd.plotters.plotly.PlotlySequenceVisualizer",
-        "polyscope": "tmd.plotters.polyscope.PolyscopePlotter",
-        "seaborn": "tmd.plotters.seaborn.SeabornSequencePlotter"
-    }
+    # Class variable to store registered plotter classes
+    _plotter_registry: ClassVar[Dict[str, Type['BaseSequencePlotter']]] = {}
     
-    DEFAULT_STRATEGY = "matplotlib"
-    
-    # Initialize registry to avoid AttributeError
-    _registry = {}
-
     @classmethod
-    def create_plotter(cls, strategy: str = None) -> BaseSequencePlotter:
+    def register(cls, name: str, plotter_class: Type['BaseSequencePlotter']) -> None:
         """
-        Create a sequence plotter based on the specified strategy.
+        Register a sequence plotter class with the factory.
         
         Args:
-            strategy: The plotting library to use. Options:
-                      "matplotlib" (default), "plotly", "polyscope", or "seaborn"
-                      
+            name: Name of the plotter (e.g., "matplotlib", "plotly")
+            plotter_class: Sequence plotter class to register
+        """
+        # Dynamic check to avoid circular imports
+        from tmd.plotters.base import BaseSequencePlotter
+        
+        if not inspect.isclass(plotter_class) or not issubclass(plotter_class, BaseSequencePlotter):
+            raise TypeError(f"Sequence plotter class must be a subclass of BaseSequencePlotter")
+        
+        cls._plotter_registry[name.lower()] = plotter_class
+        logger.debug(f"Registered sequence plotter '{name}' with class {plotter_class.__name__}")
+    
+    @classmethod
+    def create_plotter(cls, name: str) -> 'BaseSequencePlotter':
+        """
+        Create a sequence plotter instance for the specified backend.
+        
+        Args:
+            name: Name of the plotter to create (e.g., "matplotlib", "plotly")
+            
         Returns:
-            An instance of a concrete plotter implementing the BaseSequencePlotter interface
+            Instance of the requested sequence plotter
             
         Raises:
-            ValueError: If the strategy is not supported
-            ImportError: If the required dependencies for a strategy are not available
+            ValueError: If the requested plotter is not registered or available
         """
-        if strategy is None:
-            strategy = cls.DEFAULT_STRATEGY
+        name = name.lower()
+        
+        if name not in cls._plotter_registry:
+            raise ValueError(f"Sequence plotter '{name}' not registered")
+        
+        plotter_class = cls._plotter_registry[name]
+        
+        # Check if the plotter has the required dependencies
+        if hasattr(plotter_class, 'REQUIRED_DEPENDENCIES'):
+            try:
+                # Try to instantiate the plotter
+                plotter = plotter_class()
+                return plotter
+            except ImportError as e:
+                # Handle missing dependencies
+                dependencies = getattr(plotter_class, 'REQUIRED_DEPENDENCIES', [])
+                raise ValueError(
+                    f"Sequence plotter '{name}' requires dependencies that are not available: {dependencies}. "
+                    f"Error: {str(e)}"
+                )
         else:
-            strategy = strategy.lower()
-            
-        # First check if the plotter is already in the registry
-        if strategy in cls._registry:
-            plotter_class = cls._registry[strategy]
-            
-            # Special case for polyscope
-            if strategy == "polyscope" and plotter_class.__name__ == "PolyscopePlotter":
-                return plotter_class(is_sequence=True)
-                
+            # If no dependencies specified, just instantiate
             return plotter_class()
-            
-        # Check if strategy is supported
-        if strategy not in cls.STRATEGY_DEPENDENCIES:
-            raise ValueError(f"Unsupported sequence plotter strategy: {strategy}. "
-                             f"Available strategies: {', '.join(cls.STRATEGY_CLASSES.keys())}")
+    
+    @classmethod
+    def list_available_strategies(cls) -> Dict[str, bool]:
+        """
+        List all registered sequence plotters and their availability.
         
-        # Check if the required dependencies are available
-        missing = cls.get_missing_dependencies(strategy)
-        if missing:
-            logger.error(f"Missing dependencies for {strategy}: {', '.join(missing)}")
-            raise ImportError(f"Missing dependencies for {strategy}: {', '.join(missing)}")
+        Returns:
+            Dictionary mapping plotter names to their availability status (bool)
+        """
+        available_plotters = {}
         
-        # Import the appropriate plotter class
-        try:
-            # Try to get the class and register it
-            plotter_class = cls._import_class(cls.STRATEGY_CLASSES[strategy])
-            cls.register(strategy, plotter_class)
-            
-            # Special case for polyscope
-            if strategy == "polyscope" and plotter_class.__name__ == "PolyscopePlotter":
-                return plotter_class(is_sequence=True)
-                
-            return plotter_class()
-        except ImportError as e:
-            logger.error(f"Failed to import plotter for {strategy}: {e}")
-            raise
+        for name, plotter_class in cls._plotter_registry.items():
+            try:
+                # Check if dependencies are available
+                if hasattr(plotter_class, 'REQUIRED_DEPENDENCIES'):
+                    # Try to import each dependency
+                    for dependency in plotter_class.REQUIRED_DEPENDENCIES:
+                        # Simple import check
+                        parts = dependency.split('.')
+                        __import__(parts[0])
+                    available_plotters[name] = True
+                else:
+                    # If no dependencies specified, assume available
+                    available_plotters[name] = True
+            except ImportError:
+                available_plotters[name] = False
+        
+        return available_plotters
 
 
-# Register all available plotters on module import
 def _register_all_plotters():
     """Register all available plotters with the factories."""
     # Try to register matplotlib plotters
     try:
-        from tmd.plotters.matplotlib import MatplotlibHeightMapPlotter, MatplotlibSequencePlotter
+        from tmd.plotters.matplotlib import MatplotlibHeightMapPlotter
         TMDPlotterFactory.register("matplotlib", MatplotlibHeightMapPlotter)
-        TMDSequencePlotterFactory.register("matplotlib", MatplotlibSequencePlotter)
-        logger.debug("Successfully registered matplotlib plotters")
     except ImportError:
-        logger.debug("Matplotlib plotters not available")
-
+        logger.debug("Matplotlib plotter not available")
+    
+    try:
+        from tmd.plotters.matplotlib import MatplotlibSequencePlotter
+        TMDSequencePlotterFactory.register("matplotlib", MatplotlibSequencePlotter)
+    except ImportError:
+        logger.debug("Matplotlib sequence plotter not available")
+    
     # Try to register plotly plotters
     try:
-        from tmd.plotters.plotly import PlotlyHeightMapVisualizer, PlotlySequenceVisualizer
+        from tmd.plotters.plotly import PlotlyHeightMapVisualizer
         TMDPlotterFactory.register("plotly", PlotlyHeightMapVisualizer)
-        TMDSequencePlotterFactory.register("plotly", PlotlySequenceVisualizer)
-        logger.debug("Successfully registered plotly plotters")
     except ImportError:
-        logger.debug("Plotly plotters not available")
-
-    # Try to register polyscope plotters
+        logger.debug("Plotly plotter not available")
+    
     try:
-        from tmd.plotters.polyscope import PolyscopePlotter
-        TMDPlotterFactory.register("polyscope", PolyscopePlotter)
-        TMDSequencePlotterFactory.register("polyscope", PolyscopePlotter)
-        logger.debug("Successfully registered polyscope plotters")
+        from tmd.plotters.plotly import PlotlySequenceVisualizer
+        TMDSequencePlotterFactory.register("plotly", PlotlySequenceVisualizer)
     except ImportError:
-        logger.debug("Polyscope plotters not available")
-
+        logger.debug("Plotly sequence plotter not available")
+    
     # Try to register seaborn plotters
     try:
-        from tmd.plotters.seaborn import SeabornHeightMapPlotter, SeabornSequencePlotter
+        from tmd.plotters.seaborn import SeabornHeightMapPlotter
         TMDPlotterFactory.register("seaborn", SeabornHeightMapPlotter)
-        TMDSequencePlotterFactory.register("seaborn", SeabornSequencePlotter)
-        logger.debug("Successfully registered seaborn plotters")
     except ImportError:
-        logger.debug("Seaborn plotters not available")
+        logger.debug("Seaborn plotter not available")
+    
+    try:
+        from tmd.plotters.seaborn import SeabornSequencePlotter
+        TMDSequencePlotterFactory.register("seaborn", SeabornSequencePlotter)
+    except ImportError:
+        logger.debug("Seaborn sequence plotter not available")
+    
+    # Try to register polyscope plotters
+    try:
+        from tmd.plotters.polyscope import PolyscopePlotter, PolyscopeSequencePlotter
+        TMDPlotterFactory.register("polyscope", PolyscopePlotter)
+        TMDSequencePlotterFactory.register("polyscope", PolyscopeSequencePlotter)
+    except (ImportError, SyntaxError) as e:
+        logger.debug(f"Polyscope plotter not available: {e}")
 
-# Register all available plotters
+
+# Add utility functions that can be imported directly from the module
+
+def get_registered_plotters() -> Dict[str, bool]:
+    """
+    Get a dictionary of available plotters and their status.
+    
+    Returns:
+        Dict[str, bool]: Dictionary with plotter names as keys and 
+                        availability status as values
+    """
+    return TMDPlotterFactory.list_available_strategies()
+
+def get_available_plotters() -> List[str]:
+    """
+    Get list of available plotter names.
+    
+    Returns:
+        List[str]: Names of all available plotters
+    """
+    plotters = get_registered_plotters()
+    return [name for name, available in plotters.items() if available]
+
+def get_best_plotter(preference_order=None) -> Optional['BasePlotter']:
+    """
+    Get the best available plotter based on preference order.
+    
+    Args:
+        preference_order: List of plotter names in order of preference
+                        (default: ["plotly", "matplotlib", "polyscope", "seaborn"])
+    
+    Returns:
+        Plotter instance or None if no plotters are available
+    """
+    if preference_order is None:
+        preference_order = ["plotly", "matplotlib", "polyscope", "seaborn"]
+    
+    available = get_registered_plotters()
+    
+    for plotter in preference_order:
+        if plotter in available and available[plotter]:
+            return TMDPlotterFactory.create_plotter(plotter)
+    
+    return None
+
+
+# Register all available plotters when the module is imported
 _register_all_plotters()

@@ -128,6 +128,30 @@ class MatplotlibHeightMapPlotter(BasePlotter):
         self.plt.tight_layout()
         return fig
     
+    # Add convenience methods that map to the main plot method with specific modes
+    def plot_2d(self, height_map: np.ndarray, **kwargs) -> Any:
+        """Create a 2D heatmap visualization."""
+        kwargs["mode"] = "2d"
+        return self.plot(height_map, **kwargs)
+        
+    def plot_3d(self, height_map: np.ndarray, **kwargs) -> Any:
+        """Create a 3D surface visualization."""
+        kwargs["mode"] = "3d"
+        return self.plot(height_map, **kwargs)
+        
+    def plot_profile(self, height_map: np.ndarray, profile_row: int = None, **kwargs) -> Any:
+        """Create a profile (cross-section) visualization."""
+        kwargs["mode"] = "profile"
+        if profile_row is not None:
+            kwargs["profile_row"] = profile_row
+        return self.plot(height_map, **kwargs)
+    
+    def show(self, fig: Any) -> None:
+        """Display the figure."""
+        if hasattr(self, 'plt'):
+            self.plt.figure(fig.number)
+            self.plt.show()
+
     def _plot_3d_surface(self, height_map: np.ndarray, fig: Any = None, ax: Any = None,
                          cmap: str = "viridis", z_scale: float = 1.0, 
                          colorbar_label: str = COLORBAR_LABEL,

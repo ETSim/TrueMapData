@@ -127,48 +127,27 @@ class PlotlyHeightMapVisualizer(BasePlotter):
             
         return fig
 
+    def plot_2d(self, height_map: np.ndarray, **kwargs) -> Any:
+        """Create a 2D heatmap visualization."""
+        kwargs["mode"] = "2d"
+        return self.plot(height_map, **kwargs)
+        
     def plot_3d(self, height_map: np.ndarray, **kwargs) -> Any:
-        """
-        Create a 3D surface plot of the height map.
+        """Create a 3D surface visualization."""
+        kwargs["mode"] = "3d"
+        return self.plot(height_map, **kwargs)
         
-        Args:
-            height_map: 2D numpy array with height data
-            **kwargs: Additional options including:
-                - title: Plot title
-                - colormap: Colormap name
-                - z_scale: Z-axis scaling factor
-                - width, height: Figure dimensions
-                - show: Whether to display the figure
-                
-        Returns:
-            Plotly figure object
-        """
-        # Extract parameters with defaults
-        title = kwargs.get("title", "TMD 3D Visualization")
-        colormap = kwargs.get("colormap", self.DEFAULT_COLORMAP)
-        z_scale = kwargs.get("z_scale", 1.0)
-        width = kwargs.get("width", 800)
-        height = kwargs.get("height", 600)
-        show = kwargs.get("show", False)
-        colorbar_label = kwargs.get("colorbar_label", DEFAULT_COLORBAR_LABEL)
-        
-        # Create 3D surface visualization
-        fig = self._create_3d_surface(
-            height_map, 
-            title=title, 
-            colorscale=colormap, 
-            colorbar_label=colorbar_label,
-            z_scale=z_scale
-        )
-        
-        # Set figure dimensions
-        fig.update_layout(width=width, height=height)
-        
-        # Display if requested
-        if show:
+    def plot_profile(self, height_map: np.ndarray, profile_row: int = None, **kwargs) -> Any:
+        """Create a profile (cross-section) visualization."""
+        kwargs["mode"] = "profile"
+        if profile_row is not None:
+            kwargs["profile_row"] = profile_row
+        return self.plot(height_map, **kwargs)
+    
+    def show(self, fig: Any) -> None:
+        """Display the figure."""
+        if hasattr(fig, 'show'):
             fig.show()
-            
-        return fig
 
     def save(self, plot_obj: Any, filename: str, **kwargs) -> Optional[str]:
         """

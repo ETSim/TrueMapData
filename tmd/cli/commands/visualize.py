@@ -29,6 +29,11 @@ from tmd.cli.core import (
 # Import caching utilities
 from tmd.cli.utils.caching import get_cache_stats, clear_cache
 
+# Import logging
+import logging
+logger = logging.getLogger(__name__)
+
+
 def get_available_plotters() -> Dict[str, bool]:
     """
     Get a dictionary of available plotters and their status.
@@ -114,7 +119,7 @@ def visualize_tmd_file(
     output: Optional[Path] = None,
     z_scale: float = 1.0,
     profile_row: Optional[int] = None,
-    auto_open: bool = True,
+    auto_open: bool = False,  # Default to False
     **kwargs
 ) -> bool:
     """
@@ -142,6 +147,31 @@ def visualize_tmd_file(
     # Get height map
     height_map = data.height_map()
     
+    # Try to use the CLI visualization utility function directly
+    try:
+        from tmd.cli.utils.visualization import create_visualization
+        
+        success = create_visualization(
+            tmd_file_or_data=data,
+            mode=mode,
+            plotter=plotter,
+            colormap=colormap,
+            output=output,
+            z_scale=z_scale,
+            profile_row=profile_row,
+            title=f"{tmd_file.name} - {mode.upper()} Visualization",
+            auto_open=auto_open and plotter.lower() != "polyscope",  # Don't auto-open polyscope visuals
+            **kwargs
+        )
+        
+        # Disable auto-opening for polyscope visualizations
+        if success and auto_open and output and plotter.lower() != "polyscope":
+            auto_open_file(output)
+            
+        return success
+    except (ImportError, Exception) as e:
+        logger.warning(f"Could not use create_visualization: {e}. Falling back to direct approach.")
+    
     # Select appropriate plotter
     selected_plotter = select_plotter(plotter, mode)
     
@@ -164,8 +194,9 @@ def visualize_tmd_file(
                 
                 # Create visualization based on mode
                 if mode == "3d":
-                    fig = plotter_instance.plot_3d(
+                    fig = plotter_instance.plot(
                         height_map,
+                        mode="3d",
                         title=f"{tmd_file.name} - 3D Visualization",
                         colormap=colormap,
                         z_scale=z_scale,
@@ -180,9 +211,6 @@ def visualize_tmd_file(
                     if profile_row < 0 or profile_row >= height_map.shape[0]:
                         print_error(f"Row index {profile_row} out of bounds (max: {height_map.shape[0]-1})")
                         return False
-                    
-                    # Extract profile data
-                    profile_data = height_map[profile_row, :]
                     
                     # Plot profile
                     fig = plotter_instance.plot(
@@ -203,168 +231,22 @@ def visualize_tmd_file(
                     )
                 
                 # Save figure
-                plotter_instance.save(fig, str(output))
-                print_success(f"Visualization saved to {output}")
+                saved_path = plotter_instance.save(fig, str(output))
+                if saved_path:
+                    print_success(f"Visualization saved to {saved_path}")
+                else:
+                    print_error(f"Failed to save visualization to {output}")
+                    return False
                 
                 # Auto-open if requested
-                if auto_open:
+                if auto_open and plotter.lower() != "polyscope":
                     auto_open_file(output)
                 
                 return True
                 
         except (ImportError, AttributeError) as e:
-            # If factory approach fails, fall back to direct imports
-            if selected_plotter == "matplotlib":
-                import matplotlib.pyplot as plt
-                
-                with console.status(f"Creating {mode} visualization with {selected_plotter}..."):
-                    if mode == "3d":
-                        from mpl_toolkits.mplot3d import Axes3D
-                        fig = plt.figure(figsize=(12, 10))
-                        ax = fig.add_subplot(111, projection='3d')
-                        
-                        # Create coordinate grid
-                        rows, cols = height_map.shape
-                        x = range(cols)
-                        y = range(rows)
-                        x, y = np.meshgrid(x, y)
-                        
-                        # Plot surface
-                        surf = ax.plot_surface(
-                            x, y, height_map * z_scale,
-                            cmap=colormap,
-                            linewidth=0,
-                            antialiased=True
-                        )
-                        
-                        # Add colorbar and labels
-                        fig.colorbar(surf, shrink=0.6, aspect=10, label='Height')
-                        ax.set_title(f"{tmd_file.name} - 3D Surface (z-scale: {z_scale})")
-                        
-                    elif mode == "profile":
-                        # Use middle row if not specified
-                        if profile_row is None:
-                            profile_row = height_map.shape[0] // 2
-                        
-                        # Ensure row is within bounds
-                        if profile_row < 0 or profile_row >= height_map.shape[0]:
-                            print_error(f"Row index {profile_row} out of bounds (max: {height_map.shape[0]-1})")
-                            return False
-                        
-                        # Extract profile data
-                        profile_data = height_map[profile_row, :]
-                        x_values = range(len(profile_data))
-                        
-                        # Plot profile
-                        fig = plt.figure(figsize=(12, 6))
-                        plt.plot(x_values, profile_data, '-', linewidth=2)
-                        plt.fill_between(x_values, min(profile_data), profile_data, alpha=0.3)
-                        plt.title(f"{tmd_file.name} - Height Profile (Row {profile_row})")
-                        plt.xlabel("Column Index")
-                        plt.ylabel("Height")
-                        plt.grid(True, linestyle='--', alpha=0.7)
-                        
-                    else:  # Default to 2D
-                        fig = plt.figure(figsize=(10, 8))
-                        plt.imshow(height_map, cmap=colormap)
-                        plt.colorbar(label='Height')
-                        plt.title(f"{tmd_file.name} - 2D Visualization")
-                    
-                    # Save figure
-                    plt.savefig(output, dpi=300)
-                    plt.close()
-                    
-                    print_success(f"Visualization saved to {output}")
-                    
-                    # Auto-open if requested
-                    if auto_open:
-                        auto_open_file(output)
-                    
-                    return True
-                    
-            elif selected_plotter == "plotly":
-                import plotly.graph_objects as go
-                
-                with console.status(f"Creating {mode} visualization with {selected_plotter}..."):
-                    if mode == "3d":
-                        # Create 3D surface
-                        fig = go.Figure(data=[go.Surface(z=height_map * z_scale, colorscale=colormap)])
-                        
-                        fig.update_layout(
-                            title=f"{tmd_file.name} - 3D Surface (z-scale: {z_scale})",
-                            scene=dict(
-                                xaxis_title='X',
-                                yaxis_title='Y',
-                                zaxis_title='Height',
-                                aspectmode='manual',
-                                aspectratio=dict(x=1, y=1, z=0.5)
-                            )
-                        )
-                        
-                    elif mode == "profile":
-                        # Use middle row if not specified
-                        if profile_row is None:
-                            profile_row = height_map.shape[0] // 2
-                        
-                        # Ensure row is within bounds
-                        if profile_row < 0 or profile_row >= height_map.shape[0]:
-                            print_error(f"Row index {profile_row} out of bounds (max: {height_map.shape[0]-1})")
-                            return False
-                        
-                        # Extract profile data
-                        profile_data = height_map[profile_row, :]
-                        x_values = range(len(profile_data))
-                        
-                        # Create figure
-                        fig = go.Figure()
-                        
-                        # Add profile line
-                        fig.add_trace(go.Scatter(
-                            x=x_values,
-                            y=profile_data,
-                            mode='lines',
-                            name='Height Profile'
-                        ))
-                        
-                        # Add fill
-                        fig.add_trace(go.Scatter(
-                            x=x_values,
-                            y=profile_data,
-                            fill='tozeroy',
-                            fillcolor='rgba(0, 100, 80, 0.2)',
-                            line=dict(color='rgba(255, 255, 255, 0)'),
-                            showlegend=False
-                        ))
-                        
-                        fig.update_layout(
-                            title=f"{tmd_file.name} - Height Profile (Row {profile_row})",
-                            xaxis_title="Column Index",
-                            yaxis_title="Height"
-                        )
-                        
-                    else:  # Default to 2D
-                        fig = go.Figure(data=go.Heatmap(z=height_map, colorscale=colormap))
-                        
-                        fig.update_layout(
-                            title=f"{tmd_file.name} - 2D Visualization",
-                            xaxis_title="X Position",
-                            yaxis_title="Y Position"
-                        )
-                    
-                    # Save figure
-                    fig.write_html(str(output))
-                    
-                    print_success(f"Visualization saved to {output}")
-                    
-                    # Auto-open if requested
-                    if auto_open:
-                        auto_open_file(output)
-                    
-                    return True
-            
-            # If we got here, we couldn't create a visualization
-            print_error(f"Failed to create visualization with {selected_plotter}: {e}")
-            return False
+            # Fall back to direct implementation
+            logger.warning(f"Factory approach failed: {e}. Using direct implementation.")
             
     except Exception as e:
         print_error(f"Error creating visualization: {e}")

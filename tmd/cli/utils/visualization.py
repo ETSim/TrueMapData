@@ -95,6 +95,31 @@ def check_available_visualization_backends() -> Dict[str, bool]:
     
     return backends
 
+def _get_height_map(tmd_obj):
+    """
+    Safely get the height map from a TMD object, handling both property and method implementations.
+    
+    Args:
+        tmd_obj: TMD object with either height_map property or height_map() method
+        
+    Returns:
+        NumPy array containing height map data
+    """
+    if tmd_obj is None:
+        ui_module = _get_ui_module()
+        ui_module.print_error("TMD object is None")
+        return None
+        
+    if hasattr(tmd_obj, 'height_map'):
+        if callable(tmd_obj.height_map):
+            return tmd_obj.height_map()
+        else:
+            return tmd_obj.height_map
+    else:
+        ui_module = _get_ui_module()
+        ui_module.print_error("TMD object has no height_map property or method")
+        return None
+
 def create_visualization(
     tmd_file_or_data: Union[Path, 'TMD'],
     mode: str,
@@ -107,6 +132,7 @@ def create_visualization(
     show_axes: bool = False,
     transparent: bool = False,
     use_cache: bool = True,
+    auto_open: bool = False,  # Default to False to disable browser opening
     **kwargs
 ) -> bool:
     """
@@ -114,8 +140,8 @@ def create_visualization(
     
     Args:
         tmd_file_or_data: Path to TMD file or TMD object
-        mode: Visualization mode ("2d", "3d", "profile", etc.)
-        plotter: Plotter name ("matplotlib", "plotly", etc.)
+        mode: Visualization mode ("2d", "3d", "profile", "contour", "enhanced", etc.)
+        plotter: Plotter name ("matplotlib", "plotly", "seaborn", etc.)
         output: Output file path
         profile_row: Row index for profile visualization
         title: Plot title
@@ -124,6 +150,7 @@ def create_visualization(
         show_axes: Whether to show axes
         transparent: Whether to use transparent background
         use_cache: Whether to use cached data (if available)
+        auto_open: Whether to automatically open the output file
         **kwargs: Additional options for plotter
         
     Returns:
@@ -134,31 +161,13 @@ def create_visualization(
     
     try:
         # Load data if a path was provided
-        if isinstance(tmd_file_or_data, Path):
-            tmd_data = io_module.load_tmd_file(
-                tmd_file_or_data, 
-                with_console_status=True, 
-                use_cache=use_cache
-            )
-            if tmd_data is None:
-                return False
-            
-            height_map = tmd_data.height_map()
-            file_path = tmd_file_or_data
-            
-            # Auto-generate title if not provided
-            if title is None:
-                title = f"{file_path.stem} - {mode.upper()} Visualization"
-        else:
-            # Assume it's already a TMD object
-            tmd_data = tmd_file_or_data
-            height_map = tmd_data.height_map()
-            file_path = None
-            
-            # Auto-generate title if not provided
-            if title is None:
-                title = f"TMD Data - {mode.upper()} Visualization"
+        height_map, file_path, title = _prepare_data_and_title(
+            tmd_file_or_data, mode, title, use_cache, io_module, ui_module, **kwargs
+        )
         
+        if height_map is None:
+            return False
+                
         # Determine output path if not specified
         if output is None and file_path is not None:
             output = io_module.get_output_filename(
@@ -167,67 +176,78 @@ def create_visualization(
                 viz_type=mode,
                 subdir="visualizations"
             )
-            
+        
+        # Special handling for seaborn profile visualization
+        if mode == "profile" and plotter.lower() == "seaborn":
+            success = _handle_seaborn_profile(
+                height_map, profile_row, title, output, kwargs, ui_module, io_module, auto_open
+            )
+            if success is not None:  # If handled by special case
+                return success
+        
         # Create plotter instance using the factory
         with ui_module.console.status(f"Creating {mode} visualization with {plotter}..."):
-            # Create plotter instance
-            plotter_instance = TMDPlotterFactory.create_plotter(plotter)
-            
-            # Special handling for profile mode
-            if mode == "profile":
-                if profile_row is None:
-                    profile_row = height_map.shape[0] // 2
+            # Use the factory pattern to create the appropriate plotter
+            try:
+                plotter_instance = TMDPlotterFactory.create_plotter(plotter)
                 
-                # Ensure row is within bounds
-                if profile_row < 0 or profile_row >= height_map.shape[0]:
-                    ui_module.print_error(f"Profile row {profile_row} out of bounds (max: {height_map.shape[0]-1})")
+                # Special handling for polyscope
+                if plotter.lower() == "polyscope":
+                    auto_open = False  # Disable auto-open for polyscope
+                
+                # Set common visualization parameters
+                common_params = {
+                    "mode": mode,
+                    "title": title,
+                    "colormap": colormap,
+                    "z_scale": z_scale,
+                    "show_axes": show_axes,
+                    "transparent": transparent
+                }
+                
+                # Add mode-specific parameters
+                if mode == "profile" and profile_row is not None:
+                    # Validate profile row
+                    if profile_row < 0 or profile_row >= height_map.shape[0]:
+                        ui_module.print_error(f"Profile row {profile_row} out of bounds (max: {height_map.shape[0]-1})")
+                        return False
+                    common_params["profile_row"] = profile_row
+                
+                # Create visualization with all parameters
+                fig = plotter_instance.plot(height_map, **common_params, **kwargs)
+                
+            except (ImportError, ValueError) as e:
+                ui_module.print_error(f"Could not create plotter: {e}")
+                
+                # Only try fallback for non-polyscope plotters or if explicitly requested
+                if plotter.lower() != "polyscope" or kwargs.get("use_fallback", True):
+                    # Try to fall back to the best available plotter
+                    from tmd.plotters import get_best_plotter
+                    plotter_instance = get_best_plotter()
+                    if not plotter_instance:
+                        return False
+                    ui_module.print_warning(f"Using {plotter_instance.NAME} as fallback plotter")
+                    
+                    # Try again with the fallback plotter
+                    fig = plotter_instance.plot(height_map, **common_params, **kwargs)
+                else:
+                    # For polyscope with no fallback requested, just report the error
                     return False
-                
-                # Create profile plot
-                fig = plotter_instance.plot_profile(
-                    height_map,
-                    profile_row=profile_row,
-                    title=title or f"Height Profile (Row {profile_row})",
-                    colormap=colormap,
-                    show_axes=show_axes,
-                    transparent=transparent,
-                    **kwargs
-                )
-            
-            # 3D surface plot
-            elif mode == "3d":
-                fig = plotter_instance.plot_3d(
-                    height_map,
-                    title=title,
-                    colormap=colormap,
-                    z_scale=z_scale,
-                    show_axes=show_axes,
-                    transparent=transparent,
-                    **kwargs
-                )
-            
-            # Default to 2D plot
-            else:
-                fig = plotter_instance.plot_2d(
-                    height_map,
-                    title=title,
-                    colormap=colormap,
-                    show_axes=show_axes,
-                    transparent=transparent,
-                    **kwargs
-                )
             
             # Save the visualization
             if output is not None:
                 # Ensure directory exists
                 output.parent.mkdir(parents=True, exist_ok=True)
-                plotter_instance.save(fig, str(output))
-                ui_module.print_success(f"Visualization saved to {output}")
-                
-            # Show the visualization if no output path is specified
-            else:
-                plotter_instance.show(fig)
-                ui_module.print_success("Visualization displayed")
+                saved_path = plotter_instance.save(fig, str(output))
+                if saved_path:
+                    ui_module.print_success(f"Visualization saved to {saved_path}")
+                    
+                    # Only auto-open if specifically requested and it's not a polyscope visualization
+                    if auto_open and plotter.lower() != "polyscope":
+                        io_module.auto_open_file(output)
+                else:
+                    ui_module.print_error(f"Failed to save visualization to {output}")
+                    return False
             
             return True
             
@@ -235,44 +255,127 @@ def create_visualization(
         ui_module.print_error(f"Error creating visualization: {e}")
         logger.error(f"Visualization error: {e}", exc_info=True)
         
-        # Fallback to direct implementation if factory fails
-        try:
-            if plotter == "matplotlib":
-                return _create_matplotlib_visualization(
-                    height_map, 
-                    mode, 
-                    output, 
-                    profile_row, 
-                    title, 
-                    colormap, 
-                    z_scale, 
-                    show_axes, 
-                    transparent, 
-                    **kwargs
-                )
-            elif plotter == "plotly":
-                return _create_plotly_visualization(
-                    height_map, 
-                    mode, 
-                    output, 
-                    profile_row, 
-                    title, 
-                    colormap, 
-                    z_scale, 
-                    show_axes, 
-                    transparent, 
-                    **kwargs
-                )
-            else:
-                ui_module.print_error(f"Visualization with {plotter} not implemented in fallback mode")
-                return False
-        except Exception as fallback_error:
-            ui_module.print_error(f"Fallback visualization also failed: {fallback_error}")
-            return False
+        # Try using fallback method if we have the height map
+        if 'height_map' in locals() and height_map is not None:
+            return _try_fallback_visualization(
+                height_map, 
+                mode,
+                plotter, 
+                output, 
+                profile_row, 
+                title, 
+                colormap, 
+                z_scale, 
+                show_axes, 
+                transparent, 
+                **kwargs
+            )
+        return False
 
-def _create_matplotlib_visualization(
+def _prepare_data_and_title(
+    tmd_file_or_data, mode, title, use_cache, io_module, ui_module, **kwargs
+):
+    """Helper function to prepare height map data and title."""
+    if isinstance(tmd_file_or_data, Path):
+        tmd_data = io_module.load_tmd_file(
+            tmd_file_or_data, 
+            with_console_status=True, 
+            use_cache=use_cache
+        )
+        if tmd_data is None:
+            return None, None, None
+        
+        height_map = _get_height_map(tmd_data)
+        if height_map is None:
+            return None, None, None
+            
+        file_path = tmd_file_or_data
+        
+        # Load second file if provided (for comparison mode)
+        if mode == "comparison" and "second_file" in kwargs:
+            second_file = kwargs.get("second_file")
+            if second_file:
+                second_data = io_module.load_tmd_file(
+                    second_file,
+                    with_console_status=True,
+                    use_cache=use_cache
+                )
+                if second_data:
+                    second_height_map = _get_height_map(second_data)
+                    if second_height_map is not None:
+                        kwargs["second_height_map"] = second_height_map
+        
+        # Auto-generate title if not provided
+        if title is None:
+            title = f"{file_path.stem} - {mode.upper()} Visualization"
+    else:
+        # Assume it's already a TMD object
+        tmd_data = tmd_file_or_data
+        height_map = _get_height_map(tmd_data)
+        if height_map is None:
+            return None, None, None
+            
+        file_path = None
+        
+        # Auto-generate title if not provided
+        if title is None:
+            title = f"TMD Data - {mode.upper()} Visualization"
+            
+    return height_map, file_path, title
+
+def _handle_seaborn_profile(
+    height_map, profile_row, title, output, kwargs, ui_module, io_module, auto_open
+):
+    """Handle special case for seaborn profile visualization."""
+    try:
+        from tmd.plotters.seaborn import SeabornProfilePlotter
+        
+        # Initialize the profile plotter
+        profile_plotter = SeabornProfilePlotter()
+        
+        # Set default profile row if not specified
+        if profile_row is None:
+            profile_row = height_map.shape[0] // 2
+        
+        # Ensure row is within bounds
+        if profile_row < 0 or profile_row >= height_map.shape[0]:
+            ui_module.print_error(f"Profile row {profile_row} out of bounds (max: {height_map.shape[0]-1})")
+            return False
+        
+        # Extract the profile data
+        profile_data = height_map[profile_row, :]
+        
+        # Create the profile plot
+        fig = profile_plotter.plot_profile(
+            profile_data,
+            title=title or f"Height Profile (Row {profile_row})",
+            show_markers=kwargs.get("show_markers", True),
+            show_grid=kwargs.get("show_grid", True),
+            **kwargs
+        )
+        
+        # Save the visualization
+        if output is not None:
+            # Ensure directory exists
+            output.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Save the figure
+            fig.savefig(str(output), bbox_inches='tight', dpi=300)
+            ui_module.print_success(f"Visualization saved to {output}")
+            
+            # Only auto-open if specifically requested
+            if auto_open:
+                io_module.auto_open_file(output)
+        
+        return True
+    except Exception as e:
+        ui_module.print_warning(f"Error with seaborn profile plotter: {e}. Falling back to standard method.")
+        return None  # Continue with standard visualization approach
+
+def _try_fallback_visualization(
     height_map: np.ndarray,
     mode: str,
+    plotter: str,
     output: Optional[Path],
     profile_row: Optional[int],
     title: Optional[str],
@@ -283,257 +386,129 @@ def _create_matplotlib_visualization(
     **kwargs
 ) -> bool:
     """
-    Create visualization with matplotlib.
+    Attempt a fallback visualization if the plotter factory method fails.
     
-    Helper function used as fallback when TMDPlotterFactory is not available.
+    Args:
+        height_map: The height map data to visualize
+        mode: Visualization mode ("2d", "3d", "profile", etc.)
+        plotter: The original plotter that failed
+        output: Output file path
+        profile_row: Row index for profile visualization
+        title: Plot title
+        colormap: Colormap name
+        z_scale: Z-axis scaling factor
+        show_axes: Whether to show axes
+        transparent: Whether to use transparent background
+        **kwargs: Additional options
+        
+    Returns:
+        True if fallback was successful, False otherwise
     """
     ui_module = _get_ui_module()
+    io_module = _get_io_module()
+    
+    ui_module.print_warning(f"Attempting fallback visualization using built-in methods...")
     
     try:
+        # Try matplotlib as a fallback
         import matplotlib.pyplot as plt
-        from matplotlib import cm
         
         if mode == "3d":
-            from mpl_toolkits.mplot3d import Axes3D
-            
-            with ui_module.console.status("Creating 3D visualization..."):
-                # Create 3D surface plot
+            try:
+                from mpl_toolkits.mplot3d import Axes3D
                 fig = plt.figure(figsize=(10, 8))
-                ax = fig.add_subplot(111, projection='3d')
+                ax = fig.add_subplot(111, projection="3d")
                 
-                # Create coordinate grid
+                # Create meshgrid for 3D plot
                 rows, cols = height_map.shape
-                x = np.arange(0, cols, 1)
-                y = np.arange(0, rows, 1)
+                x = np.arange(cols)
+                y = np.arange(rows)
                 x, y = np.meshgrid(x, y)
                 
-                # Plot surface
+                # Create surface plot
                 surf = ax.plot_surface(
                     x, y, height_map * z_scale,
                     cmap=colormap,
-                    linewidth=0.2,
+                    linewidth=0,
                     antialiased=True
                 )
                 
-                # Set title and labels
-                if title:
-                    ax.set_title(title)
-                
-                # Show/hide axes
-                if not show_axes:
-                    ax.set_axis_off()
-                
                 # Add colorbar
-                fig.colorbar(surf, shrink=0.5, aspect=5)
+                fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)
                 
-        elif mode == "profile":
-            with ui_module.console.status("Creating profile visualization..."):
-                # Get profile data
-                if profile_row is None:
-                    profile_row = height_map.shape[0] // 2
-                
-                profile_data = height_map[profile_row, :]
-                
-                # Create figure
-                fig, ax = plt.subplots(figsize=(12, 6))
-                
-                # Plot profile
-                ax.plot(profile_data, linewidth=2)
-                ax.fill_between(
-                    range(len(profile_data)), 
-                    profile_data.min(), 
-                    profile_data, 
-                    alpha=0.3
-                )
-                
-                # Set title and labels
+                # Set labels and title
                 if title:
                     ax.set_title(title)
+                if show_axes:
+                    ax.set_xlabel('X')
+                    ax.set_ylabel('Y')
+                    ax.set_zlabel('Height')
                 else:
-                    ax.set_title(f"Height Profile (Row {profile_row})")
-                
-                ax.set_xlabel("Column Index")
-                ax.set_ylabel("Height")
-                ax.grid(True, linestyle='--', alpha=0.7)
-                
-                # Show/hide axes
-                if not show_axes:
-                    ax.spines['top'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
-                
-        else:  # Default to 2D
-            with ui_module.console.status("Creating 2D visualization..."):
-                # Create figure
+                    ax.set_axis_off()
+                    
+            except ImportError:
+                # Fall back to 2D if 3D isn't available
+                ui_module.print_warning("3D plotting not available - falling back to 2D")
                 fig, ax = plt.subplots(figsize=(10, 8))
-                
-                # Create image plot
                 im = ax.imshow(height_map, cmap=colormap)
-                
-                # Add colorbar
                 plt.colorbar(im)
-                
-                # Set title
                 if title:
                     ax.set_title(title)
-                    
-                # Show/hide axes
                 if not show_axes:
                     ax.set_axis_off()
         
-        # Save or show the figure
-        if output is not None:
+        elif mode == "profile":
+            # Set default profile row if not specified
+            if profile_row is None:
+                profile_row = height_map.shape[0] // 2
+            
+            # Create profile plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.plot(height_map[profile_row, :])
+            
+            if title:
+                ax.set_title(title)
+            else:
+                ax.set_title(f"Height Profile (Row {profile_row})")
+                
+            if show_axes:
+                ax.set_xlabel('Column')
+                ax.set_ylabel('Height')
+                ax.grid(True, linestyle='--', alpha=0.7)
+            else:
+                ax.set_axis_off()
+        
+        else:  # Default to 2D
+            fig, ax = plt.subplots(figsize=(10, 8))
+            im = ax.imshow(height_map, cmap=colormap)
+            plt.colorbar(im)
+            if title:
+                ax.set_title(title)
+            if not show_axes:
+                ax.set_axis_off()
+        
+        # Save the figure if an output path is provided
+        if output:
             # Ensure directory exists
             output.parent.mkdir(parents=True, exist_ok=True)
             
             # Save figure
             plt.savefig(
-                output, 
-                bbox_inches='tight', 
-                transparent=transparent, 
+                output,
+                transparent=transparent,
+                bbox_inches='tight',
                 dpi=300
             )
-            plt.close(fig)
-            ui_module.print_success(f"Visualization saved to {output}")
-        else:
-            plt.tight_layout()
-            plt.show()
-            ui_module.print_success("Visualization displayed")
             
+            ui_module.print_success(f"Fallback visualization saved to {output}")
+            
+            # Auto-open the file if requested
+            if kwargs.get("auto_open", False):
+                io_module.auto_open_file(output)
+        
+        plt.close(fig)
         return True
-        
-    except Exception as e:
-        ui_module.print_error(f"Error creating matplotlib visualization: {e}")
-        logger.error(f"Matplotlib visualization error: {e}", exc_info=True)
-        return False
-
-def _create_plotly_visualization(
-    height_map: np.ndarray,
-    mode: str,
-    output: Optional[Path],
-    profile_row: Optional[int],
-    title: Optional[str],
-    colormap: str,
-    z_scale: float,
-    show_axes: bool,
-    transparent: bool,
-    **kwargs
-) -> bool:
-    """
-    Create visualization with plotly.
     
-    Helper function used as fallback when TMDPlotterFactory is not available.
-    """
-    ui_module = _get_ui_module()
-    
-    try:
-        import plotly.graph_objects as go
-        
-        if mode == "3d":
-            with ui_module.console.status("Creating 3D visualization..."):
-                # Create 3D surface
-                fig = go.Figure(data=[go.Surface(
-                    z=height_map * z_scale,
-                    colorscale=colormap,
-                )])
-                
-                # Update layout
-                fig.update_layout(
-                    title=title,
-                    autosize=True,
-                    scene=dict(
-                        aspectratio=dict(x=1, y=1, z=0.5),
-                        xaxis=dict(showticklabels=show_axes, showaxeslabels=show_axes, title=''),
-                        yaxis=dict(showticklabels=show_axes, showaxeslabels=show_axes, title=''),
-                        zaxis=dict(showticklabels=show_axes, showaxeslabels=show_axes, title='Height')
-                    )
-                )
-                
-        elif mode == "profile":
-            with ui_module.console.status("Creating profile visualization..."):
-                # Get profile data
-                if profile_row is None:
-                    profile_row = height_map.shape[0] // 2
-                
-                profile_data = height_map[profile_row, :]
-                x_values = list(range(len(profile_data)))
-                
-                # Create figure
-                fig = go.Figure()
-                
-                # Add line trace
-                fig.add_trace(go.Scatter(
-                    x=x_values,
-                    y=profile_data,
-                    mode='lines',
-                    line=dict(width=2),
-                    name='Height Profile'
-                ))
-                
-                # Add fill
-                fig.add_trace(go.Scatter(
-                    x=x_values,
-                    y=profile_data,
-                    fill='tozeroy',
-                    fillcolor='rgba(0, 176, 246, 0.2)',
-                    line=dict(color='rgba(255, 255, 255, 0)'),
-                    showlegend=False
-                ))
-                
-                # Update layout
-                fig.update_layout(
-                    title=title or f"Height Profile (Row {profile_row})",
-                    xaxis=dict(
-                        title='Column Index',
-                        showticklabels=show_axes
-                    ),
-                    yaxis=dict(
-                        title='Height',
-                        showticklabels=show_axes
-                    )
-                )
-                
-        else:  # Default to 2D
-            with ui_module.console.status("Creating 2D visualization..."):
-                # Create heatmap
-                fig = go.Figure(data=go.Heatmap(
-                    z=height_map,
-                    colorscale=colormap,
-                ))
-                
-                # Update layout
-                fig.update_layout(
-                    title=title,
-                    xaxis=dict(
-                        showticklabels=show_axes,
-                        showgrid=show_axes,
-                        zeroline=show_axes
-                    ),
-                    yaxis=dict(
-                        showticklabels=show_axes,
-                        showgrid=show_axes,
-                        zeroline=show_axes
-                    )
-                )
-        
-        # Save or display the figure
-        if output is not None:
-            # Ensure directory exists
-            output.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Determine file type based on extension
-            if output.suffix.lower() in ['.html', '.htm']:
-                fig.write_html(str(output))
-            else:
-                fig.write_image(str(output))
-                
-            ui_module.print_success(f"Visualization saved to {output}")
-        else:
-            fig.show()
-            ui_module.print_success("Visualization displayed")
-            
-        return True
-        
     except Exception as e:
-        ui_module.print_error(f"Error creating plotly visualization: {e}")
-        logger.error(f"Plotly visualization error: {e}", exc_info=True)
+        ui_module.print_error(f"Fallback visualization failed: {e}")
         return False

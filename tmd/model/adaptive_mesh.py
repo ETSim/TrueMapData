@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 import struct
 from scipy.ndimage import gaussian_filter, sobel
+from typing import List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -420,9 +421,7 @@ class AdaptiveMeshGenerator:
         return triangles
 
     def _sample_height(self, x, y, mipmap_level=0):
-        """.
-
-        Sample height value with bilinear interpolation at the given coordinates.
+        """Sample height value with bilinear interpolation at the given coordinates.
         
         Args:
             x, y: Coordinates to sample at
@@ -456,8 +455,24 @@ class AdaptiveMeshGenerator:
         
         return h0 * (1 - fy) + h1 * fy
 
-    def _subdivide_adaptive(self, threshold_scale=1.0, max_triangles=None):
-        """Perform adaptive subdivision based on error threshold and terrain features.."""
+    def _subdivide_adaptive(
+        self, 
+        threshold_scale: float = 1.0, 
+        max_triangles: Optional[int] = None
+    ) -> Tuple[List[Tuple[float, float]], List[List[int]], Tuple[List[int], List[int], List[int], List[int]]]:
+        """
+        Perform adaptive subdivision based on error threshold and terrain features.
+        
+        Args:
+            threshold_scale: Scale factor for the error threshold
+            max_triangles: Maximum triangle count limit, None for unlimited
+            
+        Returns:
+            Tuple of (vertices, triangles, boundary) where:
+                vertices: List of vertex coordinates as (x, y)
+                triangles: List of triangles as [i, j, k] vertex indices
+                boundary: Tuple of (north, east, south, west) edge vertices
+        """
         # Base threshold - scaled by subdivision level for consistent quality
         # Small values = more triangles, better quality
         base_threshold = self.error_threshold * threshold_scale
@@ -466,7 +481,7 @@ class AdaptiveMeshGenerator:
         root_node = QuadTreeNode(0, 0, self.n, self.n, 0)
         nodes_to_process = [root_node]
         leaf_nodes = []
-        vert_set = {}
+        vert_set = {}  # Maps (x, y) coordinates to vertex indices
         
         logger.info(f"Starting adaptive subdivision with max depth {self.max_subdivisions}, threshold {base_threshold}")
         
@@ -524,6 +539,7 @@ class AdaptiveMeshGenerator:
             # Check triangle limit - using an estimate of 2 triangles per quad
             if max_triangles and len(leaf_nodes) * 2 + len(nodes_to_process) * 2 > max_triangles:
                 # Stop subdivision if we'll exceed triangle limit
+                logger.info(f"Stopping subdivision at depth {depth} to meet triangle limit {max_triangles}")
                 break
             
             logger.info(f"Depth {depth}: {len(leaf_nodes)} leaf nodes, {len(nodes_to_process)} nodes to process")
@@ -558,8 +574,23 @@ class AdaptiveMeshGenerator:
         
         return vertices, triangles, boundary
     
-    def _add_base(self, vertices, triangles, boundary):
-        """Add a solid base to the mesh.."""
+    def _add_base(
+        self, 
+        vertices: List[Tuple[float, float]], 
+        triangles: List[List[int]], 
+        boundary: Tuple[List[int], List[int], List[int], List[int]]
+    ) -> Tuple[List[Tuple[float, float, float]], List[List[int]]]:
+        """
+        Add a solid base to the mesh to make it watertight.
+        
+        Args:
+            vertices: List of vertex coordinates as (x, y)
+            triangles: List of triangles as lists of vertex indices
+            boundary: Tuple of (north, east, south, west) edge vertices
+            
+        Returns:
+            Tuple of (vertices_3d, triangles) with base added
+        """
         if self.base_height <= 0:
             return vertices, triangles
             
@@ -588,10 +619,16 @@ class AdaptiveMeshGenerator:
             (min_x, max_y)   # Top-left
         ]
         
+        # Convert vertices to 3D
+        vertices_3d = []
+        for vertex in vertices:
+            vertices_3d.append(vertex + (0.0,))  # Add placeholder z value
+        
+        # Add base vertices
         for x, y in corners:
-            base_idx = len(vertices)
+            base_idx = len(vertices_3d)
             # Store vertices with base height marker
-            vertices.append((x, y, base_z))
+            vertices_3d.append((x, y, base_z))
             base_vertices.append(base_idx)
         
         # Simplified approach for connecting perimeter to base
@@ -625,7 +662,7 @@ class AdaptiveMeshGenerator:
         triangles.append([bl, br, tr])  # First triangle
         triangles.append([bl, tr, tl])  # Second triangle
         
-        return vertices, triangles
+        return vertices_3d, triangles
         
     def generate(self, max_triangles=None, progress_callback=None):
         """Generate an adaptive mesh from the heightmap.
@@ -854,63 +891,127 @@ def _apply_coordinate_transforms(
         vertices[i] = [x, y, z]
 
 def _write_mesh_to_file(output_file, vertices, faces):
-    """Write mesh data to STL file.
+    """
+    Write mesh data to a file.
     
     Args:
-        output_file: Path to output file
+        output_file: Path to the output file (STL format)
         vertices: List of vertex coordinates
-        faces: List of triangle indices
+        faces: List of face indices
         
     Returns:
-        tuple: (vertices, faces, output_file)
+        Path to the created file if successful, None otherwise
     """
     try:
-
+        from .mesh_utils import export_mesh
         
+        # Convert to numpy arrays for consistency
+        if not isinstance(vertices, np.ndarray):
+            vertices = np.array(vertices)
+        if not isinstance(faces, np.ndarray):
+            faces = np.array(faces)
+        
+        # Use the standardized export function
+        success = export_mesh(vertices, faces, output_file)
+        
+        if success:
+            logger.info(f"Successfully wrote mesh to {output_file}")
+            return output_file
+        else:
+            logger.error(f"Failed to write mesh to {output_file}")
+            return None
+    except ImportError:
+        # Fall back to basic STL export if mesh_utils is not available
+        return _write_mesh_to_stl(output_file, vertices, faces)
+
+def _write_mesh_to_stl(output_file, vertices, faces):
+    """Legacy method to write mesh data to an STL file."""
+    try:
         # Ensure directory exists
+        import os
         os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
         
-        _write_binary_stl(output_file, vertices, faces)
+        # Determine if we should use ascii or binary format
+        is_ascii = output_file.lower().endswith('.stl.txt')
         
-        logger.info(f"Enhanced adaptive mesh saved to {output_file}")
-        return vertices, faces, output_file
+        if is_ascii:
+            # ASCII STL export
+            with open(output_file, 'w') as f:
+                f.write("solid TMD_Generated\n")
+                
+                for face in faces:
+                    # Get vertices of this face
+                    v1 = np.array(vertices[face[0]])
+                    v2 = np.array(vertices[face[1]])
+                    v3 = np.array(vertices[face[2]])
+                    
+                    # Calculate face normal using cross product
+                    edge1 = v2 - v1
+                    edge2 = v3 - v1
+                    normal = np.cross(edge1, edge2)
+                    
+                    # Normalize normal vector
+                    norm = np.linalg.norm(normal)
+                    if norm > 0:
+                        normal = normal / norm
+                    else:
+                        normal = np.array([0, 0, 1])  # Default for degenerate faces
+                    
+                    # Write face
+                    f.write(f"  facet normal {normal[0]:.6e} {normal[1]:.6e} {normal[2]:.6e}\n")
+                    f.write("    outer loop\n")
+                    f.write(f"      vertex {v1[0]:.6e} {v1[1]:.6e} {v1[2]:.6e}\n")
+                    f.write(f"      vertex {v2[0]:.6e} {v2[1]:.6e} {v2[2]:.6e}\n")
+                    f.write(f"      vertex {v3[0]:.6e} {v3[1]:.6e} {v3[2]:.6e}\n")
+                    f.write("    endloop\n")
+                    f.write("  endfacet\n")
+                
+                f.write("endsolid TMD_Generated\n")
+        else:
+            # Binary STL export
+            import struct
+            
+            with open(output_file, 'wb') as f:
+                # Write header (80 bytes)
+                f.write(b'TMD Generated STL File'.ljust(80, b'\0'))
+                
+                # Write number of triangles (4 bytes)
+                f.write(struct.pack('<I', len(faces)))
+                
+                # Write triangles
+                for face in faces:
+                    # Get vertices of this face
+                    v1 = np.array(vertices[face[0]])
+                    v2 = np.array(vertices[face[1]])
+                    v3 = np.array(vertices[face[2]])
+                    
+                    # Calculate face normal using cross product
+                    edge1 = v2 - v1
+                    edge2 = v3 - v1
+                    normal = np.cross(edge1, edge2)
+                    
+                    # Normalize normal vector
+                    norm = np.linalg.norm(normal)
+                    if norm > 0:
+                        normal = normal / norm
+                    else:
+                        normal = np.array([0, 0, 1])  # Default for degenerate faces
+                    
+                    # Write normal vector (3 floats)
+                    f.write(struct.pack('<3f', *normal))
+                    
+                    # Write vertex coordinates (9 floats)
+                    f.write(struct.pack('<3f', *v1))
+                    f.write(struct.pack('<3f', *v2))
+                    f.write(struct.pack('<3f', *v3))
+                    
+                    # Write attribute byte count (2 bytes, unused)
+                    f.write(struct.pack('<H', 0))
         
+        logger.info(f"Successfully wrote mesh to {output_file}")
+        return output_file
     except Exception as e:
-        logger.error(f"Error writing STL file: {e}")
-        raise
-
-def _write_binary_stl(output_file, vertices, faces):
-    """Write binary STL file.
-    
-    Args:
-        output_file: Path to output file
-        vertices: List of vertex coordinates
-        faces: List of triangle indices
-    """
-    
-    with open(output_file, 'wb') as f:
-        # Write header (80 bytes)
-        f.write(b'TMD Enhanced Adaptive Mesh - Binary STL'.ljust(80, b' '))
-        # Write triangle count (4 bytes)
-        f.write(struct.pack('<I', len(faces)))
-        
-        # Write each triangle
-        for face in faces:
-            v0 = vertices[face[0]]
-            v1 = vertices[face[1]]
-            v2 = vertices[face[2]]
-            
-            # Calculate normal using cross product
-            normal = np.cross(np.array(v1) - np.array(v0), np.array(v2) - np.array(v0))
-            length = np.sqrt(np.sum(normal * normal))
-            if length > 0:
-                normal = normal / length
-            else:
-                normal = np.array([0, 0, 1])
-            
-            # Write normal and vertices
-            f.write(struct.pack('<fff', *normal))  # normal
-            f.write(struct.pack('<fff', *v0))      # vertex 1
-            f.write(struct.pack('<fff', *v1))      # vertex 2
-            f.write(struct.pack('<fff', *v2))      # vertex 3
-            f.write(struct.pack('<H', 0))          # attribute byte count
+        logger.error(f"Error writing mesh to {output_file}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

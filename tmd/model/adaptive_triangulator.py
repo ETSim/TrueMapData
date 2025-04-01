@@ -2,12 +2,13 @@
 Adaptive triangulator for heightmaps.
 
 This module provides functionality for adaptive triangulation of heightmaps,
-which generates a more efficient mesh by using fewer triangles in flat areas.
+which generates a more efficient mesh by using fewer triangles in flat areas
+and more triangles in detailed areas, resulting in optimal model size.
 """
 
 import numpy as np
 import logging
-from typing import List, Tuple, Optional, Dict, Any, Set
+from typing import List, Tuple, Optional, Dict, Any, Set, Union, Callable
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -17,7 +18,8 @@ class AdaptiveTriangulator:
     Class for adaptively triangulating a heightmap.
     
     This triangulator creates a mesh with varying triangle density based on the
-    local curvature of the heightmap.
+    local curvature and detail level of the heightmap. Areas with high detail
+    receive more triangles, while flat areas use fewer triangles.
     """
     
     def __init__(
@@ -26,7 +28,9 @@ class AdaptiveTriangulator:
         max_triangles: int = 100000,
         error_threshold: float = 0.001,
         min_area_fraction: float = 0.0001,
-        z_scale: float = 1.0
+        z_scale: float = 1.0,
+        detail_boost: float = 1.0,
+        progress_callback: Optional[Callable[[float], None]] = None
     ):
         """
         Initialize the adaptive triangulator.
@@ -34,24 +38,84 @@ class AdaptiveTriangulator:
         Args:
             height_map: 2D array of height values
             max_triangles: Maximum number of triangles to generate
-            error_threshold: Maximum allowed error for approximation
+            error_threshold: Maximum allowed error for approximation (lower = more detail)
             min_area_fraction: Minimum allowed triangle area as fraction of total area
             z_scale: Z-scaling factor for height values
+            detail_boost: Factor to boost detail in high-complexity areas (1.0 = normal)
+            progress_callback: Optional callback function for progress reporting
         """
         self.height_map = height_map
         self.max_triangles = max_triangles
         self.error_threshold = error_threshold
         self.min_area = min_area_fraction * height_map.shape[0] * height_map.shape[1]
         self.z_scale = z_scale
+        self.detail_boost = detail_boost
+        self.progress_callback = progress_callback
+        
+        # Calculate terrain complexity to guide the triangulation
+        self.complexity_map = self._calculate_complexity_map()
         
         # Initialize internal state
         self.vertices = []  # List of (x, y, z) vertex coordinates
         self.indices = []   # List of triangle vertex indices
         self.vertex_map = {}  # Maps (x, y) grid coordinates to vertex indices
         
-        # Log initialization for test_logging
+        # Statistics for reporting
+        self.stats = {
+            "original_points": height_map.size,
+            "max_triangles": max_triangles,
+            "error_threshold": error_threshold,
+            "final_triangles": 0,
+            "final_vertices": 0,
+            "compression_ratio": 0.0
+        }
+        
         logger.debug(f"AdaptiveTriangulator initialized with {self.height_map.shape} heightmap")
     
+    def _calculate_complexity_map(self) -> np.ndarray:
+        """
+        Calculate a complexity map to guide where to add more detail.
+        
+        Returns:
+            2D array representing local terrain complexity
+        """
+        # Calculate gradients in x and y directions
+        grad_x = np.zeros_like(self.height_map)
+        grad_y = np.zeros_like(self.height_map)
+        
+        # Interior points
+        grad_x[1:-1, 1:-1] = (self.height_map[1:-1, 2:] - self.height_map[1:-1, :-2]) / 2.0
+        grad_y[1:-1, 1:-1] = (self.height_map[2:, 1:-1] - self.height_map[:-2, 1:-1]) / 2.0
+        
+        # Boundary points
+        grad_x[1:-1, 0] = self.height_map[1:-1, 1] - self.height_map[1:-1, 0]
+        grad_x[1:-1, -1] = self.height_map[1:-1, -1] - self.height_map[1:-1, -2]
+        grad_y[0, 1:-1] = self.height_map[1, 1:-1] - self.height_map[0, 1:-1]
+        grad_y[-1, 1:-1] = self.height_map[-1, 1:-1] - self.height_map[-2, 1:-1]
+        
+        # Compute magnitude of gradient (slope)
+        grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+        
+        # Compute second derivatives (curvature)
+        grad_xx = np.zeros_like(self.height_map)
+        grad_yy = np.zeros_like(self.height_map)
+        grad_xx[1:-1, 1:-1] = self.height_map[1:-1, 2:] + self.height_map[1:-1, :-2] - 2 * self.height_map[1:-1, 1:-1]
+        grad_yy[1:-1, 1:-1] = self.height_map[2:, 1:-1] + self.height_map[:-2, 1:-1] - 2 * self.height_map[1:-1, 1:-1]
+        
+        # Combine slope and curvature for overall complexity
+        complexity = (
+            0.7 * grad_magnitude + 
+            0.3 * np.abs(grad_xx + grad_yy)
+        )
+        
+        # Normalize to [0, 1] range
+        if np.max(complexity) > np.min(complexity):
+            complexity = (complexity - np.min(complexity)) / (np.max(complexity) - np.min(complexity))
+        else:
+            complexity = np.zeros_like(complexity)
+        
+        return complexity
+        
     def run(self, max_error: Optional[float] = None, max_triangles: Optional[int] = None) -> Tuple[List[List[float]], List[List[int]]]:
         """
         Run the adaptive triangulation algorithm.
@@ -69,6 +133,10 @@ class AdaptiveTriangulator:
             self.error_threshold = max_error
         if max_triangles is not None:
             self.max_triangles = max_triangles
+        
+        # Report initial progress
+        if self.progress_callback:
+            self.progress_callback(0.0)
             
         # Start with the corners of the heightmap
         rows, cols = self.height_map.shape
@@ -85,22 +153,48 @@ class AdaptiveTriangulator:
         
         # Refine the mesh
         triangles_to_check = list(range(len(self.indices)))
+        total_checks = 0
+        progress_interval = max(1, self.max_triangles // 100)  # For progress reporting
         
         while triangles_to_check and len(self.indices) < self.max_triangles:
+            total_checks += 1
+            
+            # Report progress periodically
+            if self.progress_callback and total_checks % progress_interval == 0:
+                progress = min(0.9, len(self.indices) / self.max_triangles)
+                self.progress_callback(progress)
+                
+            # Get next triangle to check
             triangle_idx = triangles_to_check.pop(0)
             
             # Check if this triangle needs subdivision
             if self._needs_subdivision(triangle_idx):
                 # Skip if we'll exceed max_triangles
                 if len(self.indices) + 1 > self.max_triangles:
+                    logger.info(f"Reached maximum triangle count ({self.max_triangles})")
                     break
                     
                 # Subdivide the triangle
                 new_triangle_indices = self._subdivide_triangle(triangle_idx)
                 triangles_to_check.extend(new_triangle_indices)
         
-        # Log completion for test_logging
-        logger.info(f"Adaptive triangulation complete. Generated {len(self.indices)} triangles.")
+        # Update statistics
+        self.stats["final_triangles"] = len(self.indices)
+        self.stats["final_vertices"] = len(self.vertices)
+        self.stats["compression_ratio"] = (
+            self.height_map.size / (len(self.vertices) + len(self.indices) * 3)
+        )
+        
+        # Log completion
+        logger.info(
+            f"Adaptive triangulation complete. Generated {len(self.indices)} "
+            f"triangles from {self.height_map.size} height points. "
+            f"Compression ratio: {self.stats['compression_ratio']:.2f}x"
+        )
+        
+        # Final progress report
+        if self.progress_callback:
+            self.progress_callback(1.0)
         
         # Format output vertices and indices
         vertices_list = [[float(v[0]), float(v[1]), float(v[2])] for v in self.vertices]
@@ -119,6 +213,10 @@ class AdaptiveTriangulator:
         Returns:
             Index of the new or existing vertex
         """
+        # Ensure row and col are within bounds
+        row = max(0, min(row, self.height_map.shape[0] - 1))
+        col = max(0, min(col, self.height_map.shape[1] - 1))
+        
         # Check if vertex already exists
         if (row, col) in self.vertex_map:
             return self.vertex_map[(row, col)]
@@ -133,7 +231,7 @@ class AdaptiveTriangulator:
     
     def _needs_subdivision(self, triangle_idx: int) -> bool:
         """
-        Determine if a triangle needs to be subdivided.
+        Determine if a triangle needs to be subdivided based on error and complexity.
         
         Args:
             triangle_idx: Index of the triangle to check
@@ -154,19 +252,67 @@ class AdaptiveTriangulator:
         if area < self.min_area:
             return False
         
+        # Calculate local complexity to adjust error threshold
+        local_complexity = self._get_triangle_complexity(v1, v2, v3)
+        
+        # Apply detail boost: higher complexity = lower error threshold = more detail
+        adjusted_threshold = self.error_threshold / (1.0 + local_complexity * self.detail_boost)
+        
         # Check if the triangle approximation error is too high
         error = self._approximation_error(triangle_idx)
-        return error > self.error_threshold
+        return error > adjusted_threshold
+    
+    def _get_triangle_complexity(self, v1: List[float], v2: List[float], v3: List[float]) -> float:
+        """
+        Get the average complexity within a triangle.
+        
+        Args:
+            v1, v2, v3: Triangle vertices
+            
+        Returns:
+            Average complexity value
+        """
+        # Convert to grid coordinates
+        x1, y1, _ = v1
+        x2, y2, _ = v2
+        x3, y3, _ = v3
+        
+        # Calculate triangle bounding box
+        min_row = max(0, min(int(y1), int(y2), int(y3)))
+        max_row = min(self.complexity_map.shape[0]-1, max(int(y1), int(y2), int(y3)))
+        min_col = max(0, min(int(x1), int(x2), int(x3)))
+        max_col = min(self.complexity_map.shape[1]-1, max(int(x1), int(x2), int(x3)))
+        
+        # If triangle is tiny, sample a single point
+        if min_row == max_row or min_col == max_col:
+            return self.complexity_map[min_row, min_col]
+        
+        # Sample points and find average complexity
+        complexity_sum = 0.0
+        point_count = 0
+        
+        for r in range(min_row, max_row+1):
+            for c in range(min_col, max_col+1):
+                # Check if point is inside triangle
+                if not self._point_in_triangle((c, r), (int(x1), int(y1)), (int(x2), int(y2)), (int(x3), int(y3))):
+                    continue
+                
+                # Add complexity value
+                complexity_sum += self.complexity_map[r, c]
+                point_count += 1
+        
+        # Return average complexity (or 0 if no points were inside)
+        return complexity_sum / max(1, point_count)
     
     def _approximation_error(self, triangle_idx: int) -> float:
         """
-        Calculate the approximation error for a triangle.
+        Calculate the approximation error for a triangle against the actual heightmap.
         
         Args:
             triangle_idx: Index of the triangle to check
             
         Returns:
-            Maximum error between triangle and actual heightmap
+            Maximum error between triangle plane and actual heightmap
         """
         # Get triangle vertices
         triangle = self.indices[triangle_idx]
@@ -206,7 +352,7 @@ class AdaptiveTriangulator:
                     (c, r), (x1, y1, z1), (x2, y2, z2), (x3, y3, z3)
                 )
                 
-                # Calculate error
+                # Calculate error (weighted by local complexity)
                 error = abs(actual_z - interp_z)
                 max_error = max(max_error, error)
         
@@ -255,7 +401,7 @@ class AdaptiveTriangulator:
     
     def _subdivide_triangle(self, triangle_idx: int) -> List[int]:
         """
-        Subdivide a triangle by adding vertices at edge midpoints.
+        Subdivide a triangle by splitting its longest edge.
         
         Args:
             triangle_idx: Index of the triangle to subdivide
@@ -291,7 +437,7 @@ class AdaptiveTriangulator:
         x1, y1, _ = self.vertices[i1]
         x2, y2, _ = self.vertices[i2]
         
-        # Find midpoint in grid coordinates
+        # Find midpoint in grid coordinates with proper rounding
         mid_row = int(round((y1 + y2) / 2))
         mid_col = int(round((x1 + x2) / 2))
         
@@ -364,3 +510,49 @@ class AdaptiveTriangulator:
         
         # If all have the same sign (all positive or all negative), point is inside
         return not (has_neg and has_pos)
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about the triangulation.
+        
+        Returns:
+            Dictionary with statistics
+        """
+        return self.stats
+
+
+def triangulate_heightmap(
+    height_map: np.ndarray,
+    max_triangles: int = 100000,
+    error_threshold: float = 0.001,
+    z_scale: float = 1.0,
+    detail_boost: float = 1.0,
+    progress_callback: Optional[Callable[[float], None]] = None
+) -> Tuple[List[List[float]], List[List[int]], Dict[str, Any]]:
+    """
+    Convenience function to triangulate a heightmap in one call.
+    
+    Args:
+        height_map: 2D numpy array of height values
+        max_triangles: Maximum number of triangles to generate
+        error_threshold: Maximum allowed error for approximation
+        z_scale: Z-scaling factor for height values
+        detail_boost: Factor to boost detail in high-complexity areas
+        progress_callback: Optional callback function for progress reporting
+        
+    Returns:
+        Tuple of (vertices, faces, statistics)
+    """
+    triangulator = AdaptiveTriangulator(
+        height_map=height_map,
+        max_triangles=max_triangles,
+        error_threshold=error_threshold,
+        z_scale=z_scale,
+        detail_boost=detail_boost,
+        progress_callback=progress_callback
+    )
+    
+    vertices, faces = triangulator.run()
+    stats = triangulator.get_statistics()
+    
+    return vertices, faces, stats

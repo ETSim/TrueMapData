@@ -1,8 +1,8 @@
 """
-STL exporter module for height maps.
+STL exporter implementation for TMD.
 
-This module provides functions for converting height maps to STL files,
-which are widely used for 3D printing and manufacturing.
+This module provides the STLExporter class and related functions for exporting
+height maps to STL format, which is commonly used for 3D printing.
 """
 
 import os
@@ -11,7 +11,7 @@ import struct
 import logging
 from typing import Optional, List, Tuple, Union
 
-from .base import create_mesh_from_heightmap
+from .base import ModelExporter, create_mesh_from_heightmap
 from .mesh_utils import (
     calculate_vertex_normals,
     validate_heightmap,
@@ -20,6 +20,67 @@ from .mesh_utils import (
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+class STLExporter(ModelExporter):
+    """Exporter for STL format."""
+    
+    @classmethod
+    def get_extension(cls) -> str:
+        """Get file extension."""
+        return "stl"
+    
+    @classmethod
+    def get_format_name(cls) -> str:
+        """Get format name."""
+        return "STL (Stereolithography)"
+    
+    @classmethod
+    def supports_binary(cls) -> bool:
+        """Check if binary format is supported."""
+        return True
+    
+    @classmethod
+    def export(cls, 
+               height_map: np.ndarray, 
+               filename: str, 
+               x_offset: float = 0.0,
+               y_offset: float = 0.0,
+               x_length: float = 1.0,
+               y_length: float = 1.0,
+               z_scale: float = 1.0,
+               base_height: float = 0.0,
+               binary: bool = True,
+               **kwargs) -> Optional[str]:
+        """
+        Export a heightmap to STL format.
+        
+        Args:
+            height_map: 2D numpy array of height values
+            filename: Output filename
+            x_offset: X-axis offset for the model
+            y_offset: Y-axis offset for the model
+            x_length: Physical length in X direction
+            y_length: Physical length in Y direction
+            z_scale: Scale factor for Z-axis values
+            base_height: Height of solid base to add below the model
+            binary: Whether to use binary format (default: True)
+            **kwargs: Additional parameters
+            
+        Returns:
+            Path to the created file if successful, None otherwise
+        """
+        return convert_heightmap_to_stl(
+            height_map=height_map,
+            filename=filename,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            x_length=x_length,
+            y_length=y_length,
+            z_scale=z_scale,
+            base_height=base_height,
+            ascii_format=not binary
+        )
 
 
 def convert_heightmap_to_stl(
@@ -82,7 +143,7 @@ def convert_heightmap_to_stl(
             return None
             
         # Ensure the mesh is watertight
-        vertices, faces = _ensure_watertight_mesh(vertices, faces, base_height)
+        vertices, faces = ensure_watertight_mesh(vertices, faces, base_height)
         
         # Convert to numpy arrays for easier processing
         vertices_array = np.array(vertices, dtype=np.float32)
@@ -135,42 +196,6 @@ def write_binary_stl(vertices: np.ndarray, faces: np.ndarray, filename: str) -> 
             # Attribute byte count (2 bytes, usually zero)
             f.write(struct.pack('<H', 0))
 
-
-def write_ascii_stl(vertices: np.ndarray, faces: np.ndarray, filename: str) -> None:
-    """
-    Write mesh data to an ASCII STL file.
-    
-    Args:
-        vertices: Array of vertex coordinates
-        faces: Array of face indices
-        filename: Output filename
-    """
-    with open(filename, 'w') as f:
-        # Write header
-        f.write("solid TMDExport\n")
-        
-        # Calculate normals
-        normals = calculate_face_normals(vertices, faces)
-        
-        # Write each triangle
-        for i, face in enumerate(faces):
-            # Start facet
-            f.write(f"  facet normal {normals[i][0]} {normals[i][1]} {normals[i][2]}\n")
-            f.write("    outer loop\n")
-            
-            # Write vertices
-            for idx in face:
-                v = vertices[idx]
-                f.write(f"      vertex {v[0]} {v[1]} {v[2]}\n")
-            
-            # End facet
-            f.write("    endloop\n")
-            f.write("  endfacet\n")
-        
-        # Write footer
-        f.write("endsolid TMDExport\n")
-
-
 def calculate_face_normals(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
     """
     Calculate normal vectors for each face.
@@ -207,26 +232,7 @@ def calculate_face_normals(vertices: np.ndarray, faces: np.ndarray) -> np.ndarra
     return normals
 
 
-def export_stl(height_map: np.ndarray, output_file: str, **kwargs) -> Optional[str]:
-    """
-    Export a height map to STL format.
-    
-    Args:
-        height_map: 2D numpy array of height values
-        output_file: Output filename
-        **kwargs: Additional options passed to convert_heightmap_to_stl
-        
-    Returns:
-        Path to the created file or None if failed
-    """
-    return convert_heightmap_to_stl(
-        height_map=height_map,
-        filename=output_file,
-        **kwargs
-    )
-
-
-def _ensure_watertight_mesh(vertices, faces, base_height=0.0):
+def ensure_watertight_mesh(vertices, faces, base_height=0.0):
     """
     Ensure that a mesh is watertight by adding a base if necessary.
     

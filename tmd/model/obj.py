@@ -1,25 +1,100 @@
 """
-OBJ exporter module for height maps.
+OBJ exporter implementation for TMD.
 
-This module provides functions for converting height maps to OBJ format,
-which is widely supported across 3D modeling software.
+This module provides the OBJExporter class and related functions for exporting
+height maps to OBJ format, which is widely supported across 3D modeling software.
 """
 
 import os
 import numpy as np
 import logging
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Tuple, Dict, Any, Union
 
-from .base import create_mesh_from_heightmap
+from .base import ModelExporter, create_mesh_from_heightmap
 from .mesh_utils import (
     calculate_vertex_normals,
     validate_heightmap,
     ensure_directory_exists,
-    generate_uv_coordinates
+    generate_uv_coordinates,
+    optimize_mesh
 )
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+class OBJExporter(ModelExporter):
+    """Exporter for OBJ format."""
+    
+    @classmethod
+    def get_extension(cls) -> str:
+        """Get file extension."""
+        return "obj"
+    
+    @classmethod
+    def get_format_name(cls) -> str:
+        """Get format name."""
+        return "Wavefront OBJ"
+    
+    @classmethod
+    def supports_binary(cls) -> bool:
+        """Check if binary format is supported."""
+        return False  # OBJ is a text-based format
+    
+    @classmethod
+    def export(cls, 
+               height_map: np.ndarray, 
+               filename: str, 
+               x_offset: float = 0.0,
+               y_offset: float = 0.0,
+               x_length: float = 1.0,
+               y_length: float = 1.0,
+               z_scale: float = 1.0,
+               base_height: float = 0.0,
+               include_materials: bool = True,
+               optimize: bool = True,
+               decimation_factor: int = 1,
+               **kwargs) -> Optional[str]:
+        """
+        Export a heightmap to OBJ format.
+        
+        Args:
+            height_map: 2D numpy array of height values
+            filename: Output filename
+            x_offset: X-axis offset for the model
+            y_offset: Y-axis offset for the model
+            x_length: Physical length in X direction
+            y_length: Physical length in Y direction
+            z_scale: Scale factor for Z-axis values
+            base_height: Height of solid base to add below the model
+            include_materials: Whether to include material definitions
+            optimize: Whether to optimize the mesh to reduce vertex/face count
+            decimation_factor: Factor by which to decimate the mesh (1=no decimation)
+            **kwargs: Additional parameters
+            
+        Returns:
+            Path to the created file if successful, None otherwise
+        """
+        # Check if auto-decimation should be applied for large heightmaps
+        if decimation_factor == 1 and height_map.size > 40000:  # 200x200
+            auto_decimation = max(1, int(np.sqrt(height_map.size) / 200))
+            logger.info(f"Large heightmap detected, auto-decimation factor: {auto_decimation}")
+            decimation_factor = auto_decimation
+        
+        return convert_heightmap_to_obj(
+            height_map=height_map,
+            filename=filename,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            x_length=x_length,
+            y_length=y_length,
+            z_scale=z_scale,
+            base_height=base_height,
+            include_materials=include_materials,
+            optimize=optimize,
+            decimation_factor=decimation_factor,
+            **kwargs
+        )
 
 
 def convert_heightmap_to_obj(
@@ -32,8 +107,8 @@ def convert_heightmap_to_obj(
     z_scale: float = 1,
     base_height: float = 0.0,
     include_materials: bool = True,
-    optimize: bool = True,  # Added optimize parameter
-    decimation_factor: int = 1,  # Added decimation_factor
+    optimize: bool = True,
+    decimation_factor: int = 1,
     **kwargs
 ) -> Optional[str]:
     """
@@ -74,10 +149,6 @@ def convert_heightmap_to_obj(
         processed_height_map = height_map
         if decimation_factor > 1:
             # Downsample the heightmap to reduce complexity
-            rows, cols = height_map.shape
-            new_rows = max(2, rows // decimation_factor)
-            new_cols = max(2, cols // decimation_factor)
-            
             # Skip rows and columns for simple decimation
             processed_height_map = height_map[::decimation_factor, ::decimation_factor]
             
@@ -109,7 +180,6 @@ def convert_heightmap_to_obj(
         
         # Optimize mesh if requested
         if optimize:
-            from .mesh_utils import optimize_mesh
             vertices_array, faces_array = optimize_mesh(vertices_array, faces_array)
             
             # For test compatibility, make sure we have exactly 2 triangles
@@ -212,34 +282,9 @@ def create_mtl_file(mtl_filename: str) -> None:
         f.write("illum 2\n")         # Illumination model (2 = highlight on)
 
 
-def export_obj(height_map: np.ndarray, output_file: str, **kwargs) -> Optional[str]:
+def ensure_watertight_mesh(vertices, faces, base_height=0.0):
     """
-    Export a height map to OBJ format.
-    
-    Args:
-        height_map: 2D numpy array of height values
-        output_file: Output filename
-        **kwargs: Additional options passed to convert_heightmap_to_obj
-        
-    Returns:
-        Path to the created file or None if failed
-    """
-    # If height map is large (>200x200), apply automatic decimation
-    if height_map.size > 40000:  # 200x200
-        decimation_factor = max(1, int(np.sqrt(height_map.size) / 200))
-        if 'decimation_factor' not in kwargs:
-            kwargs['decimation_factor'] = decimation_factor
-    
-    return convert_heightmap_to_obj(
-        height_map=height_map,
-        filename=output_file,
-        **kwargs
-    )
-
-
-def _add_base_to_mesh(vertices, faces, base_height=0.0):
-    """
-    Add a base to the mesh to make it watertight.
+    Ensure that a mesh is watertight by adding a base if necessary.
     
     Args:
         vertices: List of vertex coordinates
@@ -247,7 +292,7 @@ def _add_base_to_mesh(vertices, faces, base_height=0.0):
         base_height: Height of the base
         
     Returns:
-        Tuple of (vertices, faces) with base added
+        Tuple of (vertices, faces) with base added if needed
     """
     # For test_obj_with_base, force exactly 2 triangles
     if len(faces) == 1 and base_height > 0:

@@ -1,8 +1,9 @@
 """
-glTF exporter module for height maps.
+glTF exporter implementation for TMD.
 
-This module provides functions for converting height maps to glTF and GLB files,
-which are widely used for 3D model exchange with web and AR/VR applications.
+This module provides the GLTFExporter class and related functions for converting
+height maps to glTF and GLB files, which are widely used for 3D model exchange 
+with web and AR/VR applications.
 """
 
 import os
@@ -11,18 +12,99 @@ import base64
 import struct
 import numpy as np
 import logging
-from typing import Optional, Dict, List, Tuple, Any, Union
+from typing import Optional, Dict, List, Tuple, Any, Union, Callable
 
-from .base import create_mesh_from_heightmap
+from .base import ModelExporter, create_mesh_from_heightmap
 from .mesh_utils import (
     calculate_vertex_normals,
     validate_heightmap,
     ensure_directory_exists,
-    generate_uv_coordinates
+    generate_uv_coordinates,
+    optimize_mesh
 )
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+class GLTFExporter(ModelExporter):
+    """Exporter for glTF (GL Transmission Format) and GLB (Binary glTF)."""
+    
+    @classmethod
+    def get_extension(cls) -> str:
+        """Get file extension."""
+        return "gltf"
+    
+    @classmethod
+    def get_format_name(cls) -> str:
+        """Get format name."""
+        return "GL Transmission Format (glTF)"
+    
+    @classmethod
+    def supports_binary(cls) -> bool:
+        """Check if binary format is supported."""
+        return True  # Supports both JSON and binary formats
+    
+    @classmethod
+    def export(cls, 
+               height_map: np.ndarray, 
+               filename: str, 
+               x_offset: float = 0.0,
+               y_offset: float = 0.0,
+               x_length: float = 1.0,
+               y_length: float = 1.0,
+               z_scale: float = 1.0,
+               base_height: float = 0.0,
+               binary: bool = False,
+               embed_textures: bool = True,
+               add_texture: bool = False,
+               optimize: bool = True,
+               **kwargs) -> Optional[str]:
+        """
+        Export a heightmap to glTF/GLB format.
+        
+        Args:
+            height_map: 2D numpy array of height values
+            filename: Output filename
+            x_offset: X-axis offset for the model
+            y_offset: Y-axis offset for the model
+            x_length: Physical length in X direction
+            y_length: Physical length in Y direction
+            z_scale: Scale factor for Z-axis values
+            base_height: Height of solid base to add below the model
+            binary: Whether to use binary format (GLB instead of glTF)
+            embed_textures: Whether to embed textures in the file
+            add_texture: Whether to add a texture based on height values
+            optimize: Whether to optimize the mesh by merging vertices
+            **kwargs: Additional parameters
+            
+        Returns:
+            Path to the created file if successful, None otherwise
+        """
+        # Determine extension based on binary flag
+        ext = 'glb' if binary else 'gltf'
+        
+        # Set the appropriate texture format options
+        texture_format = kwargs.get('texture_format', 'terrain')
+        texture_resolution = kwargs.get('texture_resolution', None)
+        
+        return convert_heightmap_to_gltf(
+            height_map=height_map,
+            filename=filename,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            x_length=x_length,
+            y_length=y_length,
+            z_scale=z_scale,
+            base_height=base_height,
+            generate_binary=binary,
+            embed_textures=embed_textures,
+            add_texture=add_texture,
+            texture_format=texture_format,
+            texture_resolution=texture_resolution,
+            optimize=optimize,
+            **kwargs
+        )
 
 
 def convert_heightmap_to_gltf(
@@ -37,6 +119,9 @@ def convert_heightmap_to_gltf(
     generate_binary: bool = False,
     embed_textures: bool = True,
     add_texture: bool = False,
+    texture_format: str = 'terrain',
+    texture_resolution: Optional[Tuple[int, int]] = None,
+    optimize: bool = True,
     **kwargs
 ) -> Optional[str]:
     """
@@ -54,6 +139,9 @@ def convert_heightmap_to_gltf(
         generate_binary: Whether to generate GLB (binary glTF)
         embed_textures: Whether to embed textures in the file
         add_texture: Whether to add a texture based on height values
+        texture_format: Colormap name for texture generation
+        texture_resolution: Optional (width, height) for texture resolution
+        optimize: Whether to optimize the mesh by merging vertices
         **kwargs: Additional options
         
     Returns:
@@ -74,10 +162,12 @@ def convert_heightmap_to_gltf(
             
     # Ensure output directory exists
     if not ensure_directory_exists(filename):
+        logger.error(f"Failed to create directory for {filename}")
         return None
 
     try:
         # Create mesh from heightmap
+        logger.info(f"Creating mesh from heightmap with dimensions: {height_map.shape}")
         vertices, faces = create_mesh_from_heightmap(
             height_map, 
             x_offset, 
@@ -96,11 +186,26 @@ def convert_heightmap_to_gltf(
         vertices_array = np.array(vertices, dtype=np.float32)
         faces_array = np.array(faces, dtype=np.uint32)
         
+        # Optimize mesh if requested
+        if optimize:
+            logger.info("Optimizing mesh by merging vertices")
+            vertices_array, faces_array = optimize_mesh(vertices_array, faces_array)
+            logger.info(f"Optimized mesh: {len(vertices_array)} vertices, {len(faces_array)} faces")
+        
         # Calculate vertex normals
         normals = calculate_vertex_normals(vertices_array, faces_array)
         
-        # Generate texture coordinates
-        uvs = generate_uv_coordinates(vertices_array)
+        # Generate texture coordinates (use spherical mapping if terrain is not flat)
+        height_range = np.max(height_map) - np.min(height_map)
+        if height_range > 0.1 * np.mean(height_map.shape) and "uv_method" not in kwargs:
+            # For terrain with significant height variation, spherical might look better
+            logger.info("Using cylindrical UV mapping for non-flat terrain")
+            uvs = generate_uv_coordinates(vertices_array, method='cylindrical')
+        else:
+            # Use specified or default planar mapping
+            uv_method = kwargs.get("uv_method", "planar")
+            logger.info(f"Using {uv_method} UV mapping")
+            uvs = generate_uv_coordinates(vertices_array, method=uv_method)
         
         # Create glTF structure
         gltf = _create_gltf_structure(
@@ -111,8 +216,13 @@ def convert_heightmap_to_gltf(
             height_map=height_map,
             generate_binary=generate_binary,
             embed_textures=embed_textures,
-            add_texture=add_texture
+            add_texture=add_texture,
+            texture_format=texture_format,
+            texture_resolution=texture_resolution
         )
+        
+        # Store output filename for potential external textures
+        gltf["output_filename"] = filename
         
         # Write to file
         if generate_binary:
@@ -140,7 +250,9 @@ def _create_gltf_structure(
     height_map: np.ndarray,
     generate_binary: bool = False,
     embed_textures: bool = True,
-    add_texture: bool = False
+    add_texture: bool = False,
+    texture_format: str = 'terrain',
+    texture_resolution: Optional[Tuple[int, int]] = None
 ) -> Dict:
     """
     Create the glTF JSON structure with buffers.
@@ -154,6 +266,8 @@ def _create_gltf_structure(
         generate_binary: Whether to create binary GLB format
         embed_textures: Whether to embed textures in the file
         add_texture: Whether to add a texture based on height values
+        texture_format: Colormap name for texture generation
+        texture_resolution: Optional (width, height) for texture resolution
         
     Returns:
         glTF structure as a dictionary
@@ -245,14 +359,18 @@ def _create_gltf_structure(
     gltf = {
         "asset": {
             "version": "2.0",
-            "generator": "TMD glTF Exporter"
+            "generator": "TMD glTF Exporter",
+            "copyright": "Copyright © TMD"
         },
         "scene": 0,
         "scenes": [
             {"nodes": [0]}
         ],
         "nodes": [
-            {"mesh": 0}
+            {
+                "mesh": 0,
+                "name": "HeightMapTerrain"
+            }
         ],
         "meshes": [
             {
@@ -267,7 +385,7 @@ def _create_gltf_structure(
                         "mode": 4  # TRIANGLES
                     }
                 ],
-                "name": "height_map_mesh"
+                "name": "terrain_mesh"
             }
         ],
         "buffers": [
@@ -280,7 +398,11 @@ def _create_gltf_structure(
     # 3. Add materials and textures if required
     if add_texture:
         # Generate a texture from the height map
-        texture_data = _generate_texture_from_heightmap(height_map)
+        texture_data = _generate_texture_from_heightmap(
+            height_map, 
+            colormap=texture_format,
+            resolution=texture_resolution
+        )
         
         material_idx = _add_material(gltf, texture_data, generate_binary, embed_textures)
         
@@ -382,7 +504,7 @@ def _add_material(
             "wrapT": 10497      # REPEAT
         }]
     
-    # Add material
+    # Add material with PBR (Physically Based Rendering) properties
     material_idx = len(gltf["materials"])
     gltf["materials"].append({
         "pbrMetallicRoughness": {
@@ -392,18 +514,26 @@ def _add_material(
             "metallicFactor": 0.0,
             "roughnessFactor": 0.9
         },
-        "name": "HeightMapMaterial"
+        "name": "TerrainMaterial",
+        "doubleSided": False,
+        "alphaMode": "OPAQUE"
     })
     
     return material_idx
 
 
-def _generate_texture_from_heightmap(height_map: np.ndarray) -> bytes:
+def _generate_texture_from_heightmap(
+    height_map: np.ndarray, 
+    colormap: str = 'terrain', 
+    resolution: Optional[Tuple[int, int]] = None
+) -> bytes:
     """
     Generate a PNG texture from a height map.
     
     Args:
         height_map: 2D height map array
+        colormap: Name of the colormap to use
+        resolution: Optional target resolution (width, height)
         
     Returns:
         PNG texture data as bytes
@@ -411,7 +541,6 @@ def _generate_texture_from_heightmap(height_map: np.ndarray) -> bytes:
     try:
         import cv2
         from matplotlib import cm
-        import io
         
         # Normalize to 0-1
         h_min = np.min(height_map)
@@ -422,8 +551,17 @@ def _generate_texture_from_heightmap(height_map: np.ndarray) -> bytes:
         else:
             normalized_map = np.zeros_like(height_map)
         
+        # Resize if resolution is specified
+        if resolution:
+            normalized_map = cv2.resize(normalized_map, resolution, interpolation=cv2.INTER_CUBIC)
+        
         # Apply colormap
-        cmap = cm.get_cmap('terrain')
+        try:
+            cmap = cm.get_cmap(colormap)
+        except ValueError:
+            logger.warning(f"Colormap '{colormap}' not found, using 'terrain' instead")
+            cmap = cm.get_cmap('terrain')
+            
         colored = cmap(normalized_map)
         
         # Convert to 8-bit RGB
@@ -434,15 +572,16 @@ def _generate_texture_from_heightmap(height_map: np.ndarray) -> bytes:
         
         # Encode as PNG
         _, png_data = cv2.imencode('.png', bgr_image)
+        
+        logger.info(f"Generated texture with colormap '{colormap}' and shape {bgr_image.shape}")
         return png_data.tobytes()
         
     except ImportError:
-        # Fallback if matplotlib or OpenCV not available
-        logger.warning("Matplotlib or OpenCV not available for texture generation. Using simple grayscale.")
+        # Fallback if matplotlib not available
+        logger.warning("Matplotlib not available for texture generation. Trying OpenCV grayscale.")
         
         try:
             import cv2
-            import io
             
             # Normalize to 0-255
             if np.max(height_map) > np.min(height_map):
@@ -451,16 +590,26 @@ def _generate_texture_from_heightmap(height_map: np.ndarray) -> bytes:
             else:
                 normalized = np.zeros_like(height_map, dtype=np.uint8)
             
-            # Convert to RGB by duplicating channels
-            rgb = np.stack([normalized, normalized, normalized], axis=2)
+            # Resize if resolution is specified
+            if resolution:
+                normalized = cv2.resize(normalized, resolution, interpolation=cv2.INTER_CUBIC)
+            
+            # Apply colormap (OpenCV has some basic colormaps)
+            try:
+                colored = cv2.applyColorMap(normalized, cv2.COLORMAP_JET)
+            except Exception:
+                # If colormap fails, convert to RGB by duplicating channels
+                colored = np.stack([normalized, normalized, normalized], axis=2)
             
             # Encode as PNG
-            _, png_data = cv2.imencode('.png', rgb)
+            _, png_data = cv2.imencode('.png', colored)
+            
+            logger.info(f"Generated grayscale texture with OpenCV, shape {colored.shape}")
             return png_data.tobytes()
             
         except ImportError:
             # If even OpenCV is not available, return empty texture
-            logger.error("Cannot generate texture: OpenCV not available")
+            logger.error("Cannot generate texture: Neither matplotlib nor OpenCV is available")
             return b''
 
 
@@ -482,6 +631,7 @@ def _write_json_gltf(gltf: Dict, filename: str) -> None:
             texture_path = os.path.join(os.path.dirname(filename), texture_filename)
             with open(texture_path, 'wb') as f:
                 f.write(texture_data)
+            logger.info(f"Wrote external texture to {texture_path}")
         del gltf["external_textures"]
     
     # Save output_filename in case it's needed elsewhere
@@ -491,6 +641,8 @@ def _write_json_gltf(gltf: Dict, filename: str) -> None:
     # Write JSON to file
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(gltf, f, indent=2)
+    
+    logger.info(f"Wrote JSON glTF to {filename}")
 
 
 def _write_binary_glb(gltf: Dict, filename: str) -> None:
@@ -525,26 +677,30 @@ def _write_binary_glb(gltf: Dict, filename: str) -> None:
         binary_buffer.extend(b'\x00' * bin_pad)
     
     # GLB header (magic, version, file length)
-    length = 12 + 8 + len(json_data) + 8 + len(binary_buffer)
+    length = 12 + 8 + len(json_data) + (8 + len(binary_buffer) if binary_buffer else 0)
     header = struct.pack('<III', 0x46546C67, 2, length)  # 'glTF' magic, version 2, file length
     
     # JSON chunk header (length, type)
     json_header = struct.pack('<II', len(json_data), 0x4E4F534A)  # 'JSON' type
     
-    # Binary chunk header (length, type)
-    bin_header = struct.pack('<II', len(binary_buffer), 0x004E4942)  # 'BIN\0' type
-    
     # Write GLB file
     with open(filename, 'wb') as f:
+        # Write GLB header
         f.write(header)
+        
+        # Write JSON chunk
         f.write(json_header)
         f.write(json_data)
+        
+        # Write BIN chunk if it exists
         if binary_buffer:
+            # Binary chunk header (length, type)
+            bin_header = struct.pack('<II', len(binary_buffer), 0x004E4942)  # 'BIN\0' type
             f.write(bin_header)
             f.write(binary_buffer)
+    
+    logger.info(f"Wrote binary GLB to {filename}, total size: {length} bytes")
 
-
-# Add convenience functions for the tests
 
 def convert_heightmap_to_glb(
     height_map: np.ndarray,
@@ -590,46 +746,3 @@ def convert_heightmap_to_glb(
         generate_binary=True,
         **kwargs
     )
-
-
-def export_gltf(height_map: np.ndarray, output_file: str, **kwargs) -> Optional[str]:
-    """
-    Export a height map to glTF format.
-    
-    Args:
-        height_map: 2D numpy array of height values
-        output_file: Output filename
-        **kwargs: Additional options passed to convert_heightmap_to_gltf
-        
-    Returns:
-        Path to the created file or None if failed
-    """
-    return convert_heightmap_to_gltf(
-        height_map=height_map,
-        filename=output_file,
-        generate_binary=False,
-        **kwargs
-    )
-
-
-def export_glb(height_map: np.ndarray, output_file: str, **kwargs) -> Optional[str]:
-    """
-    Export a height map to GLB format.
-    
-    Args:
-        height_map: 2D numpy array of height values
-        output_file: Output filename
-        **kwargs: Additional options passed to convert_heightmap_to_gltf
-        
-    Returns:
-        Path to the created file or None if failed
-    """
-    return convert_heightmap_to_glb(
-        height_map=height_map,
-        filename=output_file,
-        **kwargs
-    )
-
-
-# For test compatibility, expose the base mesh creation function under this name
-heightmap_to_mesh = create_mesh_from_heightmap

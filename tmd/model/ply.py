@@ -1,31 +1,99 @@
-#!/usr/bin/env python3
 """
-PLY exporter module for height maps.
+PLY exporter implementation for TMD.
 
-This module provides functions for converting height maps to PLY files,
-which are commonly used for storing 3D scanned data.
-Now with optional Open3D support and adaptive normal estimation.
+This module provides the PLYExporter class and related functions for exporting
+height maps to PLY files, which are commonly used for storing 3D scanned data.
 """
 
 import os
 import numpy as np
 import logging
 import struct
-from typing import Optional
+from typing import Optional, List, Dict, Any, Tuple, Union
 
-# Import Open3D for improved mesh handling and processing
-import open3d as o3d
-
-from .base import create_mesh_from_heightmap
+from .base import ModelExporter, create_mesh_from_heightmap
 from .mesh_utils import (
     calculate_vertex_normals,
     validate_heightmap,
     ensure_directory_exists,
-    generate_uv_coordinates  # if used elsewhere
+    generate_uv_coordinates
 )
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+class PLYExporter(ModelExporter):
+    """Exporter for PLY format."""
+    
+    @classmethod
+    def get_extension(cls) -> str:
+        """Get file extension."""
+        return "ply"
+    
+    @classmethod
+    def get_format_name(cls) -> str:
+        """Get format name."""
+        return "PLY (Polygon File Format)"
+    
+    @classmethod
+    def supports_binary(cls) -> bool:
+        """Check if binary format is supported."""
+        return True
+    
+    @classmethod
+    def export(cls, 
+               height_map: np.ndarray, 
+               filename: str, 
+               x_offset: float = 0.0,
+               y_offset: float = 0.0,
+               x_length: float = 1.0,
+               y_length: float = 1.0,
+               z_scale: float = 1.0,
+               base_height: float = 0.0,
+               binary: bool = True,
+               calculate_normals: bool = True,
+               add_color: bool = True,
+               color_map: str = 'terrain',
+               use_open3d: bool = True,
+               **kwargs) -> Optional[str]:
+        """
+        Export a heightmap to PLY format.
+        
+        Args:
+            height_map: 2D numpy array of height values
+            filename: Output filename
+            x_offset: X-axis offset for the model
+            y_offset: Y-axis offset for the model
+            x_length: Physical length in X direction
+            y_length: Physical length in Y direction
+            z_scale: Scale factor for Z-axis values
+            base_height: Height of solid base to add below the model
+            binary: Whether to use binary format (default: True)
+            calculate_normals: Whether to calculate vertex normals
+            add_color: Whether to add color based on height values
+            color_map: Colormap name to use for color generation
+            use_open3d: Whether to use Open3D for export if available
+            **kwargs: Additional parameters
+            
+        Returns:
+            Path to the created file if successful, None otherwise
+        """
+        return convert_heightmap_to_ply(
+            height_map=height_map,
+            filename=filename,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            x_length=x_length,
+            y_length=y_length,
+            z_scale=z_scale,
+            base_height=base_height,
+            binary=binary,  # Convert to more specific parameter
+            calculate_normals=calculate_normals,
+            add_color=add_color,
+            color_map=color_map,
+            use_open3d=use_open3d
+        )
 
 
 def convert_heightmap_to_ply(
@@ -41,6 +109,7 @@ def convert_heightmap_to_ply(
     add_color: bool = True,
     color_map: str = 'terrain',
     use_open3d: bool = True,
+    binary: bool = True,
     **kwargs
 ) -> Optional[str]:
     """
@@ -59,6 +128,7 @@ def convert_heightmap_to_ply(
         add_color: Whether to add color based on height values.
         color_map: Name of the colormap to use for colors.
         use_open3d: If True, uses Open3D to export the mesh; otherwise, falls back to manual binary export.
+        binary: Whether to use binary format.
         **kwargs: Additional options.
         
     Returns:
@@ -102,8 +172,18 @@ def convert_heightmap_to_ply(
         # Calculate vertex colors if requested
         colors = _generate_vertex_colors(vertices_array, height_map, color_map) if add_color else None
 
-        # Export the mesh using Open3D or fallback to custom binary writer
+        # Try to use Open3D if requested
+        open3d_available = False
         if use_open3d:
+            try:
+                import open3d as o3d
+                open3d_available = True
+            except ImportError:
+                logger.warning("Open3D not available, falling back to custom PLY writer")
+                open3d_available = False
+
+        # Export the mesh using Open3D or fallback to custom binary writer
+        if open3d_available and use_open3d:
             if _export_with_open3d(filename, vertices_array, faces_array, normals, colors):
                 logger.info(f"Exported PLY file to {filename} using Open3D")
                 return filename
@@ -111,9 +191,17 @@ def convert_heightmap_to_ply(
                 logger.error("Open3D failed to write the triangle mesh.")
                 return None
         else:
-            with open(filename, 'wb') as f:
-                _write_binary_ply(f, vertices_array, faces_array, normals, colors)
-            logger.info(f"Exported PLY file to {filename} using custom binary writer")
+            # Use ASCII or binary format based on the binary parameter
+            if binary:
+                with open(filename, 'wb') as f:
+                    _write_binary_ply(f, vertices_array, faces_array, normals, colors)
+                logger.info(f"Exported binary PLY file to {filename}")
+            else:
+                # Write ASCII PLY
+                with open(filename, 'w') as f:
+                    _write_ascii_ply(f, vertices_array, faces_array, normals, colors)
+                logger.info(f"Exported ASCII PLY file to {filename}")
+            
             return filename
 
     except Exception as e:
@@ -144,6 +232,8 @@ def _export_with_open3d(
         True if export succeeds, False otherwise.
     """
     try:
+        import open3d as o3d
+        
         mesh = o3d.geometry.TriangleMesh()
         mesh.vertices = o3d.utility.Vector3dVector(vertices)
         mesh.triangles = o3d.utility.Vector3iVector(faces)
@@ -218,6 +308,59 @@ def _write_binary_ply(
         file_obj.write(struct.pack('<BIII', 3, face[0], face[1], face[2]))
 
 
+def _write_ascii_ply(
+    file_obj,
+    vertices: np.ndarray,
+    faces: np.ndarray,
+    normals: Optional[np.ndarray] = None,
+    colors: Optional[np.ndarray] = None
+) -> None:
+    """
+    Write mesh data as an ASCII PLY file.
+    
+    Args:
+        file_obj: Open file object to write to.
+        vertices: Nx3 numpy array of vertex positions.
+        faces: Mx3 numpy array of face indices.
+        normals: Nx3 numpy array of vertex normals (optional).
+        colors: Nx3 numpy array of vertex colors (optional).
+    """
+    # Write the header
+    file_obj.write("ply\n")
+    file_obj.write("format ascii 1.0\n")
+    file_obj.write(f"element vertex {len(vertices)}\n")
+    file_obj.write("property float x\n")
+    file_obj.write("property float y\n")
+    file_obj.write("property float z\n")
+
+    if normals is not None:
+        file_obj.write("property float nx\n")
+        file_obj.write("property float ny\n")
+        file_obj.write("property float nz\n")
+
+    if colors is not None:
+        file_obj.write("property uchar red\n")
+        file_obj.write("property uchar green\n")
+        file_obj.write("property uchar blue\n")
+
+    file_obj.write(f"element face {len(faces)}\n")
+    file_obj.write("property list uchar int vertex_indices\n")
+    file_obj.write("end_header\n")
+
+    # Write vertex data
+    for i in range(len(vertices)):
+        line = f"{vertices[i, 0]} {vertices[i, 1]} {vertices[i, 2]}"
+        if normals is not None:
+            line += f" {normals[i, 0]} {normals[i, 1]} {normals[i, 2]}"
+        if colors is not None:
+            line += f" {colors[i, 0]} {colors[i, 1]} {colors[i, 2]}"
+        file_obj.write(line + "\n")
+
+    # Write face data
+    for face in faces:
+        file_obj.write(f"3 {face[0]} {face[1]} {face[2]}\n")
+
+
 def _generate_vertex_colors(
     vertices: np.ndarray,
     height_map: np.ndarray,
@@ -263,11 +406,7 @@ def _generate_vertex_colors(
         return rgb_colors
 
 
-def adaptive_normal_estimation(
-    pcd: o3d.geometry.PointCloud,
-    k: int = 30,
-    adaptive_factor: float = 2.0
-) -> o3d.geometry.PointCloud:
+def adaptive_normal_estimation(pcd, k: int = 30, adaptive_factor: float = 2.0):
     """
     Estimate normals adaptively for a given Open3D point cloud.
     
@@ -282,30 +421,36 @@ def adaptive_normal_estimation(
     Returns:
         The input point cloud with estimated and consistently oriented normals.
     """
-    num_points = len(pcd.points)
-    if num_points < k:
-        k = num_points
+    try:
+        import open3d as o3d
+        
+        num_points = len(pcd.points)
+        if num_points < k:
+            k = num_points
 
-    kdtree = o3d.geometry.KDTreeFlann(pcd)
-    kth_distances = []
+        kdtree = o3d.geometry.KDTreeFlann(pcd)
+        kth_distances = []
 
-    # Loop over each point to compute the k-th nearest neighbor distance.
-    for point in pcd.points:
-        [_, _, distances] = kdtree.search_knn_vector_3d(point, k)
-        kth_distance = np.sqrt(distances[-1])
-        kth_distances.append(kth_distance)
+        # Loop over each point to compute the k-th nearest neighbor distance.
+        for point in pcd.points:
+            [_, _, distances] = kdtree.search_knn_vector_3d(point, k)
+            kth_distance = np.sqrt(distances[-1])
+            kth_distances.append(kth_distance)
 
-    avg_kth_distance = np.mean(kth_distances)
-    search_radius = avg_kth_distance * adaptive_factor
+        avg_kth_distance = np.mean(kth_distances)
+        search_radius = avg_kth_distance * adaptive_factor
 
-    logger.info(
-        f"Adaptive normal estimation: using search radius = {search_radius:.4f} "
-        f"(avg kth distance = {avg_kth_distance:.4f} * factor {adaptive_factor})"
-    )
+        logger.info(
+            f"Adaptive normal estimation: using search radius = {search_radius:.4f} "
+            f"(avg kth distance = {avg_kth_distance:.4f} * factor {adaptive_factor})"
+        )
 
-    # Estimate normals using the computed adaptive search radius
-    pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=search_radius, max_nn=k))
-    # Orient normals consistently using a tangent plane approach
-    pcd.orient_normals_consistent_tangent_plane(k)
+        # Estimate normals using the computed adaptive search radius
+        pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=search_radius, max_nn=k))
+        # Orient normals consistently using a tangent plane approach
+        pcd.orient_normals_consistent_tangent_plane(k)
 
-    return pcd
+        return pcd
+    except ImportError:
+        logger.warning("Open3D not available for adaptive normal estimation")
+        return pcd

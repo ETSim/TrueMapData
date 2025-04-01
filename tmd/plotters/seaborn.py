@@ -824,3 +824,78 @@ class SeabornProfilePlotter:
         
         g.fig.tight_layout()
         return g.fig
+
+    @requires_seaborn
+    def plot_profile(self, profile_data: np.ndarray, **kwargs) -> plt.Figure:
+        """
+        Create a profile visualization of a single row/column of height data.
+        
+        Args:
+            profile_data: 1D numpy array of profile height values
+            **kwargs: Additional options including:
+                - title: Plot title (default: "Height Profile")
+                - figsize: Figure size as tuple (width, height) in inches
+                - show_markers: Whether to show markers on the line (default: True)
+                - show_grid: Whether to show grid (default: True)
+                - x_label: X-axis label (default: "Position")
+                - y_label: Y-axis label (default: "Height")
+                - color: Line color (default: determined by seaborn)
+                - fill: Whether to fill area under the line (default: True)
+                
+        Returns:
+            Matplotlib figure with the profile visualization
+        """
+        # Get parameters with defaults
+        title = kwargs.get('title', 'Height Profile')
+        figsize = kwargs.get('figsize', (12, 6))
+        show_markers = kwargs.get('show_markers', True)
+        show_grid = kwargs.get('show_grid', True)
+        x_label = kwargs.get('x_label', 'Position')
+        y_label = kwargs.get('y_label', 'Height')
+        color = kwargs.get('color', None)
+        fill = kwargs.get('fill', True)
+        
+        # Set Seaborn style
+        self.sns.set(style="whitegrid" if show_grid else "white")
+        
+        # Create figure and axes
+        fig, ax = self.plt.subplots(figsize=figsize)
+        
+        # Create x-coordinates
+        x_values = np.arange(len(profile_data))
+        
+        # Plot the profile
+        line = self.sns.lineplot(
+            x=x_values, 
+            y=profile_data,
+            ax=ax,
+            color=color,
+            marker='o' if show_markers else None,
+            markersize=kwargs.get('marker_size', 5) if show_markers else 0
+        )
+        
+        # Fill the area under the line if requested
+        if fill:
+            ax.fill_between(
+                x_values, 
+                np.min(profile_data), 
+                profile_data, 
+                alpha=0.3,
+                color=line.get_lines()[0].get_color() if color is None else color
+            )
+        
+        # Set title and labels
+        ax.set_title(title)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        
+        # Configure grid
+        ax.grid(show_grid, linestyle='--', alpha=0.7)
+        
+        # Improve aesthetics
+        self.sns.despine(fig=fig, left=False, bottom=False)
+        
+        # Adjust layout
+        fig.tight_layout()
+        
+        return fig

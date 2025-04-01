@@ -1,18 +1,105 @@
 """
-Core utility functions for 3D model exports.
+Base classes for model exporters.
 
-This module provides the fundamental mesh generation and manipulation functions
-used by all model exporters.
+This module defines the abstract base class for all model exporters and
+provides common utility functions for creating meshes from heightmaps.
 """
 
 import os
 import numpy as np
 import logging
-from typing import List, Tuple, Dict, Any, Optional
+from abc import ABC, abstractmethod
+from typing import Dict, Type, Optional, Any, List, Tuple, Union
 
 # Set up logging
-logger = logging.getLogger("tmd.model")
-logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ModelExporter(ABC):
+    """
+    Abstract base class for all model exporters.
+    """
+    
+    @classmethod
+    @abstractmethod
+    def export(cls, 
+               height_map: np.ndarray, 
+               filename: str, 
+               x_offset: float = 0.0,
+               y_offset: float = 0.0,
+               x_length: float = 1.0,
+               y_length: float = 1.0,
+               z_scale: float = 1.0,
+               base_height: float = 0.0,
+               **kwargs) -> Optional[str]:
+        """
+        Export a height map to a 3D model file.
+        
+        Args:
+            height_map: 2D numpy array of height values
+            filename: Output filename
+            x_offset: X-axis offset for the model
+            y_offset: Y-axis offset for the model
+            x_length: Physical length in X direction
+            y_length: Physical length in Y direction
+            z_scale: Scale factor for Z-axis values
+            base_height: Height of solid base to add below the model
+            **kwargs: Additional format-specific parameters
+            
+        Returns:
+            Path to the created file if successful, None otherwise
+        """
+        pass
+    
+    @classmethod
+    def get_extension(cls) -> str:
+        """
+        Get the file extension for this exporter format.
+        
+        Returns:
+            File extension without leading dot (e.g., 'stl', 'obj')
+        """
+        return ""
+    
+    @classmethod
+    def get_format_name(cls) -> str:
+        """
+        Get the human-readable format name.
+        
+        Returns:
+            Format name (e.g., 'STL', 'Wavefront OBJ')
+        """
+        return ""
+    
+    @classmethod
+    def supports_binary(cls) -> bool:
+        """
+        Check if this format supports binary export.
+        
+        Returns:
+            True if binary export is supported, False otherwise
+        """
+        return False
+    
+    @classmethod
+    def ensure_extension(cls, filename: str) -> str:
+        """
+        Ensure filename has the correct extension for this format.
+        
+        Args:
+            filename: Original filename
+            
+        Returns:
+            Filename with correct extension
+        """
+        ext = cls.get_extension()
+        if not ext:
+            return filename
+            
+        if not filename.lower().endswith(f".{ext.lower()}"):
+            filename = f"{filename}.{ext}"
+            
+        return filename
+
 
 def create_mesh_from_heightmap(
     height_map: np.ndarray,
@@ -85,6 +172,7 @@ def create_mesh_from_heightmap(
         vertices, faces = _add_base_to_mesh(vertices, faces, base_height)
     
     return vertices, faces
+
 
 def _add_base_to_mesh(vertices, faces, base_height):
     """
@@ -213,6 +301,7 @@ def _add_base_to_mesh(vertices, faces, base_height):
     
     return new_vertices, new_faces
 
+
 def calculate_vertex_normals(vertices: List[List[float]], faces: List[List[int]]) -> List[List[float]]:
     """
     Calculate unit normal vectors for each vertex.
@@ -288,6 +377,7 @@ def calculate_vertex_normals(vertices: List[List[float]], faces: List[List[int]]
             normals[i] = [0.0, 0.0, 1.0]
     
     return normals
+
 
 def export_heightmap_to_model(
     height_map: np.ndarray,
@@ -383,6 +473,19 @@ def export_heightmap_to_model(
                 y_length=y_length,
                 z_scale=z_scale,
                 base_height=base_height
+            )
+        elif format_name.lower() == "stl":
+            from .stl import convert_heightmap_to_stl
+            return convert_heightmap_to_stl(
+                height_map=height_map,
+                filename=filename,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                x_length=x_length,
+                y_length=y_length,
+                z_scale=z_scale,
+                base_height=base_height,
+                ascii_format=not binary
             )
         else:
             logger.error(f"Unsupported model format: {format_name}")

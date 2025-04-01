@@ -16,16 +16,13 @@ from tmd.cli.core.ui import (
     print_success,
     print_rich_table,
     display_metadata,
-    format_height_map_summary,
-    HAS_RICH
+    format_height_map_summary
 )
 
 from tmd.cli.core.config import (
     load_config, 
     save_config, 
-    get_config_value, 
-    set_config_value,
-    reset_config
+    get_config_value
 )
 
 from tmd.cli.core.io import (
@@ -65,38 +62,20 @@ def check_dependencies(auto_install: bool = False, exit_on_failure: bool = True)
     
     if missing:
         message = f"Required dependencies missing: {', '.join(missing)}"
-        if HAS_RICH:
-            console.print(f"[bold red]Error:[/bold red] {message}")
-        else:
-            print(f"Error: {message}")
+        console.print(f"[bold red]Error:[/bold red] {message}")
             
         install_cmd = f"pip install {' '.join(missing)}"
-        if HAS_RICH:
-            console.print(f"Install with: [bold]{install_cmd}[/bold]")
-        else:
-            print(f"Install with: {install_cmd}")
+        console.print(f"Install with: [bold]{install_cmd}[/bold]")
         
         if auto_install:
             try:
-                if HAS_RICH:
-                    console.print(f"[yellow]Attempting to install missing dependencies...[/yellow]")
-                else:
-                    print("Attempting to install missing dependencies...")
-                    
+                console.print(f"[yellow]Attempting to install missing dependencies...[/yellow]")
                 import subprocess
                 subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
-                
-                if HAS_RICH:
-                    console.print(f"[green]Successfully installed dependencies.[/green]")
-                else:
-                    print("Successfully installed dependencies.")
+                console.print(f"[green]Successfully installed dependencies.[/green]")
                 return True
             except Exception as e:
-                if HAS_RICH:
-                    console.print(f"[bold red]Failed to install dependencies:[/bold red] {str(e)}")
-                else:
-                    print(f"Failed to install dependencies: {e}")
-                
+                console.print(f"[bold red]Failed to install dependencies:[/bold red] {str(e)}")
                 if exit_on_failure:
                     sys.exit(1)
                 return False

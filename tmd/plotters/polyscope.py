@@ -1,156 +1,506 @@
-""".
-
+"""
 Polyscope-based visualization for TMD data.
 
 This module provides 3D visualization capabilities using Polyscope.
+It implements both BasePlotter and BaseSequencePlotter interfaces for
+consistent integration with the TMD plotting framework.
 """
 
-from typing import Optional, Tuple
-
+import os
+import sys
+import logging
+import tempfile
 import numpy as np
+from typing import Optional, Tuple, List, Dict, Any, Union
+from pathlib import Path
 
-try:
-    import polyscope as ps
-    import polyscope.imgui as psim
+# Import utility functions from TMD utils
+from tmd.utils.utils import TMDUtils
+from tmd.utils.files import TMDFileUtilities
+from tmd.plotters.base import BasePlotter, BaseSequencePlotter
 
-    HAS_POLYSCOPE = True
-except ImportError:
-    HAS_POLYSCOPE = False
-    raise ImportError(
-        "Polyscope is required for this module. Install with: pip install polyscope"
-    )
+# Set up logger
+logger = logging.getLogger(__name__)
+
+# Check Polyscope dependencies
+dependencies = ['polyscope', 'polyscope.imgui']
+HAS_POLYSCOPE = all(TMDFileUtilities.import_optional_dependency(dep) is not None for dep in dependencies)
+
+# Lazy-import modules
+ps = TMDFileUtilities.import_optional_dependency('polyscope')
+psim = TMDFileUtilities.import_optional_dependency('polyscope.imgui')
 
 
-class PolyscopePlotter:
-    """Class for creating interactive 3D visualizations of height maps and 3D data using Polyscope.."""
-
-    def __init__(self, backend="", width=1024, height=768, background_color=None):
-        """.
-
+class PolyscopePlotter(BasePlotter, BaseSequencePlotter):
+    """Class for creating interactive 3D visualizations of height maps and sequences using Polyscope."""
+    
+    NAME = "polyscope"
+    DEFAULT_COLORMAP = "viridis"
+    SUPPORTED_MODES = ["3d", "point_cloud", "mesh"]
+    REQUIRED_DEPENDENCIES = ["polyscope", "polyscope.imgui"]
+    
+    def __init__(self, is_sequence: bool = False):
+        """
         Initialize the Polyscope plotter.
-
+        
         Args:
-            backend: Rendering backend (empty string for default)
-            width: Window width
-            height: Window height
-            background_color: Background color as (r,g,b) tuple (default: None for Polyscope default)
+            is_sequence: Whether the plotter is being initialized for sequence visualization
         """
+        super().__init__()
+        
         if not HAS_POLYSCOPE:
-            raise ImportError(
-                "Polyscope is required. Install with: pip install polyscope"
-            )
-
-        self.initialized = False
-        self.height_maps = {}  # Store height map data for callbacks
-        self.callback_registry = []  # Store registered callbacks
-
-        # Initialize Polyscope - the backend parameter must be a string
-        ps.init(backend=backend if backend is not None else "")
-        ps.set_program_name("TMD Visualizer")
-        ps.set_window_size(width, height)
-
-        if background_color:
-            ps.set_ground_plane_mode("none")
-            ps.set_background_color(background_color)
-
-        self.initialized = True
-
-    def _register_callback(self, callback_fn):
-        """Register a callback function.."""
-        self.callback_registry.append(callback_fn)
-
-    def _create_default_callback(self):
-        """Create the default callback for height map sliders.."""
-
-        def default_callback():
-            """Handle UI callbacks for height map sliders.."""
-            for name, data in self.height_maps.items():
-                mesh = data["mesh"]
-                current_scale = data["current_scale"]
-
-                # Create a slider for each height map
-                _, new_scale = psim.SliderFloat(
-                    f"{name} Height Scale",
-                    current_scale,
-                    v_min=data["min_scale"],
-                    v_max=data["max_scale"],
-                )
-
-                # Update height if scale changed
-                if new_scale != current_scale:
-                    # Update the stored value
-                    data["current_scale"] = new_scale
-
-                    # Update the vertex positions
-                    new_vertices = data["vertices"].copy()
-                    new_vertices[:, 2] = data["height_map"].flatten() * new_scale
-                    mesh.update_vertex_positions(new_vertices)
-
-                    # Update the stored vertices
-                    data["vertices"] = new_vertices
-
-                # Add a separator between controls
-                psim.Separator()
-
-        return default_callback
-
-    def plot_height_map(
-        self,
-        height_map: np.ndarray,
-        x_range: Tuple[float, float] = None,
-        y_range: Tuple[float, float] = None,
-        name: str = "height_map",
-        enabled: bool = True,
-        add_height_slider: bool = True,
-        min_scale: float = 0.0,
-        max_scale: float = 10.0,
-        initial_scale: float = 1.0,
-        edge_width: float = 0.0,
-        smooth_shade: bool = True,
-    ):
-        """.
-
-        Plot a height map as a 3D surface.
-
-        Args:
-            height_map: 2D numpy array with height values
-            x_range: Optional (min, max) range for x coordinates
-            y_range: Optional (min, max) range for y coordinates
-            name: Name for the surface in Polyscope
-            enabled: Whether the surface is initially visible
-            add_height_slider: Whether to add a height scale slider
-            min_scale: Minimum value for height scale slider
-            max_scale: Maximum value for height scale slider
-            initial_scale: Initial height scale
-            edge_width: Width of edges (0 for no edges)
-            smooth_shade: Whether to use smooth shading
-
-        Returns:
-            Polyscope surface mesh object
+            raise ImportError("Polyscope is required for this plotter and is not available. "
+                            "Install it with: pip install polyscope")
+        
+        # Initialize polyscope if not already initialized
+        try:
+            self.is_sequence = is_sequence
+            self.current_heightmap = None
+            self.current_mesh = None
+            self.screenshot_path = None
+            
+            # Initialize Polyscope with default settings
+            if not ps.is_initialized():
+                ps.init()
+                
+                # Set default rendering options
+                ps.set_ground_plane_mode("shadow")
+                ps.set_program_name("TMD Polyscope Visualizer")
+                
+                # Set default camera parameters
+                ps.set_up_dir("z_up")
+                
+            # Configure headless rendering if needed
+            if os.environ.get('TMD_HEADLESS', '0') == '1':
+                ps.set_errors_throw_exceptions(True)
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize Polyscope: {e}")
+            raise ImportError(f"Failed to initialize Polyscope: {e}")
+    
+    def plot(self, height_map: np.ndarray, **kwargs) -> Any:
         """
-        if not self.initialized:
-            raise RuntimeError("Polyscope not initialized. Call init() first.")
-
-        # Get height map dimensions
+        Plot a TMD height map using Polyscope.
+        
+        Args:
+            height_map: 2D numpy array representing the height map
+            **kwargs: Additional options including:
+                - mode: Visualization mode ('3d', 'point_cloud', 'mesh')
+                - title: Plot title
+                - colormap: Colormap name
+                - z_scale: Z-axis scaling factor
+                - smooth_shade: Whether to use smooth shading
+                - wireframe: Whether to show wireframe
+                - edge_width: Width of wireframe edges
+                - material: Material name ('wax', 'clay', 'plastic', etc.)
+                
+        Returns:
+            Dictionary with Polyscope visualization state
+        """
+        # Extract parameters
+        mode = kwargs.get("mode", "mesh").lower()
+        title = kwargs.get("title", "TMD Height Map")
+        colormap = kwargs.get("colormap", self.DEFAULT_COLORMAP)
+        z_scale = kwargs.get("z_scale", 1.0)
+        smooth_shade = kwargs.get("smooth_shade", True)
+        wireframe = kwargs.get("wireframe", False)
+        edge_width = kwargs.get("edge_width", 1.0)
+        material = kwargs.get("material", "wax")
+        show = kwargs.get("show", False)
+        
+        # Store the current height map
+        self.current_heightmap = height_map
+        
+        # Generate appropriate vertices and faces for the mesh
+        if mode == "point_cloud":
+            viz_obj = self._create_point_cloud(height_map, z_scale, colormap, title)
+        elif mode == "3d" or mode == "mesh":
+            viz_obj = self._create_surface_mesh(
+                height_map, z_scale, colormap, title, 
+                smooth_shade, wireframe, edge_width, material
+            )
+        else:
+            raise ValueError(f"Unsupported mode: {mode}. Use 'mesh', 'point_cloud', or '3d'.")
+        
+        # Store the current mesh
+        self.current_mesh = viz_obj
+        
+        # Set up the view
+        ps.reset_camera_to_home_view()
+        
+        # Show the visualization if requested
+        if show:
+            ps.show()
+        
+        # Return visualization state
+        return {
+            "mesh": viz_obj,
+            "mode": mode,
+            "colormap": colormap,
+            "title": title,
+            "z_scale": z_scale
+        }
+    
+    def plot_3d(self, height_map: np.ndarray, **kwargs) -> Any:
+        """
+        Create a 3D visualization of the height map.
+        
+        Args:
+            height_map: 2D numpy array representing the height map
+            **kwargs: Additional options including:
+                - title: Plot title
+                - colormap: Colormap name
+                - z_scale: Z-axis scaling factor
+                - smooth_shade: Whether to use smooth shading
+                - wireframe: Whether to show wireframe
+                - edge_width: Width of wireframe edges
+                
+        Returns:
+            Dictionary with Polyscope visualization state
+        """
+        # Set default title for 3D visualization
+        if "title" not in kwargs:
+            kwargs["title"] = "TMD 3D Surface"
+        
+        # Set mode to mesh for 3D visualization
+        kwargs["mode"] = "mesh"
+        
+        # Call plot method with updated kwargs
+        return self.plot(height_map, **kwargs)
+    
+    def save(self, plot_obj: Any, filename: str, **kwargs) -> Optional[str]:
+        """
+        Save a screenshot of the Polyscope visualization.
+        
+        Args:
+            plot_obj: Dictionary with Polyscope visualization state
+            filename: Output filename
+            **kwargs: Additional options including:
+                - width: Screenshot width (default: 1024)
+                - height: Screenshot height (default: 768)
+                - transparent: Whether to use transparent background
+                
+        Returns:
+            Filename if saved successfully, None otherwise
+        """
+        try:
+            # Create directory if needed
+            directory = os.path.dirname(os.path.abspath(filename))
+            os.makedirs(directory, exist_ok=True)
+            
+            # Extract screenshot options
+            width = kwargs.get("width", 1024)
+            height = kwargs.get("height", 768)
+            transparent = kwargs.get("transparent", False)
+            
+            # Take screenshot
+            ps.reset_camera_to_home_view()
+            
+            if transparent:
+                ps.set_transparent_render(True)
+            
+            # Store the screenshot path
+            self.screenshot_path = filename
+            
+            # Register callback for the next frame
+            ps.screenshot(filename, transparent=transparent, 
+                        width=width, height=height)
+            
+            # Show polyscope (which will trigger the screenshot and then exit)
+            ps.show()
+            
+            logger.info(f"Saved Polyscope visualization to {filename}")
+            return filename
+        except Exception as e:
+            logger.error(f"Error saving Polyscope visualization: {e}")
+            return None
+    
+    def visualize_sequence(self, frames: List[np.ndarray], **kwargs) -> Any:
+        """
+        Visualize a sequence of TMD height maps.
+        
+        Args:
+            frames: List of 2D numpy arrays representing height maps
+            **kwargs: Additional options including:
+                - colormap: Colormap name
+                - z_scale: Z-axis scaling factor
+                - smooth_shade: Whether to use smooth shading
+                - title: Visualization title
+                - current_frame: Initial frame to display
+                
+        Returns:
+            Dictionary with sequence visualization state
+        """
+        if not frames:
+            logger.error("No frames provided for sequence visualization")
+            return None
+        
+        # Extract parameters
+        colormap = kwargs.get("colormap", self.DEFAULT_COLORMAP)
+        z_scale = kwargs.get("z_scale", 1.0)
+        smooth_shade = kwargs.get("smooth_shade", True)
+        title = kwargs.get("title", "TMD Sequence Visualization")
+        current_frame = kwargs.get("current_frame", 0)
+        show = kwargs.get("show", False)
+        
+        # Ensure current_frame is valid
+        current_frame = max(0, min(current_frame, len(frames) - 1))
+        
+        # Store frames
+        self.frames = frames
+        self.current_frame = current_frame
+        
+        # Create a mesh for the first frame
+        viz_obj = self._create_surface_mesh(
+            frames[current_frame], 
+            z_scale, 
+            colormap, 
+            f"{title} - Frame {current_frame+1}/{len(frames)}",
+            smooth_shade
+        )
+        
+        # Define UI callback for frame selection
+        def sequence_ui_callback():
+            if psim.SliderInt("Frame", self.current_frame, 0, len(self.frames)-1)[1]:
+                # Update mesh with new frame
+                self._update_surface_mesh(
+                    viz_obj,
+                    self.frames[self.current_frame],
+                    z_scale,
+                    f"{title} - Frame {self.current_frame+1}/{len(frames)}"
+                )
+                
+            psim.Text(f"Total Frames: {len(self.frames)}")
+        
+        # Register UI callback
+        ps.set_user_callback(sequence_ui_callback)
+        
+        # Show the visualization if requested
+        if show:
+            ps.show()
+        
+        # Return visualization state
+        return {
+            "mesh": viz_obj,
+            "frames": frames,
+            "current_frame": current_frame,
+            "colormap": colormap,
+            "z_scale": z_scale,
+            "title": title
+        }
+    
+    def create_animation(self, frames: List[np.ndarray], **kwargs) -> Any:
+        """
+        Create an animation from a sequence of TMD height maps.
+        
+        Args:
+            frames: List of 2D numpy arrays representing height maps
+            **kwargs: Additional options including:
+                - colormap: Colormap name
+                - z_scale: Z-axis scaling factor
+                - fps: Frames per second
+                - output_dir: Directory for output frames
+                
+        Returns:
+            Dictionary with animation state
+        """
+        if not frames:
+            logger.error("No frames provided for animation")
+            return None
+        
+        # Extract parameters
+        colormap = kwargs.get("colormap", self.DEFAULT_COLORMAP)
+        z_scale = kwargs.get("z_scale", 1.0)
+        fps = kwargs.get("fps", 30)
+        output_dir = kwargs.get("output_dir", None)
+        title = kwargs.get("title", "TMD Animation")
+        show_progress = kwargs.get("show_progress", True)
+        
+        # Create output directory if specified
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        else:
+            # Create temporary directory
+            output_dir = tempfile.mkdtemp(prefix="tmd_animation_")
+        
+        # Initialize Polyscope in headless mode
+        ps.set_errors_throw_exceptions(True)
+        
+        # Store frames and initialize animation state
+        self.frames = frames
+        self.current_frame = 0
+        
+        # Create visualization for the first frame
+        viz_obj = self._create_surface_mesh(
+            frames[0], 
+            z_scale, 
+            colormap, 
+            f"{title} - Frame 1/{len(frames)}"
+        )
+        
+        # Render each frame
+        frame_files = []
+        
+        for i, frame in enumerate(frames):
+            if show_progress:
+                print(f"Rendering frame {i+1}/{len(frames)}...", end="\r")
+                
+            # Update mesh with current frame
+            self._update_surface_mesh(
+                viz_obj,
+                frame,
+                z_scale,
+                f"{title} - Frame {i+1}/{len(frames)}"
+            )
+            
+            # Save frame
+            frame_file = os.path.join(output_dir, f"frame_{i:04d}.png")
+            ps.screenshot(frame_file)
+            frame_files.append(frame_file)
+        
+        if show_progress:
+            print("\nAnimation rendering complete.")
+            
+        # Return animation state
+        return {
+            "mesh": viz_obj,
+            "frame_files": frame_files,
+            "fps": fps,
+            "frames": len(frames),
+            "output_dir": output_dir,
+            "title": title
+        }
+    
+    def visualize_statistics(self, stats_data: Dict[str, List[float]], **kwargs) -> Any:
+        """
+        Visualize statistical data from a sequence using Polyscope ImGui.
+        
+        Args:
+            stats_data: Dictionary with metric names as keys and lists of values
+            **kwargs: Additional options
+                
+        Returns:
+            Dictionary with statistics visualization state
+        """
+        if not stats_data:
+            logger.error("No statistics data provided for visualization")
+            return None
+        
+        # Extract parameters
+        title = kwargs.get("title", "TMD Statistics")
+        metrics = kwargs.get("metrics", [k for k in stats_data.keys() if k != "timestamps"])
+        show = kwargs.get("show", False)
+        
+        # Store stats data
+        self.stats_data = stats_data
+        self.selected_metric = metrics[0] if metrics else None
+        
+        # Create a simple point cloud for visualization
+        points = np.array([[0, 0, 0]])
+        pc = ps.register_point_cloud("stats_visualization", points)
+        
+        # Define UI callback for statistics display
+        def stats_ui_callback():
+            psim.Text(title)
+            psim.Separator()
+            
+            # Metric selection
+            if self.selected_metric and metrics:
+                if psim.BeginCombo("Metric", self.selected_metric):
+                    for metric in metrics:
+                        is_selected = (metric == self.selected_metric)
+                        if psim.Selectable(metric, is_selected)[0]:
+                            self.selected_metric = metric
+                        if is_selected:
+                            psim.SetItemDefaultFocus()
+                    psim.EndCombo()
+            
+            # Display statistics for selected metric
+            if self.selected_metric and self.selected_metric in stats_data:
+                data = stats_data[self.selected_metric]
+                
+                psim.Text(f"{self.selected_metric} Statistics:")
+                psim.Text(f"Mean: {np.mean(data):.4f}")
+                psim.Text(f"Median: {np.median(data):.4f}")
+                psim.Text(f"Min: {np.min(data):.4f}")
+                psim.Text(f"Max: {np.max(data):.4f}")
+                psim.Text(f"Standard deviation: {np.std(data):.4f}")
+                
+                # Plot if ImPlot is available (would need additional dependency)
+                # This is just a stub - actual plotting would require ImPlot
+                psim.Text("Graph not available - ImPlot required")
+        
+        # Register UI callback
+        ps.set_user_callback(stats_ui_callback)
+        
+        # Show the visualization if requested
+        if show:
+            ps.show()
+        
+        # Return statistics visualization state
+        return {
+            "stats_data": stats_data,
+            "metrics": metrics,
+            "selected_metric": self.selected_metric,
+            "title": title
+        }
+    
+    def save_figure(self, fig: Any, filename: str, **kwargs) -> Optional[str]:
+        """
+        Save a screenshot of the statistics visualization.
+        
+        Args:
+            fig: Statistics visualization state dictionary
+            filename: Output filename
+            **kwargs: Additional options
+                
+        Returns:
+            Filename if saved successfully, None otherwise
+        """
+        # This is essentially the same as the save method
+        return self.save(fig, filename, **kwargs)
+    
+    def _create_point_cloud(self, height_map: np.ndarray, z_scale: float, 
+                          colormap: str, title: str) -> Any:
+        """Create a point cloud visualization from a height map."""
+        # Generate points
         h, w = height_map.shape
-
-        # Create coordinate grids
-        if x_range is None:
-            x_range = (0, w - 1)
-        if y_range is None:
-            y_range = (0, h - 1)
-
-        x = np.linspace(x_range[0], x_range[1], w)
-        y = np.linspace(y_range[0], y_range[1], h)
-        X, Y = np.meshgrid(x, y)
-
-        # Create vertices (x,y,z)
-        vertices = np.zeros((w * h, 3))
-        vertices[:, 0] = X.flatten()
-        vertices[:, 1] = Y.flatten()
-        vertices[:, 2] = height_map.flatten() * initial_scale
-
-        # Create faces (triangles)
+        x, y = np.meshgrid(np.arange(w), np.arange(h))
+        
+        # Normalize coordinates to [-1, 1]
+        x = (x.flatten() / w) * 2 - 1
+        y = (y.flatten() / h) * 2 - 1
+        z = height_map.flatten() * z_scale
+        
+        # Create point cloud
+        points = np.column_stack((x, y, z))
+        
+        # Register with Polyscope
+        pc = ps.register_point_cloud(title, points)
+        
+        # Add height as a scalar quantity
+        pc.add_scalar_quantity("height", z, enabled=True, cmap=colormap)
+        
+        return pc
+    
+    def _create_surface_mesh(self, height_map: np.ndarray, z_scale: float, colormap: str,
+                           title: str, smooth_shade: bool = True, wireframe: bool = False,
+                           edge_width: float = 1.0, material: str = "wax") -> Any:
+        """Create a surface mesh visualization from a height map."""
+        # Create vertices and faces for surface mesh
+        h, w = height_map.shape
+        
+        # Create vertex positions
+        x, y = np.meshgrid(np.arange(w), np.arange(h))
+        
+        # Normalize coordinates to [-1, 1]
+        x = (x.flatten() / w) * 2 - 1
+        y = (y.flatten() / h) * 2 - 1
+        z = height_map.flatten() * z_scale
+        
+        vertices = np.column_stack((x, y, z))
+        
+        # Create faces (triangulation of the grid)
         faces = []
         for i in range(h - 1):
             for j in range(w - 1):
@@ -158,169 +508,45 @@ class PolyscopePlotter:
                 v1 = i * w + (j + 1)
                 v2 = (i + 1) * w + j
                 v3 = (i + 1) * w + (j + 1)
-
-                # Two triangles per grid cell
+                
                 faces.append([v0, v1, v3])
                 faces.append([v0, v3, v2])
-
+        
         faces = np.array(faces)
-
-        # Register mesh in Polyscope
-        mesh = ps.register_surface_mesh(
-            name, vertices, faces, smooth_shade=smooth_shade, enabled=enabled
-        )
-
-        # Add height values as a scalar field
-        mesh.add_scalar_quantity("height", vertices[:, 2], enabled=True, cmap="viridis")
-
-        # Set edge width
-        if edge_width > 0:
-            mesh.set_edge_width(edge_width)
-
-        # Store height map information for the slider callback
-        if add_height_slider:
-            self.height_maps[name] = {
-                "mesh": mesh,
-                "height_map": height_map,
-                "vertices": vertices.copy(),
-                "min_scale": min_scale,
-                "max_scale": max_scale,
-                "current_scale": initial_scale,
-            }
-
-            # Register callback if this is the first height map
-            if len(self.height_maps) == 1 and add_height_slider:
-                default_callback = self._create_default_callback()
-                ps.set_user_callback(default_callback)
-
-        return mesh
-
-    def plot_point_cloud(
-        self,
-        points: np.ndarray,
-        values: Optional[np.ndarray] = None,
-        name: str = "point_cloud",
-        point_size: float = 0.01,
-        enabled: bool = True,
-        cmap: str = "viridis",
-    ):
-        """.
-
-        Plot a 3D point cloud.
-
-        Args:
-            points: Nx3 array of point coordinates
-            values: Optional array of scalar values for coloring points
-            name: Name for the point cloud in Polyscope
-            point_size: Size of points
-            enabled: Whether the point cloud is initially visible
-            cmap: Colormap for scalar values
-
-        Returns:
-            Polyscope point cloud object
-        """
-        if not self.initialized:
-            raise RuntimeError("Polyscope not initialized. Call init() first.")
-
-        # Register point cloud in Polyscope
-        point_cloud = ps.register_point_cloud(name, points, enabled=enabled)
-
-        # Set point size
-        point_cloud.set_radius(point_size, relative=False)
-
-        # Add values as scalar quantity if provided
-        if values is not None:
-            point_cloud.add_scalar_quantity("values", values, enabled=True, cmap=cmap)
-
-        return point_cloud
-
-    def plot_surface(
-        self,
-        vertices: np.ndarray,
-        faces: np.ndarray,
-        vertex_values: Optional[np.ndarray] = None,
-        name: str = "surface",
-        enabled: bool = True,
-        smooth_shade: bool = True,
-    ):
-        """.
-
-        Plot a generic 3D surface mesh.
-
-        Args:
-            vertices: Nx3 array of vertex coordinates
-            faces: Mx3 array of face indices
-            vertex_values: Optional array of scalar values for coloring vertices
-            name: Name for the surface in Polyscope
-            enabled: Whether the surface is initially visible
-            smooth_shade: Whether to use smooth shading
-
-        Returns:
-            Polyscope surface mesh object
-        """
-        if not self.initialized:
-            raise RuntimeError("Polyscope not initialized. Call init() first.")
-
-        # Register surface mesh in Polyscope
-        mesh = ps.register_surface_mesh(
-            name, vertices, faces, smooth_shade=smooth_shade, enabled=enabled
-        )
-
-        # Add vertex values as scalar quantity if provided
-        if vertex_values is not None:
-            mesh.add_scalar_quantity(
-                "values", vertex_values, enabled=True, cmap="viridis"
-            )
-
-        return mesh
-
-    def add_callback(self, callback_fn):
-        """.
-
-        Add a custom UI callback function.
-
-        Args:
-            callback_fn: Callback function for UI interaction
-        """
-        ps.set_user_callback(callback_fn)
-
-    def show(self):
-        """Show the visualization and start the Polyscope UI.."""
-        if not self.initialized:
-            raise RuntimeError("Polyscope not initialized. Call init() first.")
-        ps.show()
-
-    def screenshot(self, filename="screenshot.png"):
-        """.
-
-        Take a screenshot of the current view.
-
-        Args:
-            filename: Output filename for the screenshot
-
-        Returns:
-            Path to the saved screenshot
-        """
-        if not self.initialized:
-            raise RuntimeError("Polyscope not initialized. Call init() first.")
-        ps.screenshot(filename)
-        return filename
-
-    def set_camera_params(self, center=None, zoom=None, rotation=None):
-        """.
-
-        Set camera parameters.
-
-        Args:
-            center: (x,y,z) camera target point
-            zoom: Zoom level
-            rotation: Camera rotation as quaternion (w,x,y,z)
-        """
-        if center is not None:
-            ps.look_at(center)
-        if zoom is not None:
-            ps.set_view_projection_mode("perspective")
-            ps.set_automatical_view_camera(False)
-            # Actually adjusting zoom is not directly available in Polyscope API
-        if rotation is not None:
-            ps.set_view_rotation(rotation)
+        
+        # Register with Polyscope
+        surface = ps.register_surface_mesh(title, vertices, faces, smooth_shade=smooth_shade)
+        
+        # Add height as a scalar quantity
+        surface.add_scalar_quantity("height", z, enabled=True, cmap=colormap)
+        
+        # Set rendering options
+        if wireframe:
+            surface.set_edge_width(edge_width)
+            surface.set_edge_color((0.8, 0.8, 0.8))
+            surface.set_wireframe(True)
+        
+        if material:
+            surface.set_material(material)
+        
+        return surface
+    
+    def _update_surface_mesh(self, surface, height_map: np.ndarray, z_scale: float, title: str) -> None:
+        """Update an existing surface mesh with new height data."""
+        # Update heights
+        h, w = height_map.shape
+        z = height_map.flatten() * z_scale
+        
+        # Update positions
+        old_positions = np.array(surface.get_vertices())
+        new_positions = old_positions.copy()
+        new_positions[:, 2] = z  # Update Z coordinates only
+        
+        # Update the mesh
+        surface.update_vertex_positions(new_positions)
+        
+        # Update the scalar quantity
+        surface.add_scalar_quantity("height", z, enabled=True)
+        
+        # Update the name
+        surface.set_name(title)

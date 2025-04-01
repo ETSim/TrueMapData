@@ -18,17 +18,31 @@ trimesh>=3.9.0  # For 3D model processing
 pygltflib>=1.15.0  # For glTF/GLB processing
 opencv-python>=4.5.0
 polyscope>=1.3.0
-
-# Plotting dependencies
 plotly>=5.0.0
 seaborn>=0.11.0
 ipywidgets>=7.6.0  # For interactive plots in Jupyter
+
+# Plotting dependencies
 numpy-stl
+
 trimesh
+
 openstl
+
 python-pptx
+
 surfalize
+
 PyWavelets
+
 moviepy
+
 usd-core
+
 scikit-image
+
+rasterio
+
+open3d
+
+pyvista

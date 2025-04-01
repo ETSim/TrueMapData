@@ -1,10 +1,18 @@
 # Documentation requirements for TMD Processor
 
-# For building and serving documentation
-mkdocs-material==9.6.9
+# Base requirements
 mkdocs==1.6.1
+mkdocs-material==9.6.9
+
+# Python documentation
 mkdocstrings>=0.20.0
 mkdocstrings-python>=1.0.0
+
+# Extensions and plugins
 pymdown-extensions>=9.0
 pygments>=2.13.0
 mkdocs-git-revision-date-localized-plugin>=1.0.0
+
+# Optional for code example highlighting
+# Install with: pip install -r requirements-docs.txt[code-highlight]
+# pygments-github-lexers>=0.0.5

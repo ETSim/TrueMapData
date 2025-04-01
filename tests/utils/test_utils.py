@@ -1,219 +1,350 @@
-"""Unit tests for TMD utils module."""
+#!/usr/bin/env python3
+"""
+Tests for TMD utility functions.
 
-import unittest
-from unittest.mock import patch, mock_open, MagicMock
+This module provides unit tests for the TMDUtils class and its methods,
+ensuring proper functionality for TMD file processing and analysis.
+"""
+
 import os
-import numpy as np
+import struct
 import tempfile
-import shutil
+from pathlib import Path
+from unittest import mock
 
-from tmd.utils.utils import (
-    hexdump,
-    read_null_terminated_string,
-    detect_tmd_version,
-    process_tmd_file,
-    write_tmd_file,
-    create_sample_height_map,
-    generate_synthetic_tmd
-)
+import numpy as np
+import pytest
+
+# Import the TMDUtils class from your module
+from tmd.utils.utils import TMDUtils
+from tmd.utils.exceptions import TMDVersionError
 
 
-class TestUtils(unittest.TestCase):
-    """Test class for TMD utilities."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
+class TestTMDUtils:
+    """Test suite for TMDUtils class."""
+
+    def setup_method(self):
+        """Set up test data and temporary files for each test."""
         # Create a temporary directory for test files
-        self.temp_dir = tempfile.mkdtemp()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_dir = Path(self.temp_dir.name)
         
-        # Create test data
-        self.test_bytes = b'Hello, World! This is test data.'
-        self.test_string_with_null = b'Test\x00String'
+        # Create a simple test height map
+        self.height_map = np.array([
+            [0.0, 0.1, 0.2],
+            [0.3, 0.4, 0.5],
+            [0.6, 0.7, 0.8]
+        ], dtype=np.float32)
         
-        # Create sample height map for testing
-        self.test_height_map = create_sample_height_map(
-            width=20, height=15, pattern='waves', noise_level=0.0
-        )
-    
-    def tearDown(self):
-        """Tear down test fixtures."""
-        # Remove the temporary directory and its contents
-        shutil.rmtree(self.temp_dir)
-    
+        # Create test TMD file paths
+        self.v1_file_path = self.test_dir / "test_v1.tmd"
+        self.v2_file_path = self.test_dir / "test_v2.tmd"
+        
+        # Create test TMD files
+        self._create_test_tmd_files()
+
+    def teardown_method(self):
+        """Clean up temporary files after each test."""
+        self.temp_dir.cleanup()
+
+    def _create_test_tmd_files(self):
+        """Create test TMD files for v1 and v2 formats."""
+        # Create a v1 TMD file
+        with open(self.v1_file_path, "wb") as f:
+            # Write v1 header
+            header = "Binary TrueMap Data File\r\n"
+            header_bytes = header.encode("ascii")
+            remaining_header = 28 - len(header_bytes)
+            if remaining_header > 0:
+                header_bytes += b"\0" * remaining_header
+            f.write(header_bytes)
+            
+            # Write dimensions
+            width, height = self.height_map.shape[1], self.height_map.shape[0]
+            f.write(struct.pack("<II", width, height))
+            
+            # Write spatial info (x_length, y_length only in v1)
+            f.write(struct.pack("<ff", 10.0, 10.0))
+            
+            # Write height map data
+            f.write(self.height_map.tobytes())
+        
+        # Create a v2 TMD file
+        with open(self.v2_file_path, "wb") as f:
+            # Write v2 header
+            header = "Binary TrueMap Data File v2.0\n"
+            header_bytes = header.encode("ascii")
+            remaining_header = 32 - len(header_bytes)
+            if remaining_header > 0:
+                header_bytes += b"\0" * remaining_header
+            f.write(header_bytes)
+            
+            # Write comment
+            comment = "Test Comment\n"
+            comment_bytes = comment.encode("ascii")
+            remaining_comment = 24 - len(comment_bytes)
+            if remaining_comment > 0:
+                comment_bytes += b"\0" * remaining_comment
+            f.write(comment_bytes)
+            
+            # Write dimensions
+            width, height = self.height_map.shape[1], self.height_map.shape[0]
+            f.write(struct.pack("<II", width, height))
+            
+            # Write spatial info (x_length, y_length, x_offset, y_offset in v2)
+            f.write(struct.pack("<ffff", 10.0, 10.0, 1.0, 1.0))
+            
+            # Write height map data
+            f.write(self.height_map.tobytes())
+
     def test_hexdump(self):
-        """Test hexdump function."""
-        # Test with simple input
-        dump = hexdump(self.test_bytes)
+        """Test hexdump functionality."""
+        test_bytes = b"Hello, World!"
+        result = TMDUtils.hexdump(test_bytes, width=8)
         
-        # Check that the output is a string with expected content
-        self.assertIsInstance(dump, str)
-        self.assertIn('48 65 6c 6c 6f', dump)  # Hex for "Hello"
-        self.assertIn('|Hello', dump)  # ASCII representation
+        # Check that the result is a non-empty string
+        assert isinstance(result, str)
+        assert len(result) > 0
         
-        # Test with custom parameters
-        dump_custom = hexdump(self.test_bytes, start=2, length=5, width=8, show_ascii=False)
+        # Check that the hexdump contains the expected hex values
+        assert "48 65 6c 6c 6f 2c 20 57" in result  # "Hello, W" in hex
+        assert "6f 72 6c 64 21" in result  # "orld!" in hex
         
-        # Check that parameters are respected
-        self.assertIsInstance(dump_custom, str)
-        self.assertNotIn('|Hello', dump_custom)  # ASCII should be omitted
-        self.assertIn('00000002', dump_custom)  # Start offset
-    
+        # Test empty input
+        assert TMDUtils.hexdump(b"") == "(empty)"
+        
+        # Test invalid start offset
+        assert "(invalid start offset)" in TMDUtils.hexdump(b"Hello", start=10)
+
     def test_read_null_terminated_string(self):
         """Test reading null-terminated strings."""
-        # Create a mock file with a null-terminated string
-        mock_file = MagicMock()
-        mock_file.tell.return_value = 0
-        mock_file.read.return_value = self.test_string_with_null
+        test_data = b"Test String\0Extra data"
+        with tempfile.TemporaryFile() as f:
+            f.write(test_data)
+            f.seek(0)
+            
+            result = TMDUtils.read_null_terminated_string(f)
+            assert result == "Test String"
+            
+            # Check that the file pointer is positioned after the null
+            assert f.tell() == len(b"Test String\0")
         
-        # Read the string
-        result = read_null_terminated_string(mock_file)
-        
-        # Check result
-        self.assertEqual(result, 'Test')
-        mock_file.seek.assert_called_once_with(5)  # Position after null byte
-        
-        # Test with string without null terminator
-        mock_file.reset_mock()
-        mock_file.tell.return_value = 0
-        mock_file.read.return_value = b'NoNullHere'
-        
-        # Should return whole string
-        result = read_null_terminated_string(mock_file)
-        self.assertEqual(result, 'NoNullHere')
-        mock_file.seek.assert_not_called()  # Should not seek
-    
+        # Test string without null terminator
+        test_data = b"No Null Terminator"
+        with tempfile.TemporaryFile() as f:
+            f.write(test_data)
+            f.seek(0)
+            
+            result = TMDUtils.read_null_terminated_string(f)
+            assert result == "No Null Terminator"
+
     def test_detect_tmd_version(self):
         """Test TMD version detection."""
-        # Create a mock v2 TMD file
-        v2_header = b'Binary TrueMap Data File v2.0\x00' + b'\x00' * 32
-        v1_header = b'Binary TrueMap Data File\x00' + b'\x00' * 32
+        # Test v1 detection
+        assert TMDUtils.detect_tmd_version(self.v1_file_path) == 1
         
-        # Test with different headers
-        with patch('os.path.exists', return_value=True):
-            with patch('builtins.open', mock_open(read_data=v2_header)):
-                self.assertEqual(detect_tmd_version('dummy.tmd'), 2)
-            
-            with patch('builtins.open', mock_open(read_data=v1_header)):
-                self.assertEqual(detect_tmd_version('dummy.tmd'), 1)
+        # Test v2 detection
+        assert TMDUtils.detect_tmd_version(self.v2_file_path) == 2
         
         # Test file not found
-        with self.assertRaises(FileNotFoundError):
-            detect_tmd_version('nonexistent.tmd')
-    
-    def test_create_sample_height_map(self):
-        """Test creating sample height maps."""
-        # Test different patterns
-        patterns = ['waves', 'peak', 'dome', 'ramp', 'combined']
+        with pytest.raises(FileNotFoundError):
+            TMDUtils.detect_tmd_version(self.test_dir / "nonexistent.tmd")
         
-        for pattern in patterns:
-            height_map = create_sample_height_map(width=50, height=40, pattern=pattern)
-            
-            # Check shape and type
-            self.assertEqual(height_map.shape, (40, 50))
-            self.assertEqual(height_map.dtype, np.float32)
-            
-            # Check value range (should be normalized to [0,1])
-            self.assertGreaterEqual(np.min(height_map), 0.0)
-            self.assertLessEqual(np.max(height_map), 1.0)
+        # Test invalid file (create a tiny file that can't be a valid TMD)
+        invalid_file = self.test_dir / "invalid.tmd"
+        with open(invalid_file, "wb") as f:
+            f.write(b"ABC")
         
-        # Test adding noise
-        noisy_map = create_sample_height_map(width=20, height=20, pattern='peak', noise_level=0.2)
-        quiet_map = create_sample_height_map(width=20, height=20, pattern='peak', noise_level=0.0)
+        with pytest.raises(TMDVersionError):
+            TMDUtils.detect_tmd_version(invalid_file)
+
+    def test_process_tmd_file(self):
+        """Test processing of TMD files."""
+        # Test v1 file processing
+        metadata, height_map = TMDUtils.process_tmd_file(self.v1_file_path)
         
-        # Maps with noise should be different
-        self.assertFalse(np.array_equal(noisy_map, quiet_map))
-    
-    def test_write_and_process_tmd(self):
-        """Test writing and reading a TMD file."""
-        # Create a simple test height map
-        test_map = np.ones((5, 5), dtype=np.float32) * 0.5
+        assert metadata["version"] == 1
+        assert metadata["width"] == 3
+        assert metadata["height"] == 3
+        assert metadata["x_length"] == 10.0
+        assert metadata["y_length"] == 10.0
+        assert np.array_equal(height_map, self.height_map)
         
-        # Add a pattern to make it easier to verify orientation
-        test_map[0, 0] = 0.1  # Top-left
-        test_map[0, 4] = 0.2  # Top-right
-        test_map[4, 0] = 0.3  # Bottom-left
-        test_map[4, 4] = 0.4  # Bottom-right
+        # Test v2 file processing
+        metadata, height_map = TMDUtils.process_tmd_file(self.v2_file_path)
         
-        # Path for the test file
-        test_file = os.path.join(self.temp_dir, 'test.tmd')
+        assert metadata["version"] == 2
+        assert metadata["width"] == 3
+        assert metadata["height"] == 3
+        assert metadata["x_length"] == 10.0
+        assert metadata["y_length"] == 10.0
+        assert metadata["x_offset"] == 1.0
+        assert metadata["y_offset"] == 1.0
+        assert metadata["comment"] == "Test Comment"
         
-        # Write the test file
-        write_tmd_file(
-            test_map,
-            test_file,
-            comment="Test file",
+        # Check if height map data is as expected
+        assert np.array_equal(height_map, self.height_map)
+        
+        # Test force_offset parameter
+        metadata, _ = TMDUtils.process_tmd_file(
+            self.v2_file_path, force_offset=(2.0, 2.0)
+        )
+        assert metadata["x_offset"] == 2.0
+        assert metadata["y_offset"] == 2.0
+        
+        # Test file not found
+        with pytest.raises(FileNotFoundError):
+            TMDUtils.process_tmd_file(self.test_dir / "nonexistent.tmd")
+
+    def test_write_tmd_file(self):
+        """Test writing TMD files."""
+        # Test writing v1 file
+        output_path_v1 = self.test_dir / "output_v1.tmd"
+        result_path = TMDUtils.write_tmd_file(
+            self.height_map,
+            output_path_v1,
             x_length=10.0,
             y_length=10.0,
+            version=1
+        )
+        
+        assert result_path == str(output_path_v1)
+        assert os.path.exists(output_path_v1)
+        
+        # Verify the written file by reading it back
+        metadata, height_map = TMDUtils.process_tmd_file(output_path_v1)
+        assert metadata["version"] == 1
+        assert metadata["width"] == 3
+        assert metadata["height"] == 3
+        assert np.array_equal(height_map, self.height_map)
+        
+        # Test writing v2 file
+        output_path_v2 = self.test_dir / "output_v2.tmd"
+        result_path = TMDUtils.write_tmd_file(
+            self.height_map,
+            output_path_v2,
+            comment="Test Output",
+            x_length=15.0,
+            y_length=15.0,
+            x_offset=2.0,
+            y_offset=2.0,
             version=2
         )
         
-        # Check file exists
-        self.assertTrue(os.path.exists(test_file))
+        assert result_path == str(output_path_v2)
+        assert os.path.exists(output_path_v2)
         
-        # Read the file back
-        metadata, height_map = process_tmd_file(test_file)
+        # Verify the written file by reading it back
+        metadata, height_map = TMDUtils.process_tmd_file(output_path_v2)
+        assert metadata["version"] == 2
+        assert metadata["width"] == 3
+        assert metadata["height"] == 3
+        assert metadata["x_length"] == 15.0
+        assert metadata["y_length"] == 15.0
+        assert metadata["x_offset"] == 2.0
+        assert metadata["y_offset"] == 2.0
+        assert "Test Output" in metadata["comment"]
+        assert np.array_equal(height_map, self.height_map)
         
-        # Verify metadata
-        self.assertEqual(metadata['width'], 5)
-        self.assertEqual(metadata['height'], 5)
-        self.assertEqual(metadata['x_length'], 10.0)
-        self.assertEqual(metadata['y_length'], 10.0)
+        # Test invalid inputs
+        with pytest.raises(ValueError):
+            # Invalid height map (not a 2D array)
+            TMDUtils.write_tmd_file(
+                np.array([1, 2, 3]),  # 1D array
+                self.test_dir / "invalid.tmd"
+            )
         
-        # Verify corner values to check orientation
-        self.assertAlmostEqual(height_map[0, 0], test_map[0, 0])  # Top-left
-        self.assertAlmostEqual(height_map[0, 4], test_map[0, 4])  # Top-right
-        self.assertAlmostEqual(height_map[4, 0], test_map[4, 0])  # Bottom-left
-        self.assertAlmostEqual(height_map[4, 4], test_map[4, 4])  # Bottom-right
-    
-    def test_generate_synthetic_tmd(self):
-        """Test generation of synthetic TMD files."""
-        # Generate a synthetic file
-        output_path = os.path.join(self.temp_dir, "synthetic.tmd")
-        result_path = generate_synthetic_tmd(
-            output_path=output_path,
-            width=30,
-            height=25,
-            pattern="peak",
-            comment="Synthetic test"
-        )
+        with pytest.raises(ValueError):
+            # Invalid version
+            TMDUtils.write_tmd_file(
+                self.height_map,
+                self.test_dir / "invalid.tmd",
+                version=3  # Only versions 1 and 2 are supported
+            )
+
+    def test_downsample_array(self):
+        """Test array downsampling."""
+        # Create a larger test array
+        test_array = np.ones((10, 10)) * np.arange(10).reshape(10, 1)
         
-        # Verify file was created with correct path
-        self.assertEqual(result_path, output_path)
-        self.assertTrue(os.path.exists(output_path))
+        # Test downsampling to smaller dimensions
+        result = TMDUtils.downsample_array(test_array, 5, 5)
+        assert result.shape == (5, 5)
         
-        # Read file and verify dimensions
-        metadata, height_map = process_tmd_file(output_path)
-        self.assertEqual(metadata['width'], 30)
-        self.assertEqual(metadata['height'], 25)
-    
-    def test_process_tmd_with_offsets(self):
-        """Test processing TMD files with spatial offsets."""
-        # Create a test height map
-        test_map = create_sample_height_map(width=10, height=10, pattern='peak')
+        # Test with different methods
+        for method in ["nearest", "bilinear", "bicubic"]:
+            result = TMDUtils.downsample_array(test_array, 5, 5, method=method)
+            assert result.shape == (5, 5)
         
-        # Path for the test file
-        test_file = os.path.join(self.temp_dir, 'offset_test.tmd')
+        # Test fallback path (when scipy is not available)
+        with mock.patch("tmd.utils.core.TMDUtils.get_scipy_or_fallback", 
+                       return_value=(None, False)):
+            result = TMDUtils.downsample_array(test_array, 5, 5)
+            assert result.shape == (5, 5)
+
+    def test_quantize_array(self):
+        """Test array quantization."""
+        # Test array with continuous values
+        test_array = np.linspace(0, 1, 100).reshape(10, 10)
         
-        # Write file with offsets
-        x_offset, y_offset = 2.5, 1.5
-        write_tmd_file(
-            test_map,
-            test_file,
-            x_offset=x_offset,
-            y_offset=y_offset
-        )
+        # Quantize to 5 levels
+        result = TMDUtils.quantize_array(test_array, levels=5)
         
-        # Process with original offsets
-        metadata, _ = process_tmd_file(test_file)
-        self.assertEqual(metadata['x_offset'], x_offset)
-        self.assertEqual(metadata['y_offset'], y_offset)
+        # Check that the result has the same shape
+        assert result.shape == test_array.shape
         
-        # Process with force_offset
-        new_offsets = (3.5, 4.5)
-        metadata_forced, _ = process_tmd_file(test_file, force_offset=new_offsets)
-        self.assertEqual(metadata_forced['x_offset'], new_offsets[0])
-        self.assertEqual(metadata_forced['y_offset'], new_offsets[1])
+        # Check that we have at most 5 unique values
+        assert len(np.unique(result)) <= 5
+        
+        # Test with single value array
+        single_value = np.ones((5, 5))
+        result = TMDUtils.quantize_array(single_value)
+        assert np.array_equal(result, single_value)
+        
+        # Test with invalid levels
+        with pytest.raises(ValueError):
+            TMDUtils.quantize_array(test_array, levels=1)  # At least 2 levels required
+
+    def test_print_message(self):
+        """Test print message formatting."""
+        # Use mock to capture print output
+        with mock.patch("builtins.print") as mock_print:
+            # Test with rich formatting disabled
+            TMDUtils.print_message("Test message", "info", use_rich=False)
+            mock_print.assert_called_with("Info: Test message")
+            
+            TMDUtils.print_message("Test warning", "warning", use_rich=False)
+            mock_print.assert_called_with("Warning: Test warning")
+            
+            TMDUtils.print_message("Test error", "error", use_rich=False)
+            mock_print.assert_called_with("Error: Test error")
+            
+            TMDUtils.print_message("Test success", "success", use_rich=False)
+            mock_print.assert_called_with("Success: Test success")
+            
+            # Test unknown message type
+            TMDUtils.print_message("Unknown type", "unknown", use_rich=False)
+            mock_print.assert_called_with("Unknown type")
+
+    def test_get_scipy_or_fallback(self):
+        """Test scipy import or fallback logic."""
+        # This tests the function directly - actual behavior depends on environment
+        scipy, has_scipy = TMDUtils.get_scipy_or_fallback()
+        
+        # If scipy is available, check that it's returned correctly
+        if has_scipy:
+            assert scipy is not None
+            assert hasattr(scipy, "ndimage")
+        
+        # Test the fallback path with a mock
+        with mock.patch("importlib.import_module", side_effect=ImportError):
+            with mock.patch("tmd.utils.core.TMDUtils.print_message") as mock_print:
+                scipy, has_scipy = TMDUtils.get_scipy_or_fallback()
+                assert not has_scipy
+                assert scipy is None
+                # Check that a warning was printed
+                mock_print.assert_called_once()
 
 
-if __name__ == '__main__':
-    unittest.main()
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])

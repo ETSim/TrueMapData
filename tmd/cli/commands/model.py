@@ -109,3 +109,103 @@ def generate_model_command(
     except Exception as e:
         print_error(f"Error generating 3D model: {e}")
         return False
+
+"""Model export commands for TMD CLI."""
+from pathlib import Path
+from typing import Optional
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.status import Status
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+from ..core.ui import print_error, print_success
+from ...model.factory import ModelExporterFactory
+from ...model.formats import get_available_formats
+from ...model.config import ExportConfig
+
+console = Console()
+
+def export_model(
+    input_file: Path,
+    output_file: Path,
+    format: str,
+    **kwargs
+) -> bool:
+    """Export model in specified format."""
+    try:
+        # Show export configuration
+        config_table = Table(title="Export Configuration", show_header=True)
+        config_table.add_column("Parameter", style="cyan")
+        config_table.add_column("Value", style="green")
+        
+        # Show configuration parameters
+        for key, value in kwargs.items():
+            config_table.add_row(key, str(value))
+        
+        console.print(config_table)
+        
+        # Map CLI parameters directly to ExportConfig
+        config_params = {
+            'method': kwargs.get('method', 'adaptive'),
+            'error_threshold': kwargs.get('error_threshold', 0.01),
+            'min_quad_size': kwargs.get('min_quad_size', 2),
+            'max_quad_size': kwargs.get('max_quad_size', 32),
+            'curvature_threshold': kwargs.get('curvature_threshold', 0.1),
+            'simplify_ratio': kwargs.get('simplify_ratio', None),
+            'max_triangles': kwargs.get('max_triangles', None),
+            'use_feature_edges': kwargs.get('use_feature_edges', True),
+            'smoothing': kwargs.get('smoothing', 0.0),
+            'scale': kwargs.get('scale', 1.0),
+            'binary': kwargs.get('binary', True),
+            'texture': kwargs.get('texture', False),
+            'texture_resolution': kwargs.get('texture_resolution', None),
+            'color_map': kwargs.get('color_map', 'terrain'),
+            'optimize': kwargs.get('optimize', True),
+            'calculate_normals': kwargs.get('normals', True),
+            'coordinate_system': kwargs.get('coordinate_system', 'right-handed'),
+            'origin_at_zero': kwargs.get('origin_at_zero', True),
+            'base_height': kwargs.get('base_height', 0.0)
+        }
+        
+        # Show progress during export
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True
+        ) as progress:
+            task = progress.add_task(f"Exporting {input_file.name} to {format}...", total=None)
+            
+            # Create export configuration
+            config = ExportConfig(**config_params)
+            
+            # Create factory and export
+            factory = ModelExporterFactory()
+            result = factory.export(
+                input_file=input_file,
+                output_file=output_file,
+                format_name=format,
+                config=config
+            )
+            
+            progress.update(task, completed=True)
+        
+        if result:
+            # Show success message with details
+            success_panel = Panel.fit(
+                f"Successfully exported [cyan]{input_file.name}[/] to [green]{output_file}[/]\n"
+                f"Format: [yellow]{format.upper()}[/]",
+                title="Export Complete",
+                border_style="green"
+            )
+            console.print(success_panel)
+            return True
+        
+        print_error("Export failed")
+        return False
+        
+    except Exception as e:
+        print_error(f"Failed to export model: {e}")
+        return False

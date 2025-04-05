@@ -4,6 +4,7 @@ import logging
 from typing import Optional, Tuple
 from tmd.utils.files import TMDFileUtilities
 from tmd.utils.utils import TMDUtils
+from noise import snoise2
 
 
 class TMDTerrain:
@@ -24,7 +25,7 @@ class TMDTerrain:
         Args:
             width: Width of the height map.
             height: Height of the height map.
-            pattern: Type of pattern to generate ("waves", "peak", "dome", "ramp", "combined").
+            pattern: Type of pattern to generate ("waves", "peak", "dome", "ramp", "combined", "flat").
             noise_level: Level of random noise to add (0.0 - 1.0+).
 
         Returns:
@@ -51,6 +52,36 @@ class TMDTerrain:
                 np.sin(X) * np.cos(Y)  # Wave pattern
                 + np.exp(-(X**2 + Y**2) / 8) * 2  # Central peak
             )
+        elif pattern == "flat":
+            # Create a flat terrain (constant value)
+            Z = np.ones((height, width)) * 0.5
+        elif pattern == "random":
+            # Create a random terrain (uniform distribution)
+            Z = np.random.uniform(-1, 1, (height, width))
+        elif pattern == "perlin":
+            # noise
+            Z = np.zeros((height, width))
+            for i in range(height):
+                for j in range(width):
+                    Z[i, j] = snoise2(i / 10.0, j / 10.0, octaves=4, persistence=0.5, lacunarity=2.0)
+        elif pattern == "fbm":
+            # fractal brownian motion
+            Z = np.zeros((height, width))
+            for i in range(height):
+                for j in range(width):
+                    Z[i, j] = snoise2(i / 10.0, j / 10.0, octaves=4, persistence=0.5, lacunarity=2.0) * (
+                        1 - (i + j) / (height + width)
+                    )
+        elif pattern == "square":
+            # Create a square pattern
+            Z = np.zeros((height, width))
+            Z[height // 4 : 3 * height // 4, width // 4 : 3 * width // 4] = 1.0
+        elif pattern == "sawtooth":
+            # Create a sawtooth pattern
+            Z = np.zeros((height, width))
+            for i in range(height):
+                for j in range(width):
+                    Z[i, j] = (i + j) % 10 / 10.0
         else:
             Z = np.zeros((height, width))
 

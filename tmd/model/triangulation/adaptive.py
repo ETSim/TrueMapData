@@ -10,10 +10,14 @@ import numpy as np
 import logging
 from typing import List, Tuple, Optional, Dict, Any, Set, Union, Callable
 
+from .base import BaseTriangulator
+from ..utils.heightmap import calculate_terrain_complexity
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
-class AdaptiveTriangulator:
+
+class AdaptiveTriangulator(BaseTriangulator):
     """
     Class for adaptively triangulating a heightmap.
     
@@ -44,163 +48,35 @@ class AdaptiveTriangulator:
             detail_boost: Factor to boost detail in high-complexity areas (1.0 = normal)
             progress_callback: Optional callback function for progress reporting
         """
-        self.height_map = height_map
-        self.max_triangles = max_triangles
-        self.error_threshold = error_threshold
+        super().__init__(
+            height_map=height_map,
+            z_scale=z_scale,
+            max_triangles=max_triangles,
+            error_threshold=error_threshold,
+            progress_callback=progress_callback
+        )
+        
         self.min_area = min_area_fraction * height_map.shape[0] * height_map.shape[1]
-        self.z_scale = z_scale
         self.detail_boost = detail_boost
-        self.progress_callback = progress_callback
         
         # Calculate terrain complexity to guide the triangulation
-        self.complexity_map = self._calculate_complexity_map()
+        self.complexity_map = self.calculate_complexity_map()
         
         # Initialize internal state
         self.vertices = []  # List of (x, y, z) vertex coordinates
         self.indices = []   # List of triangle vertex indices
         self.vertex_map = {}  # Maps (x, y) grid coordinates to vertex indices
         
-        # Statistics for reporting
-        self.stats = {
-            "original_points": height_map.size,
-            "max_triangles": max_triangles,
-            "error_threshold": error_threshold,
-            "final_triangles": 0,
-            "final_vertices": 0,
-            "compression_ratio": 0.0
-        }
-        
         logger.debug(f"AdaptiveTriangulator initialized with {self.height_map.shape} heightmap")
     
-    def _calculate_complexity_map(self) -> np.ndarray:
+    def calculate_complexity_map(self) -> np.ndarray:
         """
         Calculate a complexity map to guide where to add more detail.
         
         Returns:
             2D array representing local terrain complexity
         """
-        # Calculate gradients in x and y directions
-        grad_x = np.zeros_like(self.height_map)
-        grad_y = np.zeros_like(self.height_map)
-        
-        # Interior points
-        grad_x[1:-1, 1:-1] = (self.height_map[1:-1, 2:] - self.height_map[1:-1, :-2]) / 2.0
-        grad_y[1:-1, 1:-1] = (self.height_map[2:, 1:-1] - self.height_map[:-2, 1:-1]) / 2.0
-        
-        # Boundary points
-        grad_x[1:-1, 0] = self.height_map[1:-1, 1] - self.height_map[1:-1, 0]
-        grad_x[1:-1, -1] = self.height_map[1:-1, -1] - self.height_map[1:-1, -2]
-        grad_y[0, 1:-1] = self.height_map[1, 1:-1] - self.height_map[0, 1:-1]
-        grad_y[-1, 1:-1] = self.height_map[-1, 1:-1] - self.height_map[-2, 1:-1]
-        
-        # Compute magnitude of gradient (slope)
-        grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
-        
-        # Compute second derivatives (curvature)
-        grad_xx = np.zeros_like(self.height_map)
-        grad_yy = np.zeros_like(self.height_map)
-        grad_xx[1:-1, 1:-1] = self.height_map[1:-1, 2:] + self.height_map[1:-1, :-2] - 2 * self.height_map[1:-1, 1:-1]
-        grad_yy[1:-1, 1:-1] = self.height_map[2:, 1:-1] + self.height_map[:-2, 1:-1] - 2 * self.height_map[1:-1, 1:-1]
-        
-        # Combine slope and curvature for overall complexity
-        complexity = (
-            0.7 * grad_magnitude + 
-            0.3 * np.abs(grad_xx + grad_yy)
-        )
-        
-        # Normalize to [0, 1] range
-        if np.max(complexity) > np.min(complexity):
-            complexity = (complexity - np.min(complexity)) / (np.max(complexity) - np.min(complexity))
-        else:
-            complexity = np.zeros_like(complexity)
-        
-        return complexity
-        
-    def run(self, max_error: Optional[float] = None, max_triangles: Optional[int] = None) -> Tuple[List[List[float]], List[List[int]]]:
-        """
-        Run the adaptive triangulation algorithm.
-        
-        Args:
-            max_error: Optional override for error threshold
-            max_triangles: Optional override for maximum number of triangles
-            
-        Returns:
-            Tuple of (vertices, triangles) where vertices is a list of [x, y, z] coordinates
-            and triangles is a list of [a, b, c] indices.
-        """
-        # Override parameters if provided
-        if max_error is not None:
-            self.error_threshold = max_error
-        if max_triangles is not None:
-            self.max_triangles = max_triangles
-        
-        # Report initial progress
-        if self.progress_callback:
-            self.progress_callback(0.0)
-            
-        # Start with the corners of the heightmap
-        rows, cols = self.height_map.shape
-        
-        # Create initial vertices at the corners
-        self._add_vertex(0, 0)
-        self._add_vertex(0, cols-1)
-        self._add_vertex(rows-1, 0)
-        self._add_vertex(rows-1, cols-1)
-        
-        # Create initial triangles
-        self.indices.append([0, 1, 3])  # Top-left, top-right, bottom-right
-        self.indices.append([0, 3, 2])  # Top-left, bottom-right, bottom-left
-        
-        # Refine the mesh
-        triangles_to_check = list(range(len(self.indices)))
-        total_checks = 0
-        progress_interval = max(1, self.max_triangles // 100)  # For progress reporting
-        
-        while triangles_to_check and len(self.indices) < self.max_triangles:
-            total_checks += 1
-            
-            # Report progress periodically
-            if self.progress_callback and total_checks % progress_interval == 0:
-                progress = min(0.9, len(self.indices) / self.max_triangles)
-                self.progress_callback(progress)
-                
-            # Get next triangle to check
-            triangle_idx = triangles_to_check.pop(0)
-            
-            # Check if this triangle needs subdivision
-            if self._needs_subdivision(triangle_idx):
-                # Skip if we'll exceed max_triangles
-                if len(self.indices) + 1 > self.max_triangles:
-                    logger.info(f"Reached maximum triangle count ({self.max_triangles})")
-                    break
-                    
-                # Subdivide the triangle
-                new_triangle_indices = self._subdivide_triangle(triangle_idx)
-                triangles_to_check.extend(new_triangle_indices)
-        
-        # Update statistics
-        self.stats["final_triangles"] = len(self.indices)
-        self.stats["final_vertices"] = len(self.vertices)
-        self.stats["compression_ratio"] = (
-            self.height_map.size / (len(self.vertices) + len(self.indices) * 3)
-        )
-        
-        # Log completion
-        logger.info(
-            f"Adaptive triangulation complete. Generated {len(self.indices)} "
-            f"triangles from {self.height_map.size} height points. "
-            f"Compression ratio: {self.stats['compression_ratio']:.2f}x"
-        )
-        
-        # Final progress report
-        if self.progress_callback:
-            self.progress_callback(1.0)
-        
-        # Format output vertices and indices
-        vertices_list = [[float(v[0]), float(v[1]), float(v[2])] for v in self.vertices]
-        indices_list = [[int(i[0]), int(i[1]), int(i[2])] for i in self.indices]
-        
-        return vertices_list, indices_list
+        return calculate_terrain_complexity(self.height_map, smoothing=1.0)
     
     def _add_vertex(self, row: int, col: int) -> int:
         """
@@ -511,14 +387,70 @@ class AdaptiveTriangulator:
         # If all have the same sign (all positive or all negative), point is inside
         return not (has_neg and has_pos)
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def triangulate(self) -> Tuple[List[List[float]], List[List[int]]]:
         """
-        Get statistics about the triangulation.
+        Run the adaptive triangulation algorithm.
         
         Returns:
-            Dictionary with statistics
+            Tuple of (vertices, triangles) where vertices is a list of [x, y, z] coordinates
+            and triangles is a list of [a, b, c] indices.
         """
-        return self.stats
+        # Report initial progress
+        if self.progress_callback:
+            self.progress_callback(0.0)
+            
+        # Start with the corners of the heightmap
+        rows, cols = self.height_map.shape
+        
+        # Create initial vertices at the corners
+        self._add_vertex(0, 0)
+        self._add_vertex(0, cols-1)
+        self._add_vertex(rows-1, 0)
+        self._add_vertex(rows-1, cols-1)
+        
+        # Create initial triangles
+        self.indices.append([0, 1, 3])  # Top-left, top-right, bottom-right
+        self.indices.append([0, 3, 2])  # Top-left, bottom-right, bottom-left
+        
+        # Refine the mesh
+        triangles_to_check = list(range(len(self.indices)))
+        total_checks = 0
+        progress_interval = max(1, self.max_triangles // 100)  # For progress reporting
+        
+        while triangles_to_check and len(self.indices) < self.max_triangles:
+            total_checks += 1
+            
+            # Report progress periodically
+            if self.progress_callback and total_checks % progress_interval == 0:
+                progress = min(0.9, len(self.indices) / self.max_triangles)
+                self.progress_callback(progress)
+                
+            # Get next triangle to check
+            triangle_idx = triangles_to_check.pop(0)
+            
+            # Check if this triangle needs subdivision
+            if self._needs_subdivision(triangle_idx):
+                # Skip if we'll exceed max_triangles
+                if len(self.indices) + 1 > self.max_triangles:
+                    logger.info(f"Reached maximum triangle count ({self.max_triangles})")
+                    break
+                    
+                # Subdivide the triangle
+                new_triangle_indices = self._subdivide_triangle(triangle_idx)
+                triangles_to_check.extend(new_triangle_indices)
+        
+        # Update statistics
+        vertices_list = [[float(v[0]), float(v[1]), float(v[2])] for v in self.vertices]
+        indices_list = [[int(i[0]), int(i[1]), int(i[2])] for i in self.indices]
+        
+        # Finalize statistics
+        self.finalize_stats(vertices_list, indices_list)
+        
+        # Final progress report
+        if self.progress_callback:
+            self.progress_callback(1.0)
+        
+        return vertices_list, indices_list
 
 
 def triangulate_heightmap(
@@ -552,7 +484,7 @@ def triangulate_heightmap(
         progress_callback=progress_callback
     )
     
-    vertices, faces = triangulator.run()
+    vertices, faces = triangulator.triangulate()
     stats = triangulator.get_statistics()
     
     return vertices, faces, stats

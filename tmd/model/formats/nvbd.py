@@ -11,78 +11,78 @@ import numpy as np
 import logging
 from typing import Optional, Dict, Any, Tuple, Union, List
 
-from .base import ModelExporter
-from .mesh_utils import calculate_heightmap_normals, validate_heightmap, ensure_directory_exists
+from ..base import ModelExporter, ExportConfig
+from ..utils import validate_heightmap, ensure_directory_exists
+from ..utils.heightmap import calculate_heightmap_normals
+from ..registry import register_exporter
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 
+@register_exporter
 class NVBDExporter(ModelExporter):
     """Exporter for NVIDIA Binary Data (NVBD) format."""
     
-    @classmethod
-    def get_extension(cls) -> str:
-        """Get file extension."""
-        return "nvbd"
-    
-    @classmethod
-    def get_format_name(cls) -> str:
-        """Get format name."""
-        return "NVIDIA Binary Data (NVBD)"
-    
-    @classmethod
-    def supports_binary(cls) -> bool:
-        """Check if binary format is supported."""
-        return True  # NVBD is a binary-only format
+    # Class attributes
+    format_name = "NVIDIA Binary Data (NVBD)"
+    file_extensions = ["nvbd"]
+    binary_supported = True
     
     @classmethod
     def export(cls, 
                height_map: np.ndarray, 
                filename: str, 
-               x_offset: float = 0.0,
-               y_offset: float = 0.0,
-               x_length: float = 1.0,
-               y_length: float = 1.0,
-               z_scale: float = 1.0,
-               base_height: float = 0.0,
-               chunk_size: int = 16,
-               include_normals: bool = True,
-               watertight: bool = True,
-               **kwargs) -> Optional[str]:
+               config: ExportConfig) -> Optional[str]:
         """
         Export a heightmap to NVBD format.
         
         Args:
             height_map: 2D numpy array of height values
             filename: Output filename
-            x_offset: X-axis offset for the model (not used in NVBD)
-            y_offset: Y-axis offset for the model (not used in NVBD)
-            x_length: Physical length in X direction (not used in NVBD)
-            y_length: Physical length in Y direction (not used in NVBD)
-            z_scale: Scale factor for height values
-            base_height: Base offset value for height values
-            chunk_size: Size of chunks for the NVBD format
-            include_normals: Whether to include normal vectors
-            watertight: Whether to ensure the mesh is watertight
-            **kwargs: Additional parameters
+            config: Export configuration
             
         Returns:
             Path to the created file if successful, None otherwise
         """
-        # NVBD format only uses z_scale and base_height, disregard other position parameters
-        return convert_heightmap_to_nvbd(
-            height_map=height_map,
-            filename=filename,
-            scale=z_scale,
-            offset=base_height,
-            chunk_size=chunk_size,
-            include_normals=include_normals,
-            watertight=watertight
-        )
+        # Validate input
+        if not validate_heightmap(height_map):
+            logger.error("Invalid height map: empty, None, or too small")
+            return None
+        
+        # Get NVBD-specific parameters from config
+        chunk_size = config.extra.get('chunk_size', 16)
+        include_normals = config.extra.get('include_normals', True)
+        watertight = config.extra.get('watertight', True)
+        
+        # Ensure filename has correct extension
+        filename = cls.ensure_extension(filename)
+            
+        # Ensure output directory exists
+        if not ensure_directory_exists(filename):
+            logger.error(f"Failed to create directory for {filename}")
+            return None
+        
+        try:
+            # Export to NVBD format (doesn't use mesh, works directly with heightmap)
+            return export_heightmap_to_nvbd(
+                height_map=height_map,
+                filename=filename,
+                scale=config.z_scale,
+                offset=config.base_height,
+                chunk_size=chunk_size,
+                include_normals=include_normals,
+                watertight=watertight
+            )
+            
+        except Exception as e:
+            logger.error(f"Error exporting NVBD: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
 
-def convert_heightmap_to_nvbd(
+def export_heightmap_to_nvbd(
     height_map: np.ndarray,
     filename: str = "output.nvbd",
     scale: float = 1.0,
@@ -92,7 +92,7 @@ def convert_heightmap_to_nvbd(
     watertight: bool = True
 ) -> Optional[str]:
     """
-    Convert a height map to NVBD (NVIDIA Binary Data) format.
+    Export a height map to NVBD (NVIDIA Binary Data) format.
     
     Args:
         height_map: 2D numpy array of height values
@@ -106,11 +106,6 @@ def convert_heightmap_to_nvbd(
     Returns:
         Path to the created file or None if failed
     """
-    # Validate input
-    if not validate_heightmap(height_map):
-        logger.error("Invalid height map: empty, None, or too small")
-        return None
-    
     # Check for valid chunk size
     if chunk_size <= 0:
         logger.error("Chunk size must be positive")

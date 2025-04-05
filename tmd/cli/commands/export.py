@@ -4,6 +4,9 @@ from typing import Optional, List
 
 from ..core.ui import console, print_error
 from ...image import MapExporter, get_available_map_types
+from ...model.formats import get_available_formats
+from ...model.factory import ModelExporterFactory
+from ...model.config import ExportConfig
 
 def export_command(
     tmd_file: Path,
@@ -13,7 +16,13 @@ def export_command(
 ) -> bool:
     """Export a TMD file to another format."""
     try:
-        MapExporter.export(tmd_file, output, format, **kwargs)
+        if format in get_available_map_types():
+            MapExporter.export(tmd_file, output, format, **kwargs)
+        elif format in get_available_formats():
+            ModelExporter.export(tmd_file, output, format, **kwargs)
+        else:
+            print_error(f"Unknown export format: {format}")
+            return False
         return True
     except Exception as e:
         print_error(f"Export failed: {e}")

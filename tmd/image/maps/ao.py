@@ -59,26 +59,37 @@ class AOMapGenerator(MapGenerator):
             x_samples = np.cos(theta)
             y_samples = np.sin(theta)
             
+            # Create meshgrid with correct shape once
+            y_coords, x_coords = np.mgrid[:rows, :cols]
+            
             # For each direction, calculate occlusion
             for i in range(samples):
                 # Sample direction
                 dx, dy = x_samples[i], y_samples[i]
                 
-                # Calculate sample offsets for meshgrid (ensure proper transposition)
+                # Calculate sample offsets
                 x_offset = int(dx * radius)
                 y_offset = int(dy * radius)
                 
-                # Create coordinate matrices for proper indexing
-                y_coords, x_coords = np.mgrid[:rows, :cols]
-                
-                # Shifted coordinates
+                # Shifted coordinates - ensure the arrays have the right shape
                 x_shifted = np.clip(x_coords + x_offset, 0, cols-1)
                 y_shifted = np.clip(y_coords + y_offset, 0, rows-1)
                 
-                # Get height at shifted positions (use advanced indexing)
-                sampled_heights = height_map_norm[y_shifted, x_shifted]
+                # Get height at shifted positions, ensuring matching shapes
+                try:
+                    sampled_heights = np.zeros_like(height_map_norm)
+                    for y in range(rows):
+                        for x in range(cols):
+                            y_idx = y_shifted[y, x]
+                            x_idx = x_shifted[y, x]
+                            sampled_heights[y, x] = height_map_norm[y_idx, x_idx]
+                except (MemoryError, ValueError):
+                    # Fallback for large arrays: use vectorized operation with safe reshaping
+                    indices = np.ravel_multi_index((y_shifted.flatten(), x_shifted.flatten()), 
+                                                  dims=height_map_norm.shape)
+                    sampled_heights = height_map_norm.flatten()[indices].reshape(height_map_norm.shape)
                 
-                # Calculate occlusion factor
+                # Calculate occlusion factor with correct shape matching
                 height_diff = sampled_heights - height_map_norm
                 occlusion = np.maximum(0, height_diff) * strength
                 

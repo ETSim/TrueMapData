@@ -14,6 +14,7 @@ from typing import List, Tuple, Dict, Any, Optional, Callable, Union
 # Set up logging
 logger = logging.getLogger(__name__)
 
+
 class BaseTriangulator(ABC):
     """Abstract base class for heightmap triangulation algorithms."""
     

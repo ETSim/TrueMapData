@@ -18,6 +18,7 @@ from tmd.cli.apps.cache_app import create_cache_app
 from tmd.cli.apps.export_maps_app import create_export_maps_app
 from tmd.cli.apps.info_app import info_command, version_command, check_command
 from tmd.cli.apps.export_mesh_app import create_export_mesh_app
+from tmd.cli.apps.terrain_app import create_terrain_app
 
 # Create main app
 app = typer.Typer(
@@ -42,6 +43,10 @@ app.add_typer(maps_app, name="maps", help="Export TMD files to various map forma
 # Add mesh exporter
 mesh_app = create_export_mesh_app()
 app.add_typer(mesh_app, name="mesh", help="Export TMD files to 3D model formats (STL, OBJ, etc.)")
+
+# Add terrain generator
+terrain_app = create_terrain_app()
+app.add_typer(terrain_app, name="terrain", help="Generate synthetic terrain and textures")
 
 @app.callback()
 def callback():

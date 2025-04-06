@@ -38,23 +38,32 @@ class NormalMapGenerator(MapGenerator):
         metadata = kwargs.get('metadata', {})
         
         # Normalize height map - important for consistent results
-        height_map_norm = self._prepare_height_map(height_map, normalize=True)
+        height_map_norm = self._prepare_height_map(height_map, normalize=params.get('normalize', True))
         
         try:
             # Get dimensions
             rows, cols = height_map_norm.shape
+            logger.error(f"Height map shape: {height_map_norm.shape}")
             
             # Create normal map
             normal_map = np.zeros((rows, cols, 3), dtype=np.float32)
-            
-            # Calculate proper scaling based on physical dimensions
-            # Try to use the most accurate physical dimension available
-            scaling_applied = False
-            
-            # 1. Try millimeters per pixel (mmpp) if available - most accurate
+        
+                
+            # 1. Try physical dimensions next
+            if 'x_length' in metadata and 'y_length' in metadata:
+                x_length = float(metadata['x_length'])
+                y_length = float(metadata['y_length'])
+                logger.error(f"Using physical dimensions from metadata: x_length={x_length}, y_length={y_length}")
+                dy = x_length / cols if cols > 0 else 1.0
+                dx = y_length / rows if rows > 0 else 1.0
+                logger.debug(f"Using physical dimensions: x_length={x_length}, y_length={y_length}")
+                scaling_applied = True
+
+            # # 2. Try millimeters per pixel (mmpp) if available - most accurate
             if 'mmpp' in metadata:
                 mmpp = float(metadata['mmpp'])
                 dx = dy = mmpp
+                logger.error(f"Using mmpp from metadata: {mmpp} mm/pixel")
                 
                 # Apply magnification adjustment if available
                 if 'magnification' in metadata:
@@ -66,16 +75,7 @@ class NormalMapGenerator(MapGenerator):
                 logger.debug(f"Using mmpp from metadata: {mmpp} mm/pixel")
                 scaling_applied = True
                 
-            # 2. Try physical dimensions next
-            elif 'x_length' in metadata and 'y_length' in metadata:
-                x_length = float(metadata['x_length'])
-                y_length = float(metadata['y_length'])
-                dx = x_length / cols if cols > 0 else 1.0
-                dy = y_length / rows if rows > 0 else 1.0
-                logger.debug(f"Using physical dimensions: x_length={x_length}, y_length={y_length}")
-                scaling_applied = True
-                
-            # 3. Fall back to aspect ratio if no physical dimensions
+            # # # 3. Fall back to aspect ratio if no physical dimensions
             if not scaling_applied:
                 aspect_ratio = cols / rows if rows > 0 else 1.0
                 dx = 1.0

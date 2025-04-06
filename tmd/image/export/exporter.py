@@ -13,6 +13,7 @@ import numpy as np
 from ..core.image_utils import save_image, get_output_filepath
 from ..core.exceptions import MapGeneratorNotFoundError
 from .registry import MapRegistry
+from ...cli.core.ui import console  # Add UI import
 
 logger = logging.getLogger(__name__)
 
@@ -61,24 +62,34 @@ class MapExporter:
             # Generate the map
             map_data = generator.generate(height_map, **kwargs)
             
-            # Extract export-specific parameters
+            # Get compression and format settings, then remove from kwargs
+            compress = kwargs.pop('compress', 75)  # Use pop to avoid duplicates
+            format = kwargs.pop('format', 'png')   # Use pop to avoid duplicates
             bit_depth = kwargs.pop('bit_depth', 8)
             colormap = kwargs.pop('colormap', None)
             
-            # Save the map
+            # Save the map with compression
             saved_path = save_image(
                 map_data,
                 output_file,
                 bit_depth=bit_depth,
                 colormap=colormap,
                 normalize=False,  # Already normalized by generator
+                compress=compress,
+                format=format,
                 **kwargs
             )
+            
+            if saved_path:
+                # Get file size and format
+                size_kb = os.path.getsize(saved_path) / 1024
+                console.print(f"[green]Saved {map_type} map ({size_kb:.1f} KB) with {compress}% compression[/]")
             
             return saved_path
             
         except Exception as e:
             logger.error(f"Failed to export {map_type} map: {e}")
+            console.print(f"[red]Error exporting {map_type} map: {e}[/]")
             import traceback
             traceback.print_exc()
             return None

@@ -191,30 +191,38 @@ class MatplotlibHeightMapPlotter(BasePlotter):
         x = np.arange(cols)
         y = np.arange(rows)
         x, y = np.meshgrid(x, y)
-        z = height_map * z_scale
         
         # Filter out parameters that should not be passed to plot_surface
         excluded_params = [
             "figsize", "colorbar_label", "title", "cmap", "z_scale", 
             "mode", "colormap", "profile_row", "partial_range", "interpolation",
             "show_markers", "marker_spacing", "marker_style", "show_grid", 
-            "clean_display", "x_label", "y_label"
+            "clean_display", "x_label", "y_label", "show_axes", "transparent"  # Added 'transparent'
         ]
         
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in excluded_params}
         
         # Create surface plot with filtered kwargs
         surf = ax.plot_surface(
-            x, y, z, cmap=cmap, linewidth=0, antialiased=True, **filtered_kwargs
+            x, y, height_map * z_scale,
+            cmap=cmap,
+            linewidth=0,
+            antialiased=True,
+            **filtered_kwargs
         )
         
         # Add colorbar and labels
         cbar = fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)
         cbar.set_label(colorbar_label)
         ax.set_title(title)
-        ax.set_xlabel("X Position (pixels)")
-        ax.set_ylabel("Y Position (pixels)")
-        ax.set_zlabel(colorbar_label)
+        
+        # Handle show_axes parameter separately
+        if not kwargs.get("show_axes", True):
+            ax.set_axis_off()
+        else:
+            ax.set_xlabel("X Position (pixels)")
+            ax.set_ylabel("Y Position (pixels)")
+            ax.set_zlabel(colorbar_label)
         
         return fig, ax
     

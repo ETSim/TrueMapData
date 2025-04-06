@@ -566,7 +566,7 @@ class TMDUtils:
     def write_tmd_file(
         height_map: np.ndarray,
         output_path: Union[str, Path],
-        comment: str = "Created by TrueMap v6",
+        comment: str = "Created by TrueMap v6\n",
         x_length: float = 10.0,
         y_length: float = 10.0,
         x_offset: float = 0.0,
@@ -673,7 +673,7 @@ class TMDUtils:
             debug: Whether to print debug information.
         """
         # Write the standard header
-        header = "Binary TrueMap Data File v2.0\n"
+        header = "Binary TrueMap Data File v2.0\n\r"
         header_comment = comment if comment else "Created by TrueMap v6\n"
 
         # Ensure header_comment ends with newline

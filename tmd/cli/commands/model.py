@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""
-Model generation commands for TMD CLI.
-
-This module provides functions for creating 3D models from TMD files
-using different triangulation methods and mesh generation algorithms.
-"""
+"""Model generation commands for TMD CLI."""
 
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Union
 from enum import Enum
 import typer
+import logging
+import psutil
 
 # Import CLI utilities
 from tmd.cli.core import (
@@ -21,6 +18,9 @@ from tmd.cli.core import (
     save_config,
     load_tmd_file
 )
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Add enum definitions
 class MeshMethod(str, Enum):
@@ -47,35 +47,47 @@ def generate_model_command(
     invert_base: bool = False,
     progress_callback: Optional[Callable[[float], None]] = None
 ) -> bool:
-    """
-    Generate a 3D model from a TMD file.
-    
-    Args:
-        tmd_file: Path to TMD file
-        output_file: Path to output file (STL, OBJ, or PLY)
-        z_scale: Scaling factor for height values
-        base_height: Height of solid base below the model
-        max_triangles: Maximum number of triangles
-        error_threshold: Error threshold for adaptive subdivision
-        coordinate_system: Coordinate system orientation
-        origin_at_zero: Place origin at center of model
-        invert_base: Invert base to create mold/negative
-        progress_callback: Optional callback function for progress updates
-        
-    Returns:
-        True if successful, False otherwise
-    """
+    """Generate a 3D model from a TMD file."""
     try:
-        # Load TMD file
-        data = load_tmd_file(tmd_file, with_console_status=True)
-        if not data:
-            print_error(f"Failed to load TMD file: {tmd_file}")
+        # Validate input file
+        if not tmd_file.exists():
+            print_error(f"Input file does not exist: {tmd_file}")
             return False
-        
-        # Get height map
-        height_map = data.height_map()
-        
-        # Determine output filename if not specified
+
+        # Check available memory
+        try:
+            file_size = tmd_file.stat().st_size
+            available_memory = psutil.virtual_memory().available
+            required_memory = file_size * 4  # Rough estimate
+            
+            if required_memory > available_memory:
+                print_error(f"Not enough memory available. Need {required_memory/(1024**3):.1f}GB but only {available_memory/(1024**3):.1f}GB available")
+                return False
+        except Exception as e:
+            logger.warning(f"Could not check memory requirements: {e}")
+
+        # Load TMD file with progress reporting
+        with console.status(f"Loading {tmd_file.name}..."):
+            try:
+                data = load_tmd_file(tmd_file)
+                if not data or not hasattr(data, 'height_map') or data.height_map is None:
+                    raise RuntimeError("Invalid or missing height map data")
+                
+                height_map = data.height_map
+                shape = height_map.shape
+                
+                # Validate dimensions
+                if len(shape) != 2:
+                    raise ValueError(f"Expected 2D height map, got {len(shape)}D")
+                if any(dim > 10000 for dim in shape):
+                    raise ValueError(f"Height map too large: {shape}")
+                    
+                logger.info(f"Loaded heightmap with shape {shape}")
+                
+            except Exception as e:
+                raise RuntimeError(f"Failed to load TMD file: {e}")
+
+        # Create output filename if not specified
         if output_file is None:
             # Load config for default format
             config = load_config()
@@ -86,12 +98,11 @@ def generate_model_command(
             from tmd.cli.core.io import create_output_dir
             output_dir = create_output_dir(subdir="models")
             output_file = output_dir / f"{tmd_file.stem}.{output_format}"
-        
-        # Import model generation functionality
+
+        # Import and run model generation
         from tmd.model.adaptive_mesh import convert_heightmap_to_adaptive_mesh
         
-        # Generate the mesh
-        with console.status(f"Generating 3D model from {tmd_file.name}..."):
+        with console.status(f"Generating 3D model..."):
             result = convert_heightmap_to_adaptive_mesh(
                 height_map=height_map,
                 output_file=str(output_file),
@@ -104,24 +115,22 @@ def generate_model_command(
                 origin_at_zero=origin_at_zero,
                 invert_base=invert_base
             )
-            
-            if result is None:
-                print_error(f"Failed to generate 3D model")
-                return False
-            
-            vertices, faces = result
-            
-            print_success(f"Generated 3D model with {len(vertices)} vertices and {len(faces)} triangles")
-            print_success(f"Model saved to {output_file}")
-            
-            return True
-            
-    except ImportError:
-        print_error("3D model generation functionality not available")
-        print_warning("Make sure SciPy, NumPy, and OpenCV are installed")
+
+        if result is None:
+            raise RuntimeError("Model generation failed")
+
+        vertices, faces = result
+        print_success(f"Generated mesh with {len(vertices)} vertices and {len(faces)} triangles")
+        print_success(f"Model saved to {output_file}")
+        return True
+
+    except ImportError as e:
+        print_error(f"Missing dependencies: {e}")
+        print_warning("Make sure SciPy, NumPy and OpenCV are installed")
         return False
         
     except Exception as e:
+        logger.error(f"Model generation failed: {e}", exc_info=True)
         print_error(f"Error generating 3D model: {e}")
         return False
 
@@ -332,35 +341,41 @@ def export_command(
     optimize: bool = typer.Option(True, help="Optimize mesh after generation")
 ) -> None:
     """Export a TMD file to a 3D model format."""
-    # Get quality preset parameters
-    quality_params = get_quality_params(quality)
+    try:
+        # Get quality parameters
+        quality_params = get_quality_params(quality)
+        
+        # Override with command line parameters if provided
+        if error_threshold is not None:
+            quality_params['error_threshold'] = error_threshold
+        if max_triangles is not None:
+            quality_params['max_triangles'] = max_triangles
     
-    # Override with command line parameters if provided
-    if error_threshold is not None:
-        quality_params['error_threshold'] = error_threshold
-    if max_triangles is not None:
-        quality_params['max_triangles'] = max_triangles
+        # Determine output filename
+        if not output_file:
+            output_file = tmd_file.with_suffix(f".{format.lower()}")
     
-    # Determine output filename
-    if not output_file:
-        output_file = tmd_file.with_suffix(f".{format.lower()}")
+        # Export the model
+        success = export_model(
+            input_file=tmd_file,
+            output_file=output_file,
+            format=format,
+            method=method,
+            scale=scale,
+            base_height=base_height,
+            binary=binary,
+            coordinate_system=coordinate_system,
+            optimize=optimize,
+            save_heightmap=save_heightmap,  # Add this parameter
+            colormap=colormap,  # Add this parameter
+            **quality_params
+        )
     
-    # Export the model
-    success = export_model(
-        input_file=tmd_file,
-        output_file=output_file,
-        format=format,
-        method=method,
-        scale=scale,
-        base_height=base_height,
-        binary=binary,
-        coordinate_system=coordinate_system,
-        optimize=optimize,
-        save_heightmap=save_heightmap,  # Add this parameter
-        colormap=colormap,  # Add this parameter
-        **quality_params
-    )
-    
-    if not success:
+        if not success:
+            raise typer.Exit(code=1)
+
+    except Exception as e:
+        logger.error(f"Export failed: {e}", exc_info=True)
+        print_error(f"Export failed: {e}")
         raise typer.Exit(code=1)
 

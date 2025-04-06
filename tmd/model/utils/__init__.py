@@ -1,11 +1,12 @@
-"""
-Utility functions for the TMD model exporters.
+"""Model utility functions."""
 
-This package provides utility functions for mesh generation, heightmap processing,
-and validation used by the model exporters.
-"""
+from typing import Optional, List, Tuple, Dict, Any
+import numpy as np
+import logging
 
-# Import common utilities from submodules for easier access
+# Set up module logger
+logger = logging.getLogger(__name__)
+
 from .mesh import (
     create_mesh_from_heightmap,
     calculate_vertex_normals,
@@ -15,16 +16,24 @@ from .mesh import (
     ensure_watertight_mesh
 )
 
-from .validation import validate_heightmap, ensure_directory_exists
-
 from .heightmap import (
+    validate_heightmap,
     normalize_heightmap,
-    calculate_heightmap_normals,
-    calculate_terrain_complexity,
+    get_heightmap_stats,
     sample_heightmap,
-    resample_heightmap,
-    generate_heightmap_texture
+    resize_heightmap,
+    smooth_heightmap
 )
+
+def ensure_directory_exists(filepath: str) -> bool:
+    """Ensure directory exists for given filepath."""
+    import os
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create directory for {filepath}: {e}")
+        return False
 
 # Define package exports
 __all__ = [
@@ -40,9 +49,8 @@ __all__ = [
     
     # Heightmap utilities
     'normalize_heightmap',
-    'calculate_heightmap_normals',
-    'calculate_terrain_complexity',
+    'get_heightmap_stats',
     'sample_heightmap',
-    'resample_heightmap',
-    'generate_heightmap_texture'
+    'resize_heightmap',
+    'smooth_heightmap'
 ]

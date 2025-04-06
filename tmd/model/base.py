@@ -1,9 +1,4 @@
-"""
-Base classes for model exporters.
-
-This module defines the abstract base classes for model exporters, mesh data,
-and common utility functions for creating meshes from heightmaps.
-"""
+"""Base classes for model exporters."""
 
 import os
 import numpy as np
@@ -252,19 +247,16 @@ class ModelExporter(ABC):
     @classmethod
     def create_mesh_from_heightmap(cls, height_map: np.ndarray, config: ExportConfig) -> MeshData:
         """Create a mesh from a heightmap using the provided configuration."""
+        # Convert heightmap to 16-bit grayscale
+        from .utils.heightmap_processor import HeightmapProcessor
+        height_map = HeightmapProcessor.to_16bit_grayscale(height_map)
+        
         # Set dimensions based on heightmap if not provided
         rows, cols = height_map.shape
         if config.x_length is None:
             config.x_length = float(cols)
         if config.y_length is None:
             config.y_length = float(rows)
-
-        # Normalize height values to [0,1] range before scaling
-        height_range = np.ptp(height_map)
-        if height_range > 0:
-            normalized_height = (height_map - np.min(height_map)) / height_range
-        else:
-            normalized_height = height_map
 
         # Scale parameters - adjust z_scale relative to x/y dimensions
         z_scale = config.z_scale * min(config.x_length, config.y_length) / max(rows, cols)
@@ -275,10 +267,10 @@ class ModelExporter(ABC):
         if config.triangulation_method == 'quadtree':
             from .triangulation.quadtree import triangulate_heightmap_quadtree
             vertices, faces, stats = triangulate_heightmap_quadtree(
-                height_map=normalized_height,  # Use normalized heights
+                height_map=height_map,
                 max_triangles=config.max_triangles or 50000,
                 error_threshold=config.error_threshold,
-                z_scale=z_scale,  # Pass adjusted z_scale
+                z_scale=z_scale,
                 max_subdivisions=config.extra.get('max_subdivisions', 8),
                 detail_boost=config.extra.get('detail_boost', 1.0),
                 progress_callback=config.progress_callback
@@ -286,10 +278,10 @@ class ModelExporter(ABC):
         else:
             from .triangulation.adaptive import triangulate_heightmap
             vertices, faces, stats = triangulate_heightmap(
-                height_map=normalized_height,  # Use normalized heights
+                height_map=height_map,
                 max_triangles=config.max_triangles,
                 error_threshold=config.error_threshold,
-                z_scale=z_scale,  # Pass adjusted z_scale
+                z_scale=z_scale,
                 detail_boost=config.extra.get('detail_boost', 1.0),
                 progress_callback=config.progress_callback
             )
@@ -314,6 +306,40 @@ class ModelExporter(ABC):
         mesh.ensure_uvs()
         
         return mesh
+
+    @staticmethod
+    def _prepare_heightmap_for_triangulation(height_map: np.ndarray) -> np.ndarray:
+        """
+        Prepare heightmap for triangulation by converting to 16-bit grayscale.
+        
+        Args:
+            height_map: Input heightmap array
+            
+        Returns:
+            16-bit normalized heightmap
+        """
+        # Ensure floating point for calculations
+        height_map = height_map.astype(np.float32)
+        
+        # Normalize to [0, 1] range
+        min_val = np.min(height_map)
+        max_val = np.max(height_map)
+        height_range = max_val - min_val
+        
+        if height_range > 0:
+            height_map = (height_map - min_val) / height_range
+        else:
+            height_map = np.zeros_like(height_map)
+        
+        # Convert to 16-bit integer range [0, 65535]
+        height_map = (height_map * 65535).astype(np.uint16)
+        
+        # Convert back to float32 but preserve 16-bit precision
+        height_map = height_map.astype(np.float32) / 65535.0
+        
+        logger.debug(f"Prepared heightmap: shape={height_map.shape}, dtype={height_map.dtype}, range=[{height_map.min():.3f}, {height_map.max():.3f}]")
+        
+        return height_map
 
 
 def export_heightmap_to_model(

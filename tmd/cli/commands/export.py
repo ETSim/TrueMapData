@@ -2,6 +2,8 @@
 from pathlib import Path
 from typing import Optional, List
 
+from tmd.model.base import ModelExporter
+
 from ..core.ui import console, print_error
 from ...image import MapExporter, get_available_map_types
 from ...model.formats import get_available_formats
@@ -40,8 +42,9 @@ def export_maps_command(
             types = get_available_map_types()
             
         for map_type in types:
-            output = output_dir / f"{tmd_file.stem}_{map_type}.png" if output_dir else None
-            MapExporter.export_map(tmd_file, output, map_type, **kwargs)
+            # Convert Path to string before using
+            output = str(output_dir / f"{tmd_file.stem}_{map_type}.png") if output_dir else None
+            MapExporter.export_map(str(tmd_file), output, map_type, **kwargs)
         return True
     except Exception as e:
         print_error(f"Map export failed: {e}")

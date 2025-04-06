@@ -26,23 +26,51 @@ class BaseTriangulator(ABC):
         error_threshold: float = 0.001,
         progress_callback: Optional[Callable[[float], None]] = None
     ):
-        """
-        Initialize the base triangulator.
+        """Initialize the base triangulator."""
+        # Convert heightmap to 16-bit grayscale
+        from ..utils.heightmap_processor import HeightmapProcessor
+        self.height_map = HeightmapProcessor.to_16bit_grayscale(height_map)
         
-        Args:
-            height_map: 2D array of height values
-            z_scale: Scaling factor for height values
-            max_triangles: Maximum number of triangles to generate
-            error_threshold: Error threshold for subdivision or simplification
-            progress_callback: Optional callback function for progress reporting
-        """
-        self.height_map = height_map
+        # Log heightmap analysis
+        analysis = HeightmapProcessor.analyze_heightmap(self.height_map)
+        logger.info(f"Heightmap analysis: {analysis}")
+        
+        # Ensure heightmap is in correct format
+        self.height_map = self._validate_and_convert_heightmap(height_map)
         self.z_scale = z_scale
         self.max_triangles = max_triangles
         self.error_threshold = error_threshold
         self.progress_callback = progress_callback
         self.stats = self._init_stats()
         self.start_time = time.time()
+    
+    def _validate_and_convert_heightmap(self, height_map: np.ndarray) -> np.ndarray:
+        """
+        Validate and ensure heightmap is in correct format for triangulation.
+        
+        Args:
+            height_map: Input heightmap array
+            
+        Returns:
+            Validated and converted heightmap
+        """
+        if height_map.dtype == np.uint16:
+            # Already in 16-bit format, just normalize to float32 [0,1]
+            return height_map.astype(np.float32) / 65535.0
+            
+        # Convert to 16-bit precision while maintaining [0,1] range
+        height_map = height_map.astype(np.float32)
+        min_val = np.min(height_map)
+        max_val = np.max(height_map)
+        height_range = max_val - min_val
+        
+        if height_range > 0:
+            height_map = (height_map - min_val) / height_range
+            
+        # Convert through 16-bit to ensure consistent precision
+        height_map = (height_map * 65535).astype(np.uint16).astype(np.float32) / 65535.0
+        
+        return height_map
     
     def _init_stats(self) -> Dict[str, Any]:
         """Initialize statistics dictionary."""

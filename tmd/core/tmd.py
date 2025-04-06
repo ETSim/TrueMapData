@@ -523,6 +523,19 @@ class TMD:
         # Default plotting strategy
         self._default_plotter_strategy = "matplotlib"
         
+        try:
+            # Validate height map dimensions
+            if isinstance(height_map_or_path, np.ndarray):
+                if any(dim > 100000 for dim in height_map_or_path.shape):
+                    raise ValueError(f"Height map dimensions too large: {height_map_or_path.shape}")
+                    
+                required_memory = np.prod(height_map_or_path.shape) * 4  # 4 bytes per float32
+                if required_memory > 8 * 1024 * 1024 * 1024:  # 8 GB limit
+                    raise ValueError("Height map would require too much memory")
+        except Exception as e:
+            logger.error(f"Height map validation failed: {e}")
+            raise
+
     def _load_from_file(self, filepath):
         """Load TMD data from a file."""
         processor = TMDProcessor(filepath)
@@ -602,9 +615,28 @@ class TMD:
             FileNotFoundError: If the file doesn't exist
             TMDProcessingError: If file processing fails
         """
-        processor = TMDProcessor(filepath)
-        result = processor.process()
-        return cls(result["height_map"], result["metadata"])
+        try:
+            processor = TMDProcessor(filepath)
+            result = processor.process()
+            
+            # Validate height map
+            if result["height_map"] is None or result["height_map"].size == 0:
+                raise ValueError("Invalid height map data")
+                
+            # Check dimensions
+            if any(dim > 100000 for dim in result["height_map"].shape):
+                raise ValueError(f"Height map dimensions too large: {result['height_map'].shape}")
+                
+            # Check memory requirements
+            required_memory = np.prod(result["height_map"].shape) * 4
+            if required_memory > 8 * 1024 * 1024 * 1024:
+                raise ValueError("Height map would require too much memory")
+                
+            return cls(result["height_map"], result["metadata"])
+            
+        except Exception as e:
+            logger.error(f"Failed to load TMD file: {e}")
+            raise
     
     def save(self, filepath: Union[str, Path], version: int = 2) -> str:
         """

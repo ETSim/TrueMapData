@@ -7,6 +7,7 @@ saving, normalization, resizing, and NaN handling.
 import os
 import logging
 from typing import Optional, Union, Tuple
+from pathlib import Path
 
 import numpy as np
 
@@ -105,53 +106,44 @@ def handle_nan_values(
         
     return result
 
-def prepare_height_map(
-    height_map: np.ndarray,
-    nan_strategy: str = 'mean',
-    normalize: bool = True,
-    min_height: float = 0.0,
-    max_height: float = 1.0,
-    blur_radius: int = 0,
-    **kwargs
-) -> np.ndarray:
-    """
-    Prepare a height map for processing by handling NaNs, normalizing, etc.
-    
-    Args:
-        height_map: Input height map
-        nan_strategy: Strategy for handling NaNs ('zero', 'mean', 'nearest')
-        normalize: Whether to normalize the map
-        min_height: Minimum value after normalization
-        max_height: Maximum value after normalization
-        blur_radius: Radius for Gaussian blur (0 for no blur)
-        **kwargs: Additional parameters (ignored)
+def prepare_height_map(height_map: Union[np.ndarray, str, Path], **kwargs) -> np.ndarray:
+    """Prepare height map data for processing."""
+    try:
+        # Convert Path or string to array if needed
+        if isinstance(height_map, (str, Path)):
+            from ...core import TMD
+            tmd_data = TMD.load(str(height_map))
+            if tmd_data is None or tmd_data.height_map is None:
+                raise ValueError("Invalid TMD file or missing height map data")
+            height_map = tmd_data.height_map
+
+        # Convert to float32 array
+        height_data = np.array(height_map, dtype=np.float32)
         
-    Returns:
-        Processed height map
-    """
-    # Ensure we have a numpy array
-    height_data = np.array(height_map, dtype=np.float32)
-    
-    # Handle NaN values if present
-    if np.any(np.isnan(height_data)):
-        logger.debug(f"Handling NaN values with strategy: {nan_strategy}")
-        height_data = handle_nan_values(height_data, strategy=nan_strategy)
-    
-    # Apply Gaussian blur if requested
-    if blur_radius > 0:
-        try:
-            from scipy.ndimage import gaussian_filter
-            logger.debug(f"Applying Gaussian blur with radius {blur_radius}")
-            height_data = gaussian_filter(height_data, sigma=blur_radius)
-        except ImportError:
-            logger.warning("SciPy not available. Skipping Gaussian blur.")
-    
-    # Normalize height range
-    if normalize:
-        logger.debug(f"Normalizing height map to range [{min_height}, {max_height}]")
-        height_data = normalize_array(height_data, min_val=min_height, max_val=max_height)
-    
-    return height_data
+        # Handle NaN values if present
+        if np.any(np.isnan(height_data)):
+            logger.debug(f"Handling NaN values with strategy: {kwargs.get('nan_strategy', 'mean')}")
+            height_data = handle_nan_values(height_data, strategy=kwargs.get('nan_strategy', 'mean'))
+        
+        # Apply Gaussian blur if requested
+        if kwargs.get('blur_radius', 0) > 0:
+            try:
+                from scipy.ndimage import gaussian_filter
+                logger.debug(f"Applying Gaussian blur with radius {kwargs['blur_radius']}")
+                height_data = gaussian_filter(height_data, sigma=kwargs['blur_radius'])
+            except ImportError:
+                logger.warning("SciPy not available. Skipping Gaussian blur.")
+        
+        # Normalize height range
+        if kwargs.get('normalize', True):
+            logger.debug(f"Normalizing height map to range [{kwargs.get('min_height', 0.0)}, {kwargs.get('max_height', 1.0)}]")
+            height_data = normalize_array(height_data, min_val=kwargs.get('min_height', 0.0), max_val=kwargs.get('max_height', 1.0))
+        
+        return height_data
+
+    except Exception as e:
+        logger.error(f"Error preparing height map: {e}")
+        raise
 
 def save_image(
     image: np.ndarray,
@@ -159,6 +151,9 @@ def save_image(
     bit_depth: int = 8,
     normalize: bool = True,
     colormap: Optional[str] = None,
+    compress: int = 0,
+    format: str = "png",
+    metadata: Optional[dict] = None,
     **kwargs
 ) -> Optional[str]:
     """
@@ -170,6 +165,9 @@ def save_image(
         bit_depth: 8 or 16 bits per pixel
         normalize: Whether to normalize the data before saving
         colormap: Optional colormap name
+        compress: Compression level (0-100)
+        format: Output format (png, jpg, webp)
+        metadata: Optional metadata to include in the image
         **kwargs: Additional parameters
         
     Returns:
@@ -186,7 +184,7 @@ def save_image(
     
     # Try to save using PIL (Pillow)
     try:
-        from PIL import Image
+        from PIL import Image, PngImagePlugin
         
         # Convert array to appropriate format for PIL
         if bit_depth == 16:
@@ -224,8 +222,22 @@ def save_image(
             except (ImportError, ValueError):
                 logger.warning(f"Could not apply colormap '{colormap}', saving as grayscale")
         
-        # Save the image
-        pil_img.save(filepath)
+        # Ensure proper file extension
+        filepath = get_output_filepath(filepath, format)
+        
+        # Handle metadata for PNG
+        if metadata and format.lower() == 'png':
+            # Convert metadata to PNG-compatible format
+            png_info = PngImagePlugin.PngInfo()
+            for key, value in metadata.items():
+                if isinstance(value, (str, int, float, bool)):
+                    png_info.add_text(str(key), str(value))
+            
+            # Save with metadata
+            pil_img.save(filepath, pnginfo=png_info)
+        else:
+            pil_img.save(filepath)
+            
         logger.debug(f"Image saved to {filepath}")
         return filepath
         

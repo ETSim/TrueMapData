@@ -6,7 +6,6 @@ import logging
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 from ..core.mesh import MeshData, MeshOperationError
-from .logging import mesh_logger
 
 # Set up logging
 logger = logging.getLogger(__name__)

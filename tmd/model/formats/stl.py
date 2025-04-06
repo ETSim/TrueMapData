@@ -1,18 +1,18 @@
-"""STL exporter implementation."""
+"""STL exporter module for height maps."""
+
+import os
 import numpy as np
 import struct
 import logging
-from typing import Optional
-import os
+from typing import Optional, List, Tuple, Union
 
 from ..base import ModelExporter, ExportConfig, MeshData
 from ..utils.validation import validate_heightmap, ensure_directory_exists
-from ..utils.heightmap import sample_heightmap, generate_heightmap_texture
+from . import base
+
+from ..base import ModelExporter, ExportConfig, MeshData
 from ..registry import register_exporter
 from ...cli.core.ui import print_error, print_warning
-
-# Set up logging
-logger = logging.getLogger(__name__)
 
 @register_exporter
 class STLExporter(ModelExporter):
@@ -49,7 +49,6 @@ class STLExporter(ModelExporter):
             base_height = config.base_height if hasattr(config, 'base_height') else (np.max(height_map) - np.min(height_map)) * 0.01
             
             # Ensure mesh is watertight and has a base
-            from ..utils.mesh import ensure_watertight_mesh
             vertices, faces = ensure_watertight_mesh(
                 mesh.vertices,
                 mesh.faces,

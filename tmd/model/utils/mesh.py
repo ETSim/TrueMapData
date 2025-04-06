@@ -1,15 +1,12 @@
-"""
-Utility functions for handling 3D meshes.
-
-This module provides common functions for mesh manipulation, validation,
-and optimization used by the various model exporters.
-"""
+"""Mesh manipulation utilities."""
 
 import os
 import time
 import logging
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
+from ..core.mesh import MeshData, MeshOperationError
+from .logging import mesh_logger
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -426,91 +423,54 @@ def _generate_spherical_uvs(vertices: np.ndarray) -> np.ndarray:
     return uvs
 
 
-def optimize_mesh(
-    vertices: np.ndarray, 
-    faces: np.ndarray, 
-    tolerance: float = 1e-10,
-    remove_isolated: bool = True
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Optimize a mesh by merging duplicate vertices and removing degenerate faces.
-    
-    Args:
-        vertices: Array of 3D vertices
-        faces: Array of face indices
-        tolerance: Distance tolerance for merging vertices
-        remove_isolated: Whether to remove isolated vertices not used in any face
+def optimize_mesh(vertices: Union[np.ndarray, List[List[float]]], 
+                 faces: Union[np.ndarray, List[List[int]]],
+                 tolerance: float = 1e-6) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """Optimize a mesh by merging close vertices and removing degenerate faces."""
+    try:
+        # Convert inputs to numpy arrays
+        vertices = np.asarray(vertices, dtype=np.float32)
+        faces = np.asarray(faces, dtype=np.int32)
+
+        # Find unique vertices using a higher precision for merging
+        # Round to fixed number of decimal places instead of using tolerance
+        decimals = int(-np.log10(tolerance))
+        rounded = np.round(vertices, decimals=decimals)
+        unique_verts, index_map = np.unique(rounded, axis=0, return_inverse=True)
+
+        # Remap face indices and filter degenerate faces
+        remapped_faces = index_map[faces]
+        valid_faces = []
         
-    Returns:
-        Tuple of (optimized_vertices, optimized_faces)
-    """
-    # Dictionary to track merged vertices
-    vertex_map = {}
-    unique_vertices = []
-    
-    # Process each vertex
-    for i, vertex in enumerate(vertices):
-        # Convert to tuple for hashability (with rounding to handle floating point precision)
-        v_tuple = tuple(np.round(vertex, decimals=int(-np.log10(tolerance))))
+        for face in remapped_faces:
+            # Check if face has 3 unique vertices
+            if (face[0] != face[1] and face[1] != face[2] and face[2] != face[0]):
+                # Check triangle area
+                v1, v2, v3 = unique_verts[face]
+                edge1 = v2 - v1
+                edge2 = v3 - v1
+                area = np.linalg.norm(np.cross(edge1, edge2)) / 2
+                if area > tolerance:
+                    valid_faces.append(face)
+
+        if not valid_faces:
+            return None
+
+        optimized_faces = np.array(valid_faces, dtype=np.int32)
         
-        # Check if this vertex is already in the map
-        if v_tuple in vertex_map:
-            vertex_map[i] = vertex_map[v_tuple]
-        else:
-            # Check if this vertex is close to an existing one
-            found = False
-            for j, unique in enumerate(unique_vertices):
-                if np.sum((vertex - unique) ** 2) < tolerance:
-                    vertex_map[i] = j
-                    vertex_map[v_tuple] = j
-                    found = True
-                    break
-            
-            if not found:
-                vertex_map[i] = len(unique_vertices)
-                vertex_map[v_tuple] = len(unique_vertices)
-                unique_vertices.append(vertex)
-    
-    # Update face indices
-    optimized_faces = []
-    for face in faces:
-        try:
-            new_face = [vertex_map[idx] for idx in face]
-            
-            # Skip degenerate faces (where vertices are duplicated)
-            if len(set(new_face)) == len(face):
-                optimized_faces.append(new_face)
-        except KeyError:
-            # Skip faces with invalid indices
-            logger.warning("Skipping face with invalid vertex indices")
-            continue
-    
-    # If there are no faces, return empty arrays
-    if not optimized_faces:
-        return np.array(unique_vertices), np.array([], dtype=np.int32).reshape(0, 3)
-    
-    optimized_faces = np.array(optimized_faces)
-    
-    # Remove isolated vertices if requested
-    if remove_isolated:
-        # Find all used vertices
-        used_vertices = set(optimized_faces.flatten())
-        
-        # Create a new vertex array and mapping
-        final_vertices = []
-        remap = {}
-        
-        for i in range(len(unique_vertices)):
-            if i in used_vertices:
-                remap[i] = len(final_vertices)
-                final_vertices.append(unique_vertices[i])
+        # Keep only used vertices
+        used_verts = np.unique(optimized_faces)
+        vert_map = {old: new for new, old in enumerate(used_verts)}
+        optimized_verts = unique_verts[used_verts]
         
         # Update face indices
-        final_faces = [[remap[v] for v in face] for face in optimized_faces]
-        
-        return np.array(final_vertices), np.array(final_faces)
-    
-    return np.array(unique_vertices), optimized_faces
+        final_faces = np.array([[vert_map[v] for v in face] for face in optimized_faces])
+
+        return optimized_verts, final_faces
+
+    except Exception as e:
+        logger.error(f"Mesh optimization failed: {e}")
+        return None
 
 
 def ensure_watertight_mesh(

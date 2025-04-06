@@ -23,60 +23,33 @@ class OBJExporter(ModelExporter):
     """Exporter for OBJ format."""
     
     # Class attributes
-    format_name = "Wavefront OBJ"
+    format_name = "obj"
     file_extensions = ["obj"]
     binary_supported = False
     
     @classmethod
-    def export(cls, 
-               height_map: np.ndarray, 
-               filename: str, 
-               config: ExportConfig) -> Optional[str]:
-        """
-        Export a heightmap to OBJ format.
-        
-        Args:
-            height_map: 2D numpy array of height values
-            filename: Output filename
-            config: Export configuration
-            
-        Returns:
-            Path to the created file if successful, None otherwise
-        """
-        # Validate input
-        if not validate_heightmap(height_map):
-            logger.error("Invalid height map: empty, None, or too small")
-            return None
-
-        # Ensure filename has correct extension
-        filename = cls.ensure_extension(filename)
-            
-        # Ensure output directory exists
-        if not ensure_directory_exists(filename):
-            return None
-
+    def export(cls, height_map: np.ndarray, filename: str, config: ExportConfig) -> Optional[str]:
+        """Export height map as OBJ file."""
         try:
-            # Create mesh from heightmap
+            # Create mesh
             mesh = cls.create_mesh_from_heightmap(height_map, config)
             
-            # Ensure we have normals and UVs
-            mesh.ensure_normals()
-            mesh.ensure_uvs(method=config.extra.get('uv_method', 'planar'))
+            # Always generate UVs for OBJ
+            config.generate_uvs = True
             
-            # Write OBJ file
-            write_obj(
-                mesh=mesh, 
-                filename=filename, 
-                include_materials=config.extra.get('include_materials', True)
-            )
+            # Prepare mesh using common utilities
+            from ..utils.mesh_common import prepare_mesh_for_export
+            processed_mesh = prepare_mesh_for_export(mesh, config.__dict__)
+            if processed_mesh is None:
+                return None
+                
+            # Export processed mesh
+            write_obj(processed_mesh, filename, include_materials=True)
             
-            logger.info(f"Exported OBJ file to {filename}")
             return filename
             
         except Exception as e:
-            logger.error(f"Error exporting to OBJ: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"OBJ export failed: {e}")
             return None
 
 

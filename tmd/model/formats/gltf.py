@@ -27,7 +27,7 @@ class GLTFExporter(ModelExporter):
     """Exporter for glTF (GL Transmission Format)."""
     
     # Class attributes
-    format_name = "GL Transmission Format (glTF)"
+    format_name = "glTF"
     file_extensions = ["gltf", "glb"]
     binary_supported = True
     

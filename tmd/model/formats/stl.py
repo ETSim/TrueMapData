@@ -3,11 +3,13 @@ import numpy as np
 import struct
 import logging
 from typing import Optional
+import os
 
 from ..base import ModelExporter, ExportConfig, MeshData
 from ..utils.validation import validate_heightmap, ensure_directory_exists
-from ..utils.mesh import calculate_face_normals
+from ..utils.heightmap import sample_heightmap, generate_heightmap_texture
 from ..registry import register_exporter
+from ...cli.core.ui import print_error, print_warning
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 @register_exporter
 class STLExporter(ModelExporter):
     """STL format exporter."""
-    format_name = "stl"  # Changed to lowercase for consistent lookup
+    format_name = "stl"
     file_extensions = ["stl"]
     binary_supported = True
     
@@ -23,15 +25,78 @@ class STLExporter(ModelExporter):
     def export(cls, height_map: np.ndarray, filename: str, config: ExportConfig) -> Optional[str]:
         """Export height map as STL file."""
         try:
+            # Validate heightmap
+            if not validate_heightmap(height_map):
+                logger.error("Invalid heightmap data")
+                return None
+            
+            # Ensure config has required parameters
+            required_params = ['x_length', 'y_length', 'z_scale']
+            missing_params = [p for p in required_params if not hasattr(config, p)]
+            if missing_params:
+                logger.error(f"Missing required config parameters: {missing_params}")
+                return None
+                
+            # Ensure output directory exists
+            if not ensure_directory_exists(filename):
+                logger.error(f"Failed to create directory for: {filename}")
+                return None
+
             # Generate mesh from heightmap
             mesh = cls.create_mesh_from_heightmap(height_map, config)
             
+            # Get base height (default to 1% of total height)
+            base_height = config.base_height if hasattr(config, 'base_height') else (np.max(height_map) - np.min(height_map)) * 0.01
+            
+            # Ensure mesh is watertight and has a base
+            from ..utils.mesh import ensure_watertight_mesh
+            vertices, faces = ensure_watertight_mesh(
+                mesh.vertices,
+                mesh.faces,
+                min_base_height=base_height
+            )
+            mesh = MeshData(vertices, faces)
+            
+            # Apply any additional processing
+            if config.optimize:
+                mesh.optimize()
+                
+            # Ensure normals are recalculated after modifications
+            mesh.ensure_normals(force_recalculate=True)
+
             # Export as binary or ASCII STL based on config
             binary = config.binary if config.binary is not None else True
             if binary:
-                write_binary_stl(mesh, filename)
+                write_binary_stl(mesh, filename, config.z_scale)
             else:
-                write_ascii_stl(mesh, filename)
+                write_ascii_stl(mesh, filename, config.z_scale)
+
+            # Save heightmap visualization if requested
+            if config.extra.get('save_heightmap', True):
+                # Create image filename by replacing extension
+                img_filename = os.path.splitext(filename)[0] + '_heightmap.png'
+                
+                # Generate colored heightmap
+                colored_heightmap = generate_heightmap_texture(
+                    height_map,
+                    colormap=config.extra.get('colormap', 'terrain'),
+                    resolution=config.extra.get('texture_resolution', None)
+                )
+                
+                # Save image using PIL
+                try:
+                    from PIL import Image
+                    Image.fromarray(colored_heightmap).save(img_filename)
+                    logger.info(f"Saved heightmap visualization to {img_filename}")
+                except ImportError:
+                    # Fallback to OpenCV
+                    try:
+                        import cv2
+                        # OpenCV uses BGR, so convert from RGB
+                        cv2.imwrite(img_filename, cv2.cvtColor(colored_heightmap, cv2.COLOR_RGB2BGR))
+                        logger.info(f"Saved heightmap visualization to {img_filename}")
+                    except ImportError:
+                        logger.warning("Could not save heightmap visualization - requires PIL or OpenCV")
                 
             logger.info(f"Successfully exported STL file: {filename}")
             return filename
@@ -43,70 +108,85 @@ class STLExporter(ModelExporter):
             return None
 
 
-def write_binary_stl(mesh: MeshData, filename: str) -> None:
-    """
-    Write mesh data to a binary STL file.
-    
-    Args:
-        mesh: MeshData object containing the mesh to export
-        filename: Output filename
-    """
-    # Ensure normals are calculated
-    mesh.ensure_normals()
-    
-    # Calculate face normals for STL
-    face_normals = _calculate_face_normals(mesh)
-    
+def write_binary_stl(mesh: MeshData, filename: str, z_scale: float) -> None:
+    """Write mesh data to a binary STL file."""
     with open(filename, 'wb') as f:
-        # Write STL header (80 bytes)
-        f.write(b'TMD STL Exporter' + b' ' * (80 - 15))
+        # Write header
+        header = b'TMD Mesh Exporter'
+        f.write(header + b' ' * (80 - len(header)))
         
-        # Write number of triangles (4 bytes)
-        f.write(struct.pack('<I', mesh.face_count))
+        # Write triangle count
+        f.write(struct.pack('<I', len(mesh.faces)))
+        
+        # Create scaled vertices array once
+        scaled_vertices = mesh.vertices.copy()
+        # Only scale Z coordinates
+        scaled_vertices[:, 2] *= z_scale
         
         # Write each triangle
-        for i, face in enumerate(mesh.faces):
-            # Normal vector
-            f.write(struct.pack('<fff', *face_normals[i]))
+        for face in mesh.faces:
+            # Get vertex positions for this triangle with proper orientation
+            v1 = scaled_vertices[face[0]]
+            v2 = scaled_vertices[face[1]]  
+            v3 = scaled_vertices[face[2]]
             
-            # Vertices (3 points)
-            for idx in face:
-                f.write(struct.pack('<fff', *mesh.vertices[idx]))
+            # Calculate normal with correct orientation
+            edge1 = v2 - v1
+            edge2 = v3 - v1
+            normal = np.cross(edge1, edge2)
+            length = np.linalg.norm(normal)
+            normal = normal / max(length, 1e-10)  # Safe normalization
             
-            # Attribute byte count (2 bytes, usually zero)
+            # Ensure normal points upward (for heightmaps)
+            if normal[2] < 0:
+                normal *= -1
+                v2, v3 = v3, v2  # Swap vertices to maintain correct winding
+            
+            # Write data
+            f.write(struct.pack('<fff', *normal))
+            f.write(struct.pack('<fff', *v1))
+            f.write(struct.pack('<fff', *v2))
+            f.write(struct.pack('<fff', *v3))
             f.write(struct.pack('<H', 0))
 
 
-def write_ascii_stl(mesh: MeshData, filename: str) -> None:
-    """
-    Write mesh data to an ASCII STL file.
-    
-    Args:
-        mesh: MeshData object containing the mesh to export
-        filename: Output filename
-    """
-    # Ensure normals are calculated
-    mesh.ensure_normals()
-    
-    # Calculate face normals for STL
-    face_normals = _calculate_face_normals(mesh)
-    
+def write_ascii_stl(mesh: MeshData, filename: str, z_scale: float) -> None:
+    """Write mesh data to an ASCII STL file."""
     with open(filename, 'w') as f:
-        f.write("solid TMD_Generated\n")
+        f.write("solid\n")
         
-        for i, face in enumerate(mesh.faces):
-            nx, ny, nz = face_normals[i]
-            f.write(f"  facet normal {nx:.6e} {ny:.6e} {nz:.6e}\n")
+        # Create scaled vertices array
+        scaled_vertices = mesh.vertices.copy()
+        scaled_vertices[:, 2] *= z_scale
+        
+        for face in mesh.faces:
+            # Get vertices with proper orientation
+            v1 = scaled_vertices[face[0]]
+            v2 = scaled_vertices[face[1]]
+            v3 = scaled_vertices[face[2]]
+            
+            # Calculate normal
+            edge1 = v2 - v1
+            edge2 = v3 - v1
+            normal = np.cross(edge1, edge2)
+            length = np.linalg.norm(normal)
+            normal = normal / max(length, 1e-10)  # Safe normalization
+            
+            # Ensure normal points upward
+            if normal[2] < 0:
+                normal *= -1
+                v2, v3 = v3, v2  # Swap vertices to maintain correct winding
+            
+            # Write facet
+            f.write(f"  facet normal {normal[0]:.6e} {normal[1]:.6e} {normal[2]:.6e}\n")
             f.write("    outer loop\n")
-            
-            for idx in face:
-                x, y, z = mesh.vertices[idx]
-                f.write(f"      vertex {x:.6e} {y:.6e} {z:.6e}\n")
-            
+            f.write(f"      vertex {v1[0]:.6e} {v1[1]:.6e} {v1[2]:.6e}\n")
+            f.write(f"      vertex {v2[0]:.6e} {v2[1]:.6e} {v2[2]:.6e}\n")
+            f.write(f"      vertex {v3[0]:.6e} {v3[1]:.6e} {v3[2]:.6e}\n")
             f.write("    endloop\n")
             f.write("  endfacet\n")
         
-        f.write("endsolid TMD_Generated\n")
+        f.write("endsolid\n")
 
 
 def _calculate_face_normals(mesh: MeshData) -> np.ndarray:

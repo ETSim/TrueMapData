@@ -39,38 +39,42 @@ class ExportConfig:
         self.x_scale = kwargs.get('x_scale', 1.0)
         self.y_scale = kwargs.get('y_scale', 1.0)
         
+        # Model dimensions - will be set based on heightmap if not provided
+        self.x_length = kwargs.get('x_length', None)
+        self.y_length = kwargs.get('y_length', None)
+        
         # Apply uniform scale if provided
         if self.scale is not None:
             self.x_scale = self.scale
             self.y_scale = self.scale
             self.z_scale = self.scale
+            if self.x_length is not None:
+                self.x_length *= self.scale
+            if self.y_length is not None:
+                self.y_length *= self.scale
         
-        # Mesh generation parameters
+        # Position parameters
+        self.x_offset = kwargs.get('x_offset', 0.0)
+        self.y_offset = kwargs.get('y_offset', 0.0)
+        self.base_height = kwargs.get('base_height', 0.0)
+        
+        # Triangulation parameters
         self.triangulation_method = str(kwargs.get('method', 'adaptive')).replace('MeshMethod.', '').lower()
         self.error_threshold = kwargs.get('error_threshold', 0.01)
         self.min_quad_size = kwargs.get('min_quad_size', 2)
         self.max_quad_size = kwargs.get('max_quad_size', 32)
-        self.curvature_threshold = kwargs.get('curvature_threshold', 0.1)
         self.max_triangles = kwargs.get('max_triangles', None)
-        self.simplify_ratio = kwargs.get('simplify_ratio', None)
-        self.use_feature_edges = kwargs.get('use_feature_edges', True)
-        self.smoothing = kwargs.get('smoothing', 0.0)
         
-        # Format parameters
+        # Format parameters 
         self.binary = kwargs.get('binary', None)
-        self.texture = kwargs.get('texture', False)
-        self.color_map = kwargs.get('color_map', 'terrain')
-        self.texture_resolution = kwargs.get('texture_resolution', None)
         self.optimize = kwargs.get('optimize', True)
+        self.calculate_normals = kwargs.get('calculate_normals', True)
         
         # Mesh parameters
-        self.calculate_normals = kwargs.get('calculate_normals', True)
         self.coordinate_system = kwargs.get('coordinate_system', 'right-handed')
-        self.normals_inside = kwargs.get('normals_inside', False)
         self.origin_at_zero = kwargs.get('origin_at_zero', True)
-        self.base_height = kwargs.get('base_height', 0.0)
         
-        # Additional parameters
+        # Store any remaining parameters
         self.extra = {k: v for k, v in kwargs.items() if not hasattr(self, k)}
         
     def __repr__(self) -> str:
@@ -139,19 +143,23 @@ class MeshData:
             from .utils.mesh import generate_uv_coordinates
             self.uvs = generate_uv_coordinates(self.vertices, method=method)
     
-    def optimize(self, tolerance: float = 1e-10) -> None:
+    def optimize(self) -> None:
         """
         Optimize the mesh by merging close vertices and removing degenerate faces.
-        
-        Args:
-            tolerance: Distance tolerance for vertex merging
         """
         from .utils.mesh import optimize_mesh
-        self.vertices, self.faces = optimize_mesh(self.vertices, self.faces, tolerance)
-        
-        # Reset derived attributes after optimization
-        self.normals = None
-        self.uvs = None
+        try:
+            result = optimize_mesh(self.vertices, self.faces)
+            if result is not None:
+                self.vertices, self.faces = result
+                # Reset derived attributes after optimization
+                self.normals = None
+                self.uvs = None
+            else:
+                logger.warning("Mesh optimization had no effect")
+        except Exception as e:
+            logger.error(f"Mesh optimization failed: {e}")
+            # Continue without optimization
     
     def as_dict(self) -> Dict[str, Any]:
         """
@@ -242,43 +250,67 @@ class ModelExporter(ABC):
         return filename
     
     @classmethod
-    def create_mesh_from_heightmap(cls, 
-                                  height_map: np.ndarray, 
-                                  config: ExportConfig) -> MeshData:
-        """
-        Create a mesh from a heightmap using the provided configuration.
+    def create_mesh_from_heightmap(cls, height_map: np.ndarray, config: ExportConfig) -> MeshData:
+        """Create a mesh from a heightmap using the provided configuration."""
+        # Set dimensions based on heightmap if not provided
+        rows, cols = height_map.shape
+        if config.x_length is None:
+            config.x_length = float(cols)
+        if config.y_length is None:
+            config.y_length = float(rows)
+
+        # Normalize height values to [0,1] range before scaling
+        height_range = np.ptp(height_map)
+        if height_range > 0:
+            normalized_height = (height_map - np.min(height_map)) / height_range
+        else:
+            normalized_height = height_map
+
+        # Scale parameters - adjust z_scale relative to x/y dimensions
+        z_scale = config.z_scale * min(config.x_length, config.y_length) / max(rows, cols)
+        x_scale = config.x_length / (cols - 1)
+        y_scale = config.y_length / (rows - 1)
         
-        Args:
-            height_map: 2D numpy array of height values
-            config: Export configuration parameters
-            
-        Returns:
-            MeshData object containing the created mesh
-        """
-        # Create the base mesh from the heightmap
-        from .utils.mesh import create_mesh_from_heightmap
-        vertices, faces = create_mesh_from_heightmap(
-            height_map=height_map,
-            x_offset=config.x_offset,
-            y_offset=config.y_offset,
-            x_length=config.x_length,
-            y_length=config.y_length,
-            z_scale=config.z_scale,
-            base_height=config.base_height
-        )
+        # Select triangulation method
+        if config.triangulation_method == 'quadtree':
+            from .triangulation.quadtree import triangulate_heightmap_quadtree
+            vertices, faces, stats = triangulate_heightmap_quadtree(
+                height_map=normalized_height,  # Use normalized heights
+                max_triangles=config.max_triangles or 50000,
+                error_threshold=config.error_threshold,
+                z_scale=z_scale,  # Pass adjusted z_scale
+                max_subdivisions=config.extra.get('max_subdivisions', 8),
+                detail_boost=config.extra.get('detail_boost', 1.0),
+                progress_callback=config.progress_callback
+            )
+        else:
+            from .triangulation.adaptive import triangulate_heightmap
+            vertices, faces, stats = triangulate_heightmap(
+                height_map=normalized_height,  # Use normalized heights
+                max_triangles=config.max_triangles,
+                error_threshold=config.error_threshold,
+                z_scale=z_scale,  # Pass adjusted z_scale
+                detail_boost=config.extra.get('detail_boost', 1.0),
+                progress_callback=config.progress_callback
+            )
+
+        # Convert vertices to numpy array
+        vertices = np.array(vertices, dtype=np.float32)
         
+        # Apply scaling and offset
+        vertices[:, 0] *= x_scale  # Scale X
+        vertices[:, 1] *= y_scale  # Scale Y
+        vertices[:, 0] += config.x_offset
+        vertices[:, 1] += config.y_offset
+
         # Create MeshData object
         mesh = MeshData(vertices, faces)
         
-        # Optimize if requested
+        # Post-processing
         if config.optimize:
             mesh.optimize()
-        
-        # Calculate normals if requested
         if config.calculate_normals:
             mesh.ensure_normals()
-        
-        # Generate UVs
         mesh.ensure_uvs()
         
         return mesh

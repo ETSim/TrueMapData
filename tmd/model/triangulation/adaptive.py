@@ -29,11 +29,11 @@ class AdaptiveTriangulator(BaseTriangulator):
     def __init__(
         self,
         height_map: np.ndarray,
-        max_triangles: int = 100000,
-        error_threshold: float = 0.001,
-        min_area_fraction: float = 0.0001,
+        max_triangles: int = 50000,  # Reduced max triangles
+        error_threshold: float = 0.01,  # Increased error threshold
+        min_area_fraction: float = 0.001,  # Increased min area
         z_scale: float = 1.0,
-        detail_boost: float = 1.0,
+        detail_boost: float = 0.5,  # Reduced detail boost
         progress_callback: Optional[Callable[[float], None]] = None
     ):
         """
@@ -55,6 +55,8 @@ class AdaptiveTriangulator(BaseTriangulator):
             error_threshold=error_threshold,
             progress_callback=progress_callback
         )
+        logger.info(f"Initializing AdaptiveTriangulator with {height_map.shape} heightmap")
+        logger.info(f"Parameters: max_triangles={max_triangles}, error_threshold={error_threshold}, detail_boost={detail_boost}")
         
         self.min_area = min_area_fraction * height_map.shape[0] * height_map.shape[1]
         self.detail_boost = detail_boost
@@ -395,9 +397,11 @@ class AdaptiveTriangulator(BaseTriangulator):
             Tuple of (vertices, triangles) where vertices is a list of [x, y, z] coordinates
             and triangles is a list of [a, b, c] indices.
         """
+        logger.info("Starting adaptive triangulation")
+        
         # Report initial progress
         if self.progress_callback:
-            self.progress_callback(0.0)
+            self.progress_callback(0.05)  # Initialized
             
         # Start with the corners of the heightmap
         rows, cols = self.height_map.shape
@@ -412,6 +416,11 @@ class AdaptiveTriangulator(BaseTriangulator):
         self.indices.append([0, 1, 3])  # Top-left, top-right, bottom-right
         self.indices.append([0, 3, 2])  # Top-left, bottom-right, bottom-left
         
+        if self.progress_callback:
+            self.progress_callback(0.1)  # Initial triangles created
+        
+        logger.debug(f"Initial vertices: {len(self.vertices)}")
+        
         # Refine the mesh
         triangles_to_check = list(range(len(self.indices)))
         total_checks = 0
@@ -425,6 +434,9 @@ class AdaptiveTriangulator(BaseTriangulator):
                 progress = min(0.9, len(self.indices) / self.max_triangles)
                 self.progress_callback(progress)
                 
+            if total_checks % 1000 == 0:
+                logger.debug(f"Processed {total_checks} triangles, current count: {len(self.indices)}")
+            
             # Get next triangle to check
             triangle_idx = triangles_to_check.pop(0)
             
@@ -439,12 +451,17 @@ class AdaptiveTriangulator(BaseTriangulator):
                 new_triangle_indices = self._subdivide_triangle(triangle_idx)
                 triangles_to_check.extend(new_triangle_indices)
         
+        if self.progress_callback:
+            self.progress_callback(0.95)  # Subdivision complete
+        
         # Update statistics
         vertices_list = [[float(v[0]), float(v[1]), float(v[2])] for v in self.vertices]
         indices_list = [[int(i[0]), int(i[1]), int(i[2])] for i in self.indices]
         
         # Finalize statistics
         self.finalize_stats(vertices_list, indices_list)
+        
+        logger.info(f"Triangulation complete: {len(self.indices)} triangles from {len(self.vertices)} vertices")
         
         # Final progress report
         if self.progress_callback:

@@ -8,6 +8,7 @@ various 3D model exporters (STL, OBJ, PLY, GLTF, USD, etc.) for height map data.
 import logging
 from typing import Dict, Type, Optional
 import numpy as np
+import os
 
 from .base import ModelExporter, ExportConfig
 from .registry import get_exporter, get_available_formats
@@ -34,10 +35,10 @@ class ModelExporterFactory:
         """Export a TMD file to the specified format."""
         try:
             logger.info("Starting export process")
-            logger.info(f"Input file: {input_file}")
-            logger.info(f"Output file: {output_file}")
-            logger.info(f"Format: {format_name}")
-            logger.info(f"Configuration: {vars(config)}")
+            logger.debug(f"Export parameters: format={format_name}, method={config.triangulation_method}")
+            
+            # Normalize format name
+            format_name = format_name.lower().strip()
             
             # Load TMD file using TMD class
             tmd_data = TMD.load(input_file)
@@ -50,28 +51,36 @@ class ModelExporterFactory:
                 logger.error("No height map data found in TMD file")
                 return False
             
-            logger.info(f"Loaded height map: {height_map.shape} - {height_map.dtype}")
-            logger.info(f"Height range: {height_map.min():.3f} to {height_map.max():.3f}")
-            
             # Get appropriate exporter
             exporter_class = get_exporter(format_name)
             if exporter_class is None:
-                logger.error(f"No exporter found for format: {format_name}")
+                available_formats = get_available_formats()
+                logger.error(f"No exporter found for format: {format_name}. Available formats: {', '.join(available_formats)}")
                 return False
+            
+            # Validate triangulation method
+            if config.triangulation_method not in ['adaptive', 'quadtree']:
+                logger.warning(f"Invalid triangulation method: {config.triangulation_method}. Using adaptive.")
+                config.triangulation_method = 'adaptive'
                 
-            logger.info(f"Using exporter: {exporter_class.__name__}")
+            logger.info(f"Using {config.triangulation_method} triangulation method")
             
             # Export the model
             result = exporter_class.export(
                 height_map=height_map,
-                filename=str(output_file),
+                filename=output_file,
                 config=config
             )
             
             if result:
-                logger.info(f"Successfully exported to: {output_file}")
-                return True
-                
+                # Verify the file was actually created
+                if os.path.exists(output_file):
+                    logger.info(f"Successfully exported to: {output_file}")
+                    return True
+                else:
+                    logger.error(f"Export claimed success but file not found: {output_file}")
+                    return False
+            
             logger.error("Export operation failed")
             return False
             

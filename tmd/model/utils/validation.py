@@ -1,24 +1,91 @@
-"""Validation utilities for model generation."""
+"""Validation utilities for TMD model operations."""
 
-import numpy as np
 import os
+import numpy as np
 import logging
-from typing import Tuple, Optional, Any, Dict, List, Union
+from typing import Union, List, Tuple, Optional, Any, Dict
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 
-def validate_heightmap(height_map: np.ndarray) -> bool:
+def validate_vertices(vertices: Union[np.ndarray, List[List[float]]]) -> bool:
     """
-    Validate that input is a valid height map.
+    Validate vertex array or list.
     
     Args:
-        height_map: Array to validate
+        vertices: Array/list of 3D vertices to validate
         
     Returns:
         True if valid, False otherwise
     """
+    if vertices is None:
+        return False
+        
+    try:
+        # Convert to numpy array if needed
+        if not isinstance(vertices, np.ndarray):
+            vertices = np.array(vertices)
+            
+        # Check shape
+        if vertices.ndim != 2 or vertices.shape[1] != 3:
+            return False
+            
+        # Check for valid values
+        if not np.isfinite(vertices).all():
+            return False
+            
+        return True
+        
+    except:
+        return False
+
+
+def validate_faces(faces: Union[np.ndarray, List[List[int]]]) -> bool:
+    """
+    Validate face index array or list.
+    
+    Args:
+        faces: Array/list of triangle indices to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    if faces is None:
+        return False
+        
+    try:
+        # Convert to numpy array if needed
+        if not isinstance(faces, np.ndarray):
+            faces = np.array(faces)
+            
+        # Check shape
+        if faces.ndim != 2 or faces.shape[1] != 3:
+            return False
+            
+        # Check for valid indices
+        if np.any(faces < 0):
+            return False
+            
+        return True
+        
+    except:
+        return False
+
+
+def validate_heightmap(height_map: np.ndarray) -> bool:
+    """
+    Validate a heightmap array.
+    
+    Args:
+        height_map: 2D numpy array to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    if height_map is None:
+        return False
+        
     if not isinstance(height_map, np.ndarray):
         return False
         
@@ -28,23 +95,28 @@ def validate_heightmap(height_map: np.ndarray) -> bool:
     if height_map.size == 0:
         return False
         
+    if height_map.shape[0] < 2 or height_map.shape[1] < 2:
+        return False
+        
     return True
 
 
-def ensure_directory_exists(path: str) -> bool:
+def ensure_directory_exists(filename: str) -> bool:
     """
-    Ensure directory exists, creating if necessary.
+    Ensure the directory for a file exists, creating it if needed.
     
     Args:
-        path: Directory path
+        filename: Path to file
         
     Returns:
-        True if directory exists/created, False on error
+        True if directory exists or was created, False on error
     """
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        directory = os.path.dirname(filename)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         return True
-    except Exception:
+    except:
         return False
 
 
@@ -64,34 +136,31 @@ def validate_mesh(
     """
     issues = []
     
-    # Check for empty mesh
+    # Basic validation
+    if not validate_vertices(vertices):
+        issues.append("Invalid vertex data")
+        
+    if not validate_faces(faces):
+        issues.append("Invalid face data")
+    
+    # Additional checks
     if len(vertices) == 0:
         issues.append("Empty mesh (no vertices)")
-    
+        
     if len(faces) == 0:
         issues.append("Empty mesh (no faces)")
     
-    if not issues:  # Only continue if we have vertices and faces
-        # Check for invalid indices
-        max_index = np.max(faces) if len(faces) > 0 else -1
-        if max_index >= len(vertices):
-            issues.append(f"Invalid vertex indices: max index {max_index} >= vertex count {len(vertices)}")
-        
-        # Check for negative indices
-        if np.min(faces) < 0:
-            issues.append(f"Invalid negative vertex indices found")
-        
-        # Check for degenerate faces (duplicated vertices in a face)
-        for i, face in enumerate(faces):
-            if len(set(face)) != len(face):
-                issues.append(f"Degenerate face at index {i}: {face}")
-        
-        # Check for NaN or infinite values
-        if np.isnan(vertices).any():
-            issues.append("Mesh contains NaN vertex coordinates")
-        
-        if np.isinf(vertices).any():
-            issues.append("Mesh contains infinite vertex coordinates")
+    # Check for non-manifold edges
+    edge_count = {}
+    for face in faces:
+        edges = [(face[0], face[1]), (face[1], face[2]), (face[2], face[0])]
+        for v1, v2 in edges:
+            edge = tuple(sorted([v1, v2]))
+            edge_count[edge] = edge_count.get(edge, 0) + 1
+            
+    for edge, count in edge_count.items():
+        if count > 2:
+            issues.append(f"Non-manifold edge found: {edge}")
     
     return len(issues) == 0, issues
 

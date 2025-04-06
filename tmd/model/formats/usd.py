@@ -26,7 +26,7 @@ class USDExporter(ModelExporter):
     """Exporter for Universal Scene Description (USD) format."""
     
     # Class attributes
-    format_name = "Universal Scene Description (USD)"
+    format_name = "USD"
     file_extensions = ["usd", "usda", "usdc", "usdz"]
     binary_supported = True  # USDC and USDZ are binary formats
     

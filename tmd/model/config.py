@@ -128,16 +128,26 @@ class ExportConfig(ModelConfig):
     texture_resolution: Optional[Tuple[int, int]] = None
     
     # Mesh generation parameters
-    method: str = "adaptive"  # "adaptive" or "quadtree"
-    error_threshold: float = 0.01
-    min_quad_size: int = 2
-    max_quad_size: int = 32
-    curvature_threshold: float = 0.1
-    max_triangles: Optional[int] = None
-    simplify_ratio: Optional[float] = None
+    triangulation_method: str = "quadtree"  # Changed from adaptive to quadtree for better speed
+    method: str = "quadtree"  # Alias for triangulation_method
+    error_threshold: float = 0.05  # Increased from 0.01 for faster processing
+    min_quad_size: int = 4  # Increased from 2 for fewer subdivisions
+    max_quad_size: int = 64  # Increased from 32 for better initial coverage
+    curvature_threshold: float = 0.2  # Increased from 0.1 for fewer subdivisions
+    max_triangles: Optional[int] = 100000  # Added reasonable default
+    simplify_ratio: Optional[float] = 0.25  # Added default simplification
     use_feature_edges: bool = True
     smoothing: float = 0.0
-
+    max_subdivisions: int = 4 # Added default max_subdivisions
+    
+    def __post_init__(self):
+        """Handle parameter aliases and validation."""
+        # Sync method and triangulation_method
+        if hasattr(self, 'method'):
+            self.triangulation_method = str(self.method).replace('MeshMethod.', '').lower()
+            
+        super().__post_init__()
+    
     def validate(self) -> None:
         """
         Validate configuration parameters.
@@ -149,8 +159,8 @@ class ExportConfig(ModelConfig):
         super().validate()
         
         # Additional validation for mesh parameters
-        if self.method not in ['adaptive', 'quadtree']:
-            raise ValueError(f"method must be 'adaptive' or 'quadtree', got '{self.method}'")
+        if self.triangulation_method not in ['adaptive', 'quadtree']:
+            raise ValueError(f"triangulation_method must be 'adaptive' or 'quadtree', got '{self.triangulation_method}'")
             
         if self.error_threshold <= 0:
             raise ValueError(f"error_threshold must be positive, got {self.error_threshold}")
@@ -172,6 +182,9 @@ class ExportConfig(ModelConfig):
             
         if self.smoothing < 0 or self.smoothing > 1:
             raise ValueError(f"smoothing must be between 0 and 1, got {self.smoothing}")
+            
+        if self.max_subdivisions < 1:
+            raise ValueError(f"max_subdivisions must be positive, got {self.max_subdivisions}")
 
 
 class ConfigManager:

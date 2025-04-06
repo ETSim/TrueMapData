@@ -7,6 +7,7 @@ heightmaps, which recursively subdivides regions based on terrain complexity.
 
 import numpy as np
 import logging
+import time
 from typing import List, Tuple, Dict, Any, Optional, Set, Union, Callable
 
 from .base import BaseTriangulator
@@ -116,9 +117,9 @@ class QuadTreeTriangulator(BaseTriangulator):
         height_map: np.ndarray, 
         z_scale: float = 1.0, 
         max_triangles: int = 100000, 
-        error_threshold: float = 0.001,
-        max_subdivisions: int = 10,
-        detail_boost: float = 1.0,
+        error_threshold: float = 0.05,  # Increased default threshold
+        max_subdivisions: int = 4,  # Reduced default max subdivisions
+        detail_boost: float = 0.5,  # Reduced detail boost for faster processing
         preserve_boundaries: bool = True,
         progress_callback: Optional[Callable[[float], None]] = None
     ):
@@ -164,6 +165,8 @@ class QuadTreeTriangulator(BaseTriangulator):
         self.vertex_map = {}  # Maps (x, y) coordinates to vertex indices
         
         logger.debug(f"QuadTreeTriangulator initialized with shape {height_map.shape}")
+        logger.info(f"Initializing QuadTreeTriangulator with {height_map.shape} heightmap")
+        logger.info(f"Parameters: max_subdivisions={max_subdivisions}, error_threshold={error_threshold}")
     
     def calculate_complexity_map(self) -> np.ndarray:
         """
@@ -182,26 +185,32 @@ class QuadTreeTriangulator(BaseTriangulator):
             Tuple of (vertices, triangles) where vertices is a list of [x, y, z] coordinates
             and triangles is a list of [a, b, c] indices.
         """
+        logger.info("Starting quadtree triangulation")
+        
         # Report initial progress
         if self.progress_callback:
-            self.progress_callback(0.0)
+            self.progress_callback(0.05)
         
         # Create the quadtree
         quadtree = self._build_quadtree()
+        logger.debug("Quadtree built successfully")
         
         # Report progress
         if self.progress_callback:
-            self.progress_callback(0.5)
+            self.progress_callback(0.4)
         
         # Extract mesh from quadtree
+        logger.info("Extracting mesh from quadtree")
         self._extract_mesh_from_quadtree(quadtree)
         
         # Report progress
         if self.progress_callback:
-            self.progress_callback(0.9)
+            self.progress_callback(0.8)
         
         # Finalize the mesh
         vertices, triangles = self._finalize_mesh()
+        logger.info(f"Mesh extracted: {len(vertices)} vertices, {len(triangles)} triangles")
+        logger.info(f"Processing time: {time.time() - self.start_time:.2f}s")
         
         # Update statistics
         self.finalize_stats(vertices, triangles)
@@ -219,6 +228,7 @@ class QuadTreeTriangulator(BaseTriangulator):
         Returns:
             Root node of the quadtree
         """
+        logger.info("Starting quadtree construction")
         # Create root node covering the entire heightmap
         root = QuadTreeNode(0, 0, self.target_size, self.target_size, 0)
         
@@ -231,9 +241,11 @@ class QuadTreeTriangulator(BaseTriangulator):
         
         # Process nodes level by level
         for depth in range(self.max_subdivisions + 1):
+            logger.debug(f"Processing depth {depth}")
             # Filter nodes at current depth
             current_nodes = [n for n in queue if n.depth == depth]
             next_nodes = [n for n in queue if n.depth > depth]
+            logger.debug(f"Found {len(current_nodes)} nodes at depth {depth}")
             
             # Adjust error threshold based on depth
             level_threshold = self.error_threshold * (0.8 ** depth)
@@ -255,7 +267,7 @@ class QuadTreeTriangulator(BaseTriangulator):
                     node.width > 1 and node.height > 1 and
                     # Either error is too high or node contains important features
                     (error > level_threshold * (1.0 + complexity * self.detail_boost) or
-                     complexity > 0.7)  # High complexity always subdivides
+                    complexity > 0.7)  # High complexity always subdivides
                 )
                 
                 # Check if subdividing would exceed max_triangles
@@ -287,6 +299,10 @@ class QuadTreeTriangulator(BaseTriangulator):
             if self.progress_callback:
                 progress = min(0.5, depth / (self.max_subdivisions + 1))
                 self.progress_callback(progress)
+            
+            # Subdivision stats for this level
+            subdivided_count = len([n for n in current_nodes if not n.is_leaf])
+            logger.debug(f"Subdivided {subdivided_count} nodes at depth {depth}")
         
         # Add any remaining nodes as leaves
         leaf_nodes.extend(queue)
@@ -474,20 +490,26 @@ class QuadTreeTriangulator(BaseTriangulator):
         return leaves
     
     def _finalize_mesh(self) -> Tuple[List[List[float]], List[List[int]]]:
-        """
-        Finalize the mesh by normalizing coordinates.
+        """Finalize the mesh by normalizing coordinates."""
+        # Calculate scale factors based on original heightmap dimensions
+        x_scale = self.height_map.shape[1] / self.target_size
+        y_scale = self.height_map.shape[0] / self.target_size
         
-        Returns:
-            Tuple of (vertices, triangles) normalized to [0-1] range
-        """
-        # Normalize coordinates to [0-1] range
+        # Scale vertices to match original heightmap dimensions
         normalized_vertices = []
-        for x, y, z in self.vertices:
-            # Normalize x and y to [0-1] range
-            norm_x = x / self.target_size
-            norm_y = y / self.target_size
+        for vertex in self.vertices:
+            x, y, z = vertex
             
-            normalized_vertices.append([norm_x, norm_y, z])
+            # Scale coordinates
+            scaled_x = x * x_scale
+            scaled_y = y * y_scale
+            
+            # Ensure we keep the proper height value
+            x_idx = min(max(0, int(x)), self.resized_heightmap.shape[1] - 1)
+            y_idx = min(max(0, int(y)), self.resized_heightmap.shape[0] - 1)
+            scaled_z = self.resized_heightmap[y_idx, x_idx] * self.z_scale
+            
+            normalized_vertices.append([scaled_x, scaled_y, scaled_z])
         
         # Convert to lists for return
         vertices_list = [[float(v[0]), float(v[1]), float(v[2])] for v in normalized_vertices]

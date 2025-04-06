@@ -29,53 +29,28 @@ class PLYExporter(ModelExporter):
     binary_supported = True
     
     @classmethod
-    def export(cls, 
-               height_map: np.ndarray, 
-               filename: str, 
-               config: ExportConfig) -> Optional[str]:
-        """
-        Export a heightmap to PLY format.
-        
-        Args:
-            height_map: 2D numpy array of height values
-            filename: Output filename
-            config: Export configuration
-            
-        Returns:
-            Path to the created file if successful, None otherwise
-        """
-        # Validate input
-        if not validate_heightmap(height_map):
-            logger.error("Invalid height map: empty, None, or too small")
-            return None
-
-        # Ensure filename has correct extension
-        filename = cls.ensure_extension(filename)
-            
-        # Ensure output directory exists
-        if not ensure_directory_exists(filename):
-            return None
-
+    def export(cls, height_map: np.ndarray, filename: str, config: ExportConfig) -> Optional[str]:
+        """Export height map as PLY file."""
         try:
-            # Create mesh from heightmap
+            # Create mesh
             mesh = cls.create_mesh_from_heightmap(height_map, config)
             
-            # Ensure we have normals if needed
-            mesh.ensure_normals()
-            
-            # Write PLY file based on binary flag
-            binary = config.binary if config.binary is not None else True
-            if binary:
-                write_binary_ply(mesh, filename)
+            # Prepare mesh using common utilities
+            from ..utils.mesh_common import prepare_mesh_for_export
+            processed_mesh = prepare_mesh_for_export(mesh, config.__dict__)
+            if processed_mesh is None:
+                return None
+                
+            # Export processed mesh
+            if config.binary if config.binary is not None else True:
+                write_binary_ply(processed_mesh, filename)
             else:
-                write_ascii_ply(mesh, filename)
-            
+                write_ascii_ply(processed_mesh, filename)
+
             return filename
             
         except Exception as e:
-            logger.error(f"Error exporting to PLY: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"PLY export failed: {e}")
             return None
 
 

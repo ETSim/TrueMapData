@@ -197,7 +197,8 @@ class MatplotlibHeightMapPlotter(BasePlotter):
             "figsize", "colorbar_label", "title", "cmap", "z_scale", 
             "mode", "colormap", "profile_row", "partial_range", "interpolation",
             "show_markers", "marker_spacing", "marker_style", "show_grid", 
-            "clean_display", "x_label", "y_label", "show_axes", "transparent"  # Added 'transparent'
+            "clean_display", "x_label", "y_label", "show_axes", "transparent",
+            "wireframe"  # Add wireframe to excluded params
         ]
         
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in excluded_params}
@@ -216,14 +217,30 @@ class MatplotlibHeightMapPlotter(BasePlotter):
         cbar.set_label(colorbar_label)
         ax.set_title(title)
         
-        # Handle show_axes parameter separately
+        # Handle show_axes parameter
         if not kwargs.get("show_axes", True):
             ax.set_axis_off()
         else:
             ax.set_xlabel("X Position (pixels)")
             ax.set_ylabel("Y Position (pixels)")
             ax.set_zlabel(colorbar_label)
-        
+            
+        # Handle transparency
+        if kwargs.get("transparent", False):
+            fig.patch.set_alpha(0.0)
+            ax.patch.set_alpha(0.0)
+            
+        # Handle wireframe mode
+        if kwargs.get("wireframe", False):
+            # Create wireframe on top of surface
+            surf.set_facecolor((1, 1, 1, 0.3))  # Semi-transparent surface
+            ax.plot_wireframe(
+                x, y, height_map * z_scale,
+                color='black',
+                linewidth=0.5,
+                alpha=0.3
+            )
+            
         return fig, ax
     
     def _plot_2d_heatmap(self, height_map: np.ndarray, fig: Any = None, ax: Any = None,

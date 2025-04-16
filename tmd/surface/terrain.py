@@ -89,36 +89,158 @@ class TMDTerrain:
             # Create a random terrain (uniform distribution)
             Z = np.random.uniform(-1, 1, (height, width))
         elif pattern == "perlin":
-            # noise
+            # Generate sophisticated Perlin noise with large-scale features
             Z = np.zeros((height, width))
-            scale = kwargs.get('scale', 10.0)
-            octaves = kwargs.get('octaves', 4)
-            persistence = kwargs.get('persistence', 0.5)
+            
+            # Adjusted defaults for more interesting terrain
+            scale = kwargs.get('scale', 100.0)  # Larger scale for bigger features
+            octaves = kwargs.get('octaves', 8)  # Fewer octaves for clearer features
+            persistence = kwargs.get('persistence', 0.5)  # Balanced persistence
+            lacunarity = kwargs.get('lacunarity', 2.0)  # Standard lacunarity
+            ridge_factor = kwargs.get('ridge_factor', 1.2)  # For ridge-like features
+            
+            if seed is not None:
+                base = seed
+            else:
+                base = np.random.randint(0, 1000000)
+            
+            try:
+                # Generate base terrain with large features
+                for i in range(height):
+                    for j in range(width):
+                        noise_val = 0
+                        amplitude = 1.0
+                        frequency = 1.0
+                        max_amp = 0
+                        
+                        # First pass: large-scale features
+                        noise_val = snoise2(
+                            i / (scale * 2),
+                            j / (scale * 2),
+                            octaves=3,
+                            persistence=0.7,
+                            lacunarity=1.8,
+                            base=base
+                        )
+                        
+                        # Second pass: medium details
+                        noise_val += 0.5 * snoise2(
+                            i / scale,
+                            j / scale,
+                            octaves=octaves,
+                            persistence=persistence,
+                            lacunarity=lacunarity,
+                            base=base + 1000
+                        )
+                        
+                        # Third pass: fine details (reduced influence)
+                        noise_val += 0.25 * snoise2(
+                            i / (scale * 0.5),
+                            j / (scale * 0.5),
+                            octaves=4,
+                            persistence=0.3,
+                            lacunarity=2.2,
+                            base=base + 2000
+                        )
+                        
+                        Z[i, j] = noise_val
+                
+                # Convert to [0, 1] range
+                Z = (Z + 1) * 0.5
+                
+                # Apply terrain enhancement
+                if kwargs.get('enhance', True):
+                    # Ridge formation
+                    Z = np.abs(Z - 0.5) * 2  # Create ridges
+                    Z = np.power(Z, ridge_factor)  # Enhance ridges
+                    
+                    # Terrain power for more dramatic features
+                    power = kwargs.get('power', 1.2)
+                    Z = np.power(Z, power)
+                    
+                    # Optional plateau effect
+                    if kwargs.get('plateaus', True):
+                        plateau_threshold = kwargs.get('plateau_threshold', 0.7)
+                        Z[Z > plateau_threshold] = plateau_threshold + (Z[Z > plateau_threshold] - plateau_threshold) * 0.3
+                
+                # Apply height scaling and offset
+                Z = Z * wave_height + z_value
+                
+            except Exception as e:
+                logger.error(f"Error generating Perlin noise: {e}")
+                Z = np.zeros((height, width))
+        elif pattern == "fbm":
+            # Generate improved Fractal Brownian Motion terrain
+            Z = np.zeros((height, width))
+            
+            # Get parameters with good defaults for fBm
+            scale = kwargs.get('scale', 150.0)  # Larger scale for bigger features
+            octaves = kwargs.get('octaves', 6)  # Number of octaves
+            base_frequency = kwargs.get('base_frequency', 1.0)
+            persistence = kwargs.get('persistence', 0.65)
             lacunarity = kwargs.get('lacunarity', 2.0)
             
             if seed is not None:
                 base = seed
             else:
                 base = np.random.randint(0, 1000000)
+            
+            try:
+                # Generate fBm using optimized numpy operations
+                for i in range(height):
+                    for j in range(width):
+                        amplitude = 1.0
+                        frequency = base_frequency
+                        noise_value = 0.0
+                        
+                        for o in range(octaves):
+                            noise_value += amplitude * snoise2(
+                                i * frequency / scale,
+                                j * frequency / scale,
+                                octaves=1,
+                                persistence=1.0,
+                                lacunarity=1.0,
+                                base=base + o * 1000
+                            )
+                            
+                            amplitude *= persistence
+                            frequency *= lacunarity
+                            
+                        Z[i, j] = noise_value
                 
-            for i in range(height):
-                for j in range(width):
-                    Z[i, j] = snoise2(
-                        i / scale, 
-                        j / scale, 
-                        octaves=octaves, 
-                        persistence=persistence, 
-                        lacunarity=lacunarity,
-                        base=base
-                    )
-        elif pattern == "fbm":
-            # fractal brownian motion
-            Z = np.zeros((height, width))
-            for i in range(height):
-                for j in range(width):
-                    Z[i, j] = snoise2(i / 10.0, j / 10.0, octaves=4, persistence=0.5, lacunarity=2.0) * (
-                        1 - (i + j) / (height + width)
-                    )
+                # Normalize and enhance
+                Z = (Z + 1) * 0.5  # Convert to [0, 1] range
+                
+                # Apply terrain enhancement if requested
+                if kwargs.get('enhance', True):
+                    # Ridge formation
+                    ridge_weight = kwargs.get('ridge_weight', 0.3)
+                    Z = Z * (1 - ridge_weight) + (np.abs(Z - 0.5) * 2) * ridge_weight
+                    
+                    # Apply power curve for more dramatic features
+                    power = kwargs.get('power', 1.2)
+                    Z = np.power(Z, power)
+                    
+                    # River valley formation
+                    if kwargs.get('river_valleys', True):
+                        valley_threshold = kwargs.get('valley_threshold', 0.3)
+                        valley_depth = kwargs.get('valley_depth', 0.4)
+                        valleys = Z < valley_threshold
+                        Z[valleys] *= valley_depth
+                    
+                    # Mountain peaks
+                    if kwargs.get('mountain_peaks', True):
+                        peak_threshold = kwargs.get('peak_threshold', 0.7)
+                        peak_factor = kwargs.get('peak_factor', 1.5)
+                        peaks = Z > peak_threshold
+                        Z[peaks] = peak_threshold + (Z[peaks] - peak_threshold) * peak_factor
+                
+                # Apply final height scaling and offset
+                Z = Z * wave_height + z_value
+                
+            except Exception as e:
+                logger.error(f"Error generating fBm terrain: {e}")
+                Z = np.zeros((height, width))
         elif pattern == "square":
             # Create a square pattern
             Z = np.zeros((height, width))

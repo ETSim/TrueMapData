@@ -67,6 +67,7 @@ class MapExporter:
             format = kwargs.pop('format', 'png')   # Use pop to avoid duplicates
             bit_depth = kwargs.pop('bit_depth', 8)
             colormap = kwargs.pop('colormap', None)
+            normalize = kwargs.pop('normalize', True)  # Add normalize parameter
             
             # Save the map with compression
             saved_path = save_image(
@@ -74,7 +75,7 @@ class MapExporter:
                 output_file,
                 bit_depth=bit_depth,
                 colormap=colormap,
-                normalize=False,  # Already normalized by generator
+                normalize=normalize,  # Pass normalize parameter
                 compress=compress,
                 format=format,
                 **kwargs

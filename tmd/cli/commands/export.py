@@ -58,9 +58,10 @@ def export_maps_command(
     try:
         start_time = time.time()
         
-        # Ensure compression and format parameters
+        # Ensure compression, format and normalize parameters
         compress = kwargs.pop('compress', 75)  # Use pop instead of get to remove it
         format = kwargs.pop('format', 'png')   # Use pop instead of get to remove it
+        normalize = kwargs.pop('normalize', True)  # Add normalize parameter
         
         # Load TMD file first to validate
         console.print("\n[bold cyan]Loading TMD file...[/]")
@@ -105,7 +106,7 @@ def export_maps_command(
                 output_file = f"{tmd_file.stem}_{map_type}.{format}"
                 output_path = output_dir / output_file
                 
-                # Export the map with compression settings
+                # Export the map with proper parameters
                 success = MapExporter.export_map(
                     tmd_data.height_map, 
                     str(output_path), 
@@ -113,6 +114,7 @@ def export_maps_command(
                     metadata=tmd_data.metadata,
                     compress=compress,
                     format=format,
+                    normalize=normalize,  # Pass normalize parameter
                     **kwargs  # kwargs no longer contains compress or format
                 )
                 

@@ -8,15 +8,16 @@ logger = logging.getLogger(__name__)
 class NormalMapGenerator(MapGenerator):
     """Generator for normal maps."""
     
-    def __init__(self, strength: float = 1.0, **kwargs):
+    def __init__(self, strength: float = 1.0, normalize: bool = True, **kwargs):
         """
         Initialize with strength parameter.
         
         Args:
             strength: Factor to control the strength of normals
+            normalize: Whether to normalize the height map before processing
             **kwargs: Additional parameters
         """
-        super().__init__(strength=strength, **kwargs)
+        super().__init__(strength=strength, normalize=normalize, **kwargs)
     
     def generate(self, height_map: np.ndarray, **kwargs) -> np.ndarray:
         """
@@ -33,12 +34,18 @@ class NormalMapGenerator(MapGenerator):
         """
         params = self._get_params(**kwargs)
         strength = float(params.get('strength', 1.0))
+        normalize = bool(params.get('normalize', True))  # Add normalize parameter
         
         # Get metadata for proper physical scaling
         metadata = kwargs.get('metadata', {})
         
-        # Normalize height map - important for consistent results
-        height_map_norm = self._prepare_height_map(height_map, normalize=params.get('normalize', True))
+        # Normalize height map if requested
+        height_map_norm = self._prepare_height_map(height_map, normalize=normalize)
+        
+        if normalize:
+            logger.debug("Height map normalized before normal map generation")
+        else:
+            logger.debug("Using raw height values for normal map generation")
         
         try:
             # Get dimensions
@@ -146,5 +153,8 @@ class NormalMapGenerator(MapGenerator):
         # Ensure strength is positive
         if params.get('strength', 0) <= 0:
             params['strength'] = 1.0
+            
+        # Ensure normalize is boolean
+        params['normalize'] = bool(params.get('normalize', True))
             
         return params

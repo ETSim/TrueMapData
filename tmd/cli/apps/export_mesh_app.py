@@ -290,7 +290,7 @@ def create_export_mesh_app() -> typer.Typer:
             min_quad_size: Optional[int] = typer.Option(None, help="Minimum quad size"),
             max_quad_size: Optional[int] = typer.Option(None, help="Maximum quad size"),
             max_subdivisions: Optional[int] = typer.Option(None, help="Maximum subdivisions"),
-            binary: bool = typer.Option(True, help=f"Use binary {format_name.upper()} format") if binary_option else None
+            binary: bool = typer.Option(True, help=f"Use binary format") if binary_option else None
         ):
             """Export as {format_name.upper()} mesh."""
             try:

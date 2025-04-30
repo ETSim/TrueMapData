@@ -51,23 +51,26 @@ class MapExporter:
         os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
         
         try:
+            # Extract parameters from kwargs
+            compress = kwargs.pop('compress', 75) 
+            format = kwargs.pop('format', 'png')
+            bit_depth = kwargs.pop('bit_depth', 8)
+            colormap = kwargs.pop('colormap', None)
+            normalize = kwargs.pop('normalize', True)
+            
+            # Get original metadata - ensure we don't pass it twice
+            metadata = kwargs.pop('metadata', None)
+            
             # Get generator class
             generator_cls = MapRegistry.get(map_type)
             if not generator_cls:
                 raise MapGeneratorNotFoundError(f"No generator found for map type: {map_type}")
             
             # Create generator instance
-            generator = generator_cls(**kwargs)
+            generator = generator_cls()
             
-            # Generate the map
-            map_data = generator.generate(height_map, **kwargs)
-            
-            # Get compression and format settings, then remove from kwargs
-            compress = kwargs.pop('compress', 75)  # Use pop to avoid duplicates
-            format = kwargs.pop('format', 'png')   # Use pop to avoid duplicates
-            bit_depth = kwargs.pop('bit_depth', 8)
-            colormap = kwargs.pop('colormap', None)
-            normalize = kwargs.pop('normalize', True)  # Add normalize parameter
+            # Generate the map with all remaining parameters
+            map_data = generator.generate(height_map, metadata=metadata, **kwargs)
             
             # Save the map with compression
             saved_path = save_image(
@@ -75,10 +78,9 @@ class MapExporter:
                 output_file,
                 bit_depth=bit_depth,
                 colormap=colormap,
-                normalize=normalize,  # Pass normalize parameter
+                normalize=normalize,
                 compress=compress,
-                format=format,
-                **kwargs
+                format=format
             )
             
             if saved_path:

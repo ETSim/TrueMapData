@@ -243,13 +243,12 @@ class ModelExporter(ABC):
             filename = f"{os.path.splitext(filename)[0]}.{ext}"
             
         return filename
+
     
     @classmethod
     def create_mesh_from_heightmap(cls, height_map: np.ndarray, config: ExportConfig) -> MeshData:
         """Create a mesh from a heightmap using the provided configuration."""
-        # Convert heightmap to 16-bit grayscale
-        from .utils.heightmap_processor import HeightmapProcessor
-        height_map = HeightmapProcessor.to_16bit_grayscale(height_map)
+        height_map = cls._prepare_heightmap_for_triangulation(height_map)
         
         # Set dimensions based on heightmap if not provided
         rows, cols = height_map.shape

@@ -4,6 +4,7 @@ Metadata utilities for TMD files.
 
 import os
 import json
+from pathlib import Path
 import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -162,7 +163,7 @@ def extract_metadata_from_tmd_file(filepath: str) -> Optional[Dict[str, Any]]:
         Dictionary with metadata or None if file can't be processed
     """
     # Import here to avoid circular imports
-    from tests.core.tmd import TMDProcessor
+    from ..core.tmd import TMDProcessor
     
     # Create processor instance
     processor = TMDProcessor(filepath)
@@ -327,3 +328,59 @@ def calculate_surface_metrics(
         metrics['regions'] = region_metrics
     
     return metrics
+
+def create_metadata_file(tmd_data, file_path, output_dir=None):
+    """
+    Create a comprehensive metadata JSON file for a TMD file.
+    
+    Args:
+        tmd_data: TMD object containing height map and metadata
+        file_path: Path to the original TMD file
+        output_dir: Directory to save the metadata file (defaults to same dir as file_path)
+        
+    Returns:
+        Path to the created metadata JSON file
+    """
+    # Get metadata and height map
+    metadata_dict = tmd_data.metadata
+    height_map = tmd_data.height_map
+    
+    # Calculate surface metrics
+    surface_metrics = calculate_surface_metrics(height_map, include_roughness=True)
+    
+    # Format timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Create a comprehensive metadata dictionary
+    complete_metadata = {
+        "file_info": {
+            "filename": Path(file_path).name,
+            "generated": timestamp,
+            "path": str(file_path)
+        },
+        "dimensions": {
+            "width": metadata_dict.get('width', height_map.shape[1]),
+            "height": metadata_dict.get('height', height_map.shape[0])
+        },
+        "resolution": {
+            "mmpx_x": metadata_dict.get('resolution_x', None),
+            "mmpx_y": metadata_dict.get('resolution_y', None),
+            "units": "mm/pixel"
+        },
+        "surface_metrics": surface_metrics,
+        "original_metadata": metadata_dict
+    }
+    
+    # Determine output path
+    if output_dir is None:
+        output_dir = Path(file_path).parent
+    else:
+        output_dir = Path(output_dir)
+        
+    json_path = output_dir / f"{Path(file_path).stem}_metadata.json"
+    
+    # Save metadata to JSON file
+    save_metadata_to_json(complete_metadata, str(json_path))
+    
+    return str(json_path)

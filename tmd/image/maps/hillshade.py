@@ -59,7 +59,7 @@ class HillshadeMapGenerator(MapGenerator):
         z_factor = params['z_factor']
         
         # Get metadata for scaling
-        metadata = kwargs.get('metadata', {})
+        metadata = kwargs.pop('metadata', {}) or {}
         
         # Get physical dimensions for proper scaling
         x_length = metadata.get('x_length', None)

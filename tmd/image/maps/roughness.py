@@ -1,5 +1,4 @@
-"""
-Roughness map generator.
+"""Roughness map generator.
 
 This module provides a generator for creating roughness maps from height maps,
 which highlight areas of high frequency detail for PBR materials.
@@ -38,53 +37,37 @@ class RoughnessMapGenerator(MapGenerator):
         Returns:
             Roughness map as numpy array (0-1 range)
         """
-        # Get parameters
+        # Extract parameters
         params = self._get_params(**kwargs)
         kernel_size = params['kernel_size']
         scale = params['scale']
         
-        # Prepare height map
+        # Normalize or prepare height map
         height_map_norm = self._prepare_height_map(height_map)
         
         try:
             import cv2
-            # OpenCV implementation (faster)
-            # Ensure array is in the right format
+            # Use OpenCV Laplacian for high-frequency detection
             height_array = height_map_norm.astype(np.float32)
-            
-            # Apply Laplacian operator to detect rapid height changes
             laplacian = cv2.Laplacian(height_array, cv2.CV_32F, ksize=kernel_size)
             roughness = np.abs(laplacian) * scale
-            
         except ImportError:
-            try:
-                # Fallback to scipy gradient
-                from scipy import ndimage
-                
-                # Use gradient magnitude as roughness
-                dx, dy = np.gradient(height_map_norm)
-                gradient = np.sqrt(dx**2 + dy**2)
-                roughness = gradient * scale
-                
-            except ImportError:
-                logger.error("Neither OpenCV nor SciPy available for roughness map generation")
-                return np.ones_like(height_map_norm) * 0.5
+            # Fallback to numpy gradient if OpenCV not available
+            dx, dy = np.gradient(height_map_norm)
+            roughness = np.sqrt(dx * dx + dy * dy) * scale
         
-        # Normalize to 0-1 range
-        rough_min, rough_max = roughness.min(), roughness.max()
-        if rough_max > rough_min:
-            return (roughness - rough_min) / (rough_max - rough_min)
-        else:
-            return np.zeros_like(roughness)
+        # Normalize to [0,1]
+        rmin, rmax = roughness.min(), roughness.max()
+        if rmax > rmin:
+            return (roughness - rmin) / (rmax - rmin)
+        return np.zeros_like(roughness)
     
     def _validate_params(self, params):
         """Validate and adjust parameters."""
         # Ensure kernel_size is odd
         if params.get('kernel_size', 0) % 2 == 0:
             params['kernel_size'] = max(3, params['kernel_size'] + 1)
-            
         # Ensure scale is positive
         if params.get('scale', 0) <= 0:
             params['scale'] = 1.0
-            
         return params

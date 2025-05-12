@@ -32,129 +32,82 @@ class NormalMapGenerator(MapGenerator):
         Returns:
             RGB normal map (0-1 range)
         """
+        # 1) Safely extract metadata and ensure it's a dict
+        metadata = kwargs.pop('metadata', {}) or {}
+        
+        # 2) Pull in algorithmic parameters
         params = self._get_params(**kwargs)
         strength = float(params.get('strength', 1.0))
-        normalize = bool(params.get('normalize', True))  # Add normalize parameter
+        normalize = bool(params.get('normalize', True))
         
-        # Get metadata for proper physical scaling
-        metadata = kwargs.get('metadata', {})
-        
-        # Normalize height map if requested
+        # 3) Prepare the height map
         height_map_norm = self._prepare_height_map(height_map, normalize=normalize)
-        
-        if normalize:
-            logger.debug("Height map normalized before normal map generation")
-        else:
-            logger.debug("Using raw height values for normal map generation")
+        logger.debug("Height map normalized." if normalize else "Using raw height values.")
         
         try:
-            # Get dimensions
             rows, cols = height_map_norm.shape
-            logger.error(f"Height map shape: {height_map_norm.shape}")
-            
-            # Create normal map
+            scaling_applied = False
             normal_map = np.zeros((rows, cols, 3), dtype=np.float32)
-        
-                
-            # 1. Try physical dimensions next
+            
+            # 4a) Physical dimensions if available
             if 'x_length' in metadata and 'y_length' in metadata:
-                x_length = float(metadata['x_length'])
-                y_length = float(metadata['y_length'])
-                logger.error(f"Using physical dimensions from metadata: x_length={x_length}, y_length={y_length}")
-                dy = x_length / cols if cols > 0 else 1.0
-                dx = y_length / rows if rows > 0 else 1.0
-                logger.debug(f"Using physical dimensions: x_length={x_length}, y_length={y_length}")
+                dx = float(metadata['x_length']) / cols if cols > 0 else 1.0
+                dy = float(metadata['y_length']) / rows if rows > 0 else 1.0
                 scaling_applied = True
-
-            # # 2. Try millimeters per pixel (mmpp) if available - most accurate
+            
+            # 4b) Millimeters per pixel override
             if 'mmpp' in metadata:
                 mmpp = float(metadata['mmpp'])
                 dx = dy = mmpp
-                logger.error(f"Using mmpp from metadata: {mmpp} mm/pixel")
-                
-                # Apply magnification adjustment if available
+                scaling_applied = True
+                # adjust by magnification if present
                 if 'magnification' in metadata:
                     mag = float(metadata['magnification'])
-                    # Higher magnification means more detail, so adjust strength
-                    strength *= 0.5 + (0.5 / mag)
-                    logger.debug(f"Adjusted normal strength by magnification: {mag}")
-                
-                logger.debug(f"Using mmpp from metadata: {mmpp} mm/pixel")
-                scaling_applied = True
-                
-            # # # 3. Fall back to aspect ratio if no physical dimensions
+                    strength *= (0.5 + 0.5 / mag)
+            
+            # 4c) Fall back to aspect ratio
             if not scaling_applied:
-                aspect_ratio = cols / rows if rows > 0 else 1.0
+                aspect = cols / rows if rows > 0 else 1.0
                 dx = 1.0
-                dy = dx / aspect_ratio
-                logger.debug(f"Using aspect ratio: {aspect_ratio}")
+                dy = dx / aspect
             
-            # Apply camera settings adjustments if available
-            if 'camera' in metadata:
-                camera_data = metadata['camera']
-                
-                # Parse aperture to adjust normal strength
-                if 'aperture_str' in camera_data:
-                    aperture_str = camera_data['aperture_str']
-                    try:
-                        # Extract f-stop number (e.g., "F 8" -> 8.0)
-                        f_stop = float(aperture_str.replace('F', '').strip())
-                        # Smaller apertures (larger f-stop) need more strength
-                        aperture_factor = min(max(f_stop / 5.6, 0.8), 1.5)
-                        strength *= aperture_factor
-                        logger.debug(f"Adjusted strength by aperture: {aperture_factor}")
-                    except (ValueError, TypeError):
-                        pass
-            
-            # Calculate gradients with physical scaling
+            # 5) Compute gradients
             dx_array = np.zeros_like(height_map_norm)
             dy_array = np.zeros_like(height_map_norm)
             
-            # X-gradient using central difference with proper physical scaling
+            # Central differences
             dx_array[:, 1:-1] = (height_map_norm[:, 2:] - height_map_norm[:, :-2]) / (2.0 * dx)
-            # Y-gradient using central difference with proper physical scaling
             dy_array[1:-1, :] = (height_map_norm[2:, :] - height_map_norm[:-2, :]) / (2.0 * dy)
+            # Edges
+            dx_array[:, 0]   = (height_map_norm[:, 1]   - height_map_norm[:, 0])   / dx
+            dx_array[:, -1]  = (height_map_norm[:, -1]  - height_map_norm[:, -2])  / dx
+            dy_array[0, :]   = (height_map_norm[1, :]   - height_map_norm[0, :])   / dy
+            dy_array[-1, :]  = (height_map_norm[-1, :]  - height_map_norm[-2, :])  / dy
             
-            # Handle edges with forward/backward differences
-            dx_array[:, 0] = (height_map_norm[:, 1] - height_map_norm[:, 0]) / dx
-            dx_array[:, -1] = (height_map_norm[:, -1] - height_map_norm[:, -2]) / dx
-            dy_array[0, :] = (height_map_norm[1, :] - height_map_norm[0, :]) / dy
-            dy_array[-1, :] = (height_map_norm[-1, :] - height_map_norm[-2, :]) / dy
-            
-            # Apply user-defined strength
+            # 6) Apply strength
             dx_array *= strength
             dy_array *= strength
             
-            # Create normal vectors: (-dx, -dy, 1)
+            # 7) Build normal vectors and normalize
             normal_map[..., 0] = -dx_array
             normal_map[..., 1] = -dy_array
             normal_map[..., 2] = 1.0
+            norm = np.linalg.norm(normal_map, axis=2, keepdims=True)
+            normal_map = np.divide(normal_map, norm, out=normal_map, where=norm>0)
             
-            # Normalize vectors to unit length
-            norm = np.sqrt(np.sum(normal_map**2, axis=2, keepdims=True))
-            normal_map = np.divide(normal_map, norm, out=normal_map, where=norm > 0)
-            
-            # Convert from [-1,1] to [0,1] range for image export
-            normal_map = (normal_map + 1.0) * 0.5
-            
-            return normal_map
-            
+            # 8) Map [-1,1] -> [0,1] for RGB output
+            return (normal_map + 1.0) * 0.5
+        
         except Exception as e:
             logger.error(f"Error generating normal map: {e}")
-            # Return a flat normal map (all pointing up) as fallback
-            rows, cols = height_map_norm.shape
-            default_normal = np.zeros((rows, cols, 3), dtype=np.float32)
-            default_normal[..., 2] = 1.0  # Z component is 1.0
-            default_normal = (default_normal + 1.0) * 0.5  # Convert to [0,1]
-            return default_normal
-            
+            # Fallback: flat normal pointing up
+            default = np.zeros((rows, cols, 3), dtype=np.float32)
+            default[..., 2] = 1.0
+            return (default + 1.0) * 0.5
+    
     def _validate_params(self, params):
         """Validate and adjust parameters."""
-        # Ensure strength is positive
         if params.get('strength', 0) <= 0:
             params['strength'] = 1.0
-            
-        # Ensure normalize is boolean
         params['normalize'] = bool(params.get('normalize', True))
-            
         return params

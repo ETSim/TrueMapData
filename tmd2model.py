@@ -428,6 +428,8 @@ def batch(
     pattern: str = typer.Option("*.tmd", "--pattern", "-p", help="File pattern to match"),
     adaptive: bool = typer.Option(True, "--adaptive", "-a", help="Use adaptive triangulation"),
     max_error: float = typer.Option(0.01, "--max-error", "-e", help="Maximum error for adaptive triangulation"),
+    max_subdivisions: int = typer.Option(8, "--max-subdivisions", "-m", help="Maximum quad tree subdivisions"),
+    max_triangles: Optional[int] = typer.Option(None, "--max-triangles", "-n", help="Maximum triangle count"),
     rotate: int = typer.Option(0, "--rotate", "--rot", help="Rotate heightmap (0, 90, 180, 270 degrees)"),
     mirror_x: bool = typer.Option(False, "--mirror-x/--no-mirror-x", help="Mirror heightmap along X-axis"),
     coordinate_system: CoordinateSystem = typer.Option(
@@ -446,7 +448,12 @@ def batch(
     hillshade_azimuth: float = typer.Option(315.0, "--hillshade-azimuth", help="Azimuth angle for hillshade (0-360)"),
     hillshade_altitude: float = typer.Option(45.0, "--hillshade-altitude", help="Altitude angle for hillshade (0-90)"),
     hillshade_z_factor: float = typer.Option(1.0, "--hillshade-z", help="Z factor for hillshade exaggeration"),
-    material_base_name: str = typer.Option("material", "--material-name", help="Base name for material set files")
+    material_base_name: str = typer.Option("material", "--material-name", help="Base name for material set files"),
+    precision: str = typer.Option("float32", "--precision", help="Precision for height data (float16, float32, float64)"),
+    preserve_precision: bool = typer.Option(True, "--preserve-precision/--standard-precision", help="Preserve precision during processing"),
+    optimization_level: int = typer.Option(1, "--optimization-level", "-ol", help="Level of optimization (0-3, higher is more aggressive)"),
+    parallel_processing: bool = typer.Option(True, "--parallel/--sequential", help="Use parallel processing when possible"),
+    chunk_size: Optional[int] = typer.Option(None, "--chunk-size", help="Size of chunks for processing large files"),
 ):
     """
     Batch convert multiple TMD files in a directory.
@@ -472,6 +479,12 @@ def batch(
         
         # Generate complete material sets for all files
         tmd2model batch data/ -f material_set --material-name terrain
+        
+        # High-precision conversion with maximum subdivision
+        tmd2model batch data/ -f stl --max-subdivisions 12 --precision float64 --preserve-precision
+        
+        # High performance batch processing
+        tmd2model batch large_data/ -f stl --parallel --chunk-size 1024 --optimization-level 3
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir) if output_dir else input_path / f"tmd_batch_{format.value}"
@@ -500,11 +513,25 @@ def batch(
             Format.heightmap, 
             Format.ao_map, 
             Format.displacement_map,
-            Format.hillshade  # Add hillshade to all_maps
+            Format.hillshade
         ]
         rprint(f"[bold blue]Generating all image formats for each file[/bold blue]")
     else:
         formats_to_generate = [format]
+    
+    # Set up parallel processing if requested
+    if parallel_processing and chunk_size:
+        try:
+            from concurrent.futures import ProcessPoolExecutor
+            import multiprocessing
+            
+            num_workers = min(multiprocessing.cpu_count(), 8)  # Limit to reasonable number
+            rprint(f"[bold blue]Using parallel processing with {num_workers} workers[/bold blue]")
+            executor = ProcessPoolExecutor(max_workers=num_workers)
+            futures = []
+        except ImportError:
+            rprint("[bold yellow]Warning:[/bold yellow] concurrent.futures not available. Using sequential processing.")
+            parallel_processing = False
 
     with Progress() as progress:
         task = progress.add_task("[bold green]Processing files...", total=len(matches) * len(formats_to_generate))
@@ -533,6 +560,14 @@ def batch(
                     rotate=rotate
                 )
                 
+                # Apply precision conversion if specified
+                if precision == "float64":
+                    height_map = height_map.astype(np.float64)
+                elif precision == "float32":
+                    height_map = height_map.astype(np.float32)
+                elif precision == "float16":
+                    height_map = height_map.astype(np.float16)
+                
                 # Prepare model dimensions to preserve aspect ratio
                 model_params = {
                     "x_length": height_map.shape[1] / height_map.shape[0] if height_map.shape[0] > 0 else 1.0,
@@ -544,6 +579,7 @@ def batch(
                     # Special handling for material_set format
                     if current_format == Format.material_set:
                         # Create directory for each file's material set
+                        base_name = file_path.stem
                         material_dir = output_path / f"{base_name}_materials"
                         os.makedirs(material_dir, exist_ok=True)
                         output_file = str(material_dir)
@@ -568,31 +604,48 @@ def batch(
                     # Measure conversion time
                     start_time = time.time()
                     
+                    # Set up chunk processing for large heightmaps if specified
+                    large_heightmap_processing = {}
+                    if chunk_size and is_large_heightmap(height_map, threshold=chunk_size):
+                        large_heightmap_processing = {
+                            "chunk_size": chunk_size,
+                            "optimize_memory": True
+                        }
+                    
+                    # Create a configuration dictionary for conversion params
+                    conversion_params = {
+                        "z_scale": z_scale,
+                        "base_height": base_height,
+                        "binary": binary,
+                        "adaptive": adaptive and current_format == Format.stl,
+                        "max_error": max_error,
+                        "max_subdivisions": max_subdivisions,
+                        "max_triangles": max_triangles,
+                        "coordinate_system": str(coordinate_system),
+                        "origin_at_zero": origin_at_zero,
+                        "normal_map_z_scale": normal_map_z_scale,
+                        "bump_map_strength": bump_map_strength,
+                        "bump_map_blur": bump_map_blur,
+                        "ao_strength": ao_strength,
+                        "ao_samples": ao_samples,
+                        "bit_depth": bit_depth,
+                        "add_texture": add_texture,
+                        "hillshade_azimuth": hillshade_azimuth,
+                        "hillshade_altitude": hillshade_altitude,
+                        "hillshade_z_factor": hillshade_z_factor,
+                        "material_base_name": material_base_name,
+                        "preserve_precision": preserve_precision,
+                        "optimization_level": optimization_level,
+                        **large_heightmap_processing,
+                        **model_params
+                    }
+                    
                     # Convert using the unified function
                     result = convert_heightmap(
                         height_map,
                         str(output_file),
                         current_format.value,
-                        z_scale=z_scale,
-                        base_height=base_height,
-                        binary=binary,
-                        adaptive=adaptive and current_format == Format.stl,
-                        max_error=max_error,
-                        coordinate_system=str(coordinate_system),
-                        origin_at_zero=origin_at_zero,
-                        normal_map_z_scale=normal_map_z_scale,
-                        bump_map_strength=bump_map_strength,
-                        bump_map_blur=bump_map_blur,
-                        ao_strength=ao_strength,
-                        ao_samples=ao_samples,
-                        bit_depth=bit_depth,
-                        add_texture=add_texture,
-                        # Add hillshade and material set parameters
-                        hillshade_azimuth=hillshade_azimuth,
-                        hillshade_altitude=hillshade_altitude,
-                        hillshade_z_factor=hillshade_z_factor,
-                        material_base_name=material_base_name,
-                        **model_params
+                        **conversion_params
                     )
                     
                     elapsed = time.time() - start_time

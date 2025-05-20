@@ -14,6 +14,7 @@ from .heightmap import HeightMapGenerator
 from .hillshade import HillshadeMapGenerator
 from .curvature import CurvatureMapGenerator
 from .angle import AngleMapGenerator
+from .parallax_ao import ParallaxAOMapGenerator
 
 __all__ = [
     'MapGenerator',
@@ -25,5 +26,6 @@ __all__ = [
     'HeightMapGenerator',
     'HillshadeMapGenerator',
     'CurvatureMapGenerator',
-    'AngleMapGenerator'
+    'AngleMapGenerator',
+    'ParallaxAOMapGenerator'
 ]

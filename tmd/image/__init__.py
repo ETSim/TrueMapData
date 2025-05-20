@@ -32,6 +32,10 @@ from .maps.metallic import MetallicMapGenerator
 from .maps.displacement import DisplacementMapGenerator
 from .maps.heightmap import HeightMapGenerator
 from .maps.hillshade import HillshadeMapGenerator
+from .maps.curvature import CurvatureMapGenerator
+from .maps.angle import AngleMapGenerator
+from .maps.parallax_ao import ParallaxAOMapGenerator
+from .maps.depth import DepthMapGenerator 
 
 # Register generators with registry
 MapRegistry.register("ao", AOMapGenerator)
@@ -42,6 +46,10 @@ MapRegistry.register("metallic", MetallicMapGenerator)
 MapRegistry.register("displacement", DisplacementMapGenerator)
 MapRegistry.register("height", HeightMapGenerator)
 MapRegistry.register("hillshade", HillshadeMapGenerator)
+MapRegistry.register("curvature", CurvatureMapGenerator)
+MapRegistry.register("angle", AngleMapGenerator)
+MapRegistry.register("parallax_ao", ParallaxAOMapGenerator)
+MapRegistry.register("depth", DepthMapGenerator)
 
 # Convenience export functions
 def export_ao_map(height_map, output_file, **kwargs):
@@ -77,6 +85,10 @@ def export_hillshade_map(height_map, output_file, **kwargs):
     """Export a hillshade map."""
     return MapExporter.export_map(height_map, output_file, "hillshade", **kwargs)
 
+def export_depth_map(height_map, output_file, **kwargs):
+    """Export a depth map."""
+    return MapExporter.export_map(height_map, output_file, "depth", **kwargs)
+
 # Get list of available map types
 def get_available_map_types():
     """Get a list of available map types."""
@@ -88,7 +100,11 @@ def get_available_map_types():
         "metallic", 
         "displacement", 
         "height", 
-        "hillshade"
+        "hillshade",
+        "curvature", 
+        "angle",
+        "parallax_ao",
+        "depth"
     ]
 
 __all__ = [
@@ -124,5 +140,6 @@ __all__ = [
     'export_displacement_map',
     'export_height_map',
     'export_hillshade_map',
+    'export_depth_map',
     'get_available_map_types'
 ]

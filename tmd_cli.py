@@ -21,9 +21,6 @@ try:
     from tmd.cli.apps.export_mesh_app import create_export_mesh_app
     from tmd.cli.apps.terrain_app import create_terrain_app
     
-    # Import the fixed model generation app
-    from tmd.cli.commands.model import create_model_app
-    
 except ImportError as e:
     console.print(f"[red]Error importing TMD modules: {e}[/red]")
     console.print("[yellow]Make sure TMD is properly installed[/yellow]")
@@ -74,14 +71,7 @@ def add_subcommands():
     app.add_typer(
         create_export_mesh_app(), 
         name="mesh", 
-        help="Export TMD files to 3D model formats (legacy commands)"
-    )
-    
-    # New model generation commands (replaces mesh commands)
-    app.add_typer(
-        create_model_app(), 
-        name="model", 
-        help="Generate 3D models from TMD files (single and batch)"
+        help="Export TMD files to 3D model formats"
     )
     
     # Visualization and generation
@@ -106,7 +96,7 @@ def main_callback():
     TMD Command-Line Tools - Work with Topographic Mesh Data files
     
     This tool provides comprehensive functionality for working with TMD files including:
-    - Model generation (single and batch processing)
+    - 3D model generation (STL, OBJ, PLY, GLTF, USD formats)
     - Map exports (normal maps, heightmaps, etc.)
     - Visualization and analysis
     - Terrain generation

@@ -34,6 +34,7 @@ def create_export_maps_app() -> typer.Typer:
         compress: int = typer.Option(0, "--compress", "-c", help="Compression (0-100)"),
         format: str = typer.Option("png", "--format", "-f", help="Output format"),
         pattern: str = typer.Option("*.tmd", "--pattern", "-p", help="File pattern to match"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(None, "--metadata", "-m", help="Additional parameters as JSON string"),
         save_metadata: bool = typer.Option(False, "--save-metadata", help="Save comprehensive metadata to JSON")
     ):
@@ -76,6 +77,7 @@ def create_export_maps_app() -> typer.Typer:
                     types,
                     compress=compress,
                     format=format,
+                    normalize=normalize,  # Added normalize parameter
                     metadata=merged_md
                 )
 
@@ -87,6 +89,7 @@ def create_export_maps_app() -> typer.Typer:
         strength: float = typer.Option(1.0, "--strength", "-s", help="Normal map strength"),
         compress: int = typer.Option(0, "--compress", "-c", help="Compression (0-100)"),
         format: str = typer.Option("png", "--format", "-f", help="Output format"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a normal map."""
@@ -104,6 +107,7 @@ def create_export_maps_app() -> typer.Typer:
             strength=strength,
             compress=compress,
             format=format,
+            normalize=normalize,  # Added normalize parameter
             metadata=merged_md
         )
 
@@ -121,13 +125,14 @@ def create_export_maps_app() -> typer.Typer:
         strength: float = typer.Option(1.0, help="AO effect strength"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export an ambient occlusion map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["ao"], samples=samples, strength=strength,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("bump")
     def bump(
@@ -136,13 +141,14 @@ def create_export_maps_app() -> typer.Typer:
         strength: float = typer.Option(1.0, help="Bump map strength"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a bump map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["bump"], strength=strength,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("roughness")
     def roughness(
@@ -151,13 +157,14 @@ def create_export_maps_app() -> typer.Typer:
         strength: float = typer.Option(1.0, help="Roughness map strength"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a roughness map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["roughness"], strength=strength,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("metallic")
     def metallic(
@@ -166,13 +173,14 @@ def create_export_maps_app() -> typer.Typer:
         strength: float = typer.Option(1.0, help="Metallic map strength"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a metallic map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["metallic"], strength=strength,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("displacement")
     def displacement(
@@ -181,13 +189,14 @@ def create_export_maps_app() -> typer.Typer:
         intensity: float = typer.Option(1.0, help="Displacement intensity"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a displacement map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["displacement"], intensity=intensity,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("height")
     def height(
@@ -196,13 +205,14 @@ def create_export_maps_app() -> typer.Typer:
         colormap: str = typer.Option("viridis", help="Colormap to use"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a height map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["height"], colormap=colormap,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("hillshade")
     def hillshade(
@@ -212,13 +222,14 @@ def create_export_maps_app() -> typer.Typer:
         altitude: float = typer.Option(45.0, help="Light source altitude in degrees"),
         compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
         format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Export a hillshade map."""
         output_dir = Path(output_file).parent if output_file else input_file.parent
         export_maps_command(input_file, output_dir, ["hillshade"], azimuth=azimuth, altitude=altitude,
-                            compress=compress, format=format, metadata=metadata)
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
 
     @app.command("all")
     def all_maps(
@@ -230,6 +241,7 @@ def create_export_maps_app() -> typer.Typer:
         compress: int = typer.Option(0, "--compress", "-c", help="Compression (0-100)"),
         format: str = typer.Option("png", "--format", "-f", help="Output format"),
         strength: float = typer.Option(1.0, "--strength", "-s", help="Map strength"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
@@ -239,7 +251,8 @@ def create_export_maps_app() -> typer.Typer:
             output_dir = Path("textures")
 
         export_maps_command(input_file, output_dir, types,
-                            compress=compress, format=format, strength=strength, metadata=metadata)
+                            compress=compress, format=format, strength=strength,
+                            normalize=normalize, metadata=metadata)
 
     @app.command("synthetic")
     def synthetic(
@@ -255,11 +268,46 @@ def create_export_maps_app() -> typer.Typer:
             None, "--types", "-t", help="Map types to generate"),
         compress: int = typer.Option(0, "--compress", "-c", help="Compression (0-100)"),
         format: str = typer.Option("png", "--format", "-f", help="Output format"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
         """Generate and export maps from synthetic TMD data."""
-        if not generate_synthetic_terrain(pattern, width, height, output_dir, types, compress, format, metadata=metadata):
+        if not generate_synthetic_terrain(pattern, width, height, output_dir, types, compress, format, 
+                                        normalize=normalize, metadata=metadata):
             raise typer.Exit(1)
 
     return app
+
+    @app.command("curvature")
+    def curvature(
+        input_file: Path = typer.Argument(..., help="Input TMD file", exists=True),
+        output_file: Optional[Path] = typer.Option(None, help="Output filename"),
+        mode: str = typer.Option("mean", help="Curvature type (mean, gaussian, profile, planform, maximal, minimal)"),
+        scale: float = typer.Option(1.0, help="Scaling factor for curvature values"),
+        compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
+        format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
+        metadata: Optional[str] = typer.Option(
+            None, "--metadata", "-m", help="Additional parameters as JSON string")
+    ):
+        """Export a curvature map."""
+        output_dir = Path(output_file).parent if output_file else input_file.parent
+        export_maps_command(input_file, output_dir, ["curvature"], mode=mode, scale=scale,
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)
+
+    @app.command("angle")
+    def angle(
+        input_file: Path = typer.Argument(..., help="Input TMD file", exists=True),
+        output_file: Optional[Path] = typer.Option(None, help="Output filename"),
+        max_angle: float = typer.Option(45.0, help="Maximum angle in degrees (white in output)"),
+        compress: int = typer.Option(0, help="Compression level (0-100)", min=0, max=100),
+        format: str = typer.Option("png", help="Output format (png, jpg, webp)"),
+        normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
+        metadata: Optional[str] = typer.Option(
+            None, "--metadata", "-m", help="Additional parameters as JSON string")
+    ):
+        """Export an angle/slope map showing terrain steepness."""
+        output_dir = Path(output_file).parent if output_file else input_file.parent
+        export_maps_command(input_file, output_dir, ["angle"], max_angle=max_angle,
+                            compress=compress, format=format, normalize=normalize, metadata=metadata)

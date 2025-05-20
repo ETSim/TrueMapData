@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, List
 import time
 from datetime import datetime
-
 import logging
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
@@ -17,7 +16,6 @@ from tmd.model.registry import get_available_formats
 from ..core.ui import console, print_error, print_success, display_tmd_info
 from ...image import MapExporter, get_available_map_types
 from ...core import TMD
-
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +71,10 @@ def export_maps_command(
         format = kwargs.pop('format', 'png')   # Use pop instead of get to remove it
         normalize = kwargs.pop('normalize', True)  # Add normalize parameter
         
+        # Extract metadata if provided and ensure it's flat (not nested)
+        # This is the key fix - we need to ensure metadata is properly handled
+        metadata = kwargs.pop('metadata', None)
+        
         # Load TMD file first to validate
         console.print("\n[bold cyan]Loading TMD file...[/]")
         tmd_data = TMD.load(str(tmd_file))
@@ -84,16 +86,29 @@ def export_maps_command(
         
         # Display TMD info and config
         console.print("\n[bold cyan]TMD File Details[/]")
+        file_metadata = tmd_data.metadata or {}
         if hasattr(tmd_data, 'metadata'):
-            for key, value in tmd_data.metadata.items():
+            for key, value in file_metadata.items():
                 console.print(f"{key}: {value}")
                 
         # Get map types to export (all available if none specified)
         if types is None:
             types = get_available_map_types()
             
-        # Show export configuration
-        display_config_info(tmd_file, output_dir, types, kwargs)
+        # Merge the provided metadata with the file metadata 
+        # This is the key fix - merge metadata correctly
+        merged_metadata = {**file_metadata}
+        if metadata:
+            merged_metadata.update(metadata)
+        
+        # Create parameters dict that includes everything EXCEPT metadata
+        # We'll pass metadata separately to avoid nesting
+        params = {**kwargs}
+        if 'strength' in kwargs:
+            params['strength'] = kwargs['strength']
+        
+        # Show export configuration with updated params
+        display_config_info(tmd_file, output_dir, types, params)
         
         # Track results
         results = {}
@@ -117,14 +132,16 @@ def export_maps_command(
                 output_path = output_dir / output_file
                 
                 # Export the map with proper parameters
+                # Pass metadata directly as a parameter
                 success = MapExporter.export_map(
                     tmd_data.height_map, 
                     str(output_path), 
                     map_type,
                     compress=compress,
                     format=format,
-                    normalize=normalize,  # Pass normalize parameter
-                    **kwargs  # kwargs no longer contains compress or format
+                    normalize=normalize,
+                    metadata=merged_metadata,  # Pass the merged metadata directly
+                    **params  # Other parameters
                 )
                 
                 # Track results

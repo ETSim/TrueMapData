@@ -12,6 +12,8 @@ from .metallic import MetallicMapGenerator
 from .displacement import DisplacementMapGenerator
 from .heightmap import HeightMapGenerator
 from .hillshade import HillshadeMapGenerator
+from .curvature import CurvatureMapGenerator
+from .angle import AngleMapGenerator
 
 __all__ = [
     'MapGenerator',
@@ -21,5 +23,7 @@ __all__ = [
     'MetallicMapGenerator',
     'DisplacementMapGenerator',
     'HeightMapGenerator',
-    'HillshadeMapGenerator'
+    'HillshadeMapGenerator',
+    'CurvatureMapGenerator',
+    'AngleMapGenerator'
 ]

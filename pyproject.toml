@@ -79,7 +79,7 @@ advanced = [
 ]
 # GPL-3.0: Surfalize is optional; do not merge into `full` without accepting that license.
 roughness = [
-    "surfalize>=0.16.0",
+    "surfalize>=0.16.0; python_version>='3.10'",
 ]
 full = [
     "truemapdata[dev,docs,viz,mesh,advanced]",

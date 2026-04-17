@@ -33,7 +33,7 @@ openstl
 
 python-pptx
 
-surfalize
+surfalize>=0.16.0; python_version>='3.10'
 
 PyWavelets
 

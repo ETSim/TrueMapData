@@ -20,7 +20,8 @@ _INSTALL_HINT = (
     "Surfalize is not installed. Roughness commands need it (GPL-3.0). Install with:\n"
     '  pip install "truemapdata[roughness]"\n'
     "or:\n"
-    "  pip install surfalize"
+    '  pip install "surfalize>=0.16.0"\n'
+    "(Current Surfalize releases need Python 3.10 or newer.)"
 )
 
 # Fallback if Surfalize lacks Surface.ISO_PARAMETERS (older installs).

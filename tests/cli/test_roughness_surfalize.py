@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +12,13 @@ from typer.testing import CliRunner
 
 from tmd.cli.main import app
 from tmd.utils.utils import TMDUtils
+
+
+def _skip_unless_surfalize() -> None:
+    """Surfalize releases used with TMD require Python 3.10+ (upstream syntax)."""
+    if sys.version_info < (3, 10):
+        pytest.skip("Surfalize requires Python 3.10+")
+    pytest.importorskip("surfalize")
 
 
 def _write_minimal_v2_tmd(path: Path) -> None:
@@ -35,7 +43,7 @@ def test_roughness_subhelp() -> None:
 
 
 def test_roughness_file_json_smoke_quick(tmp_path: Path) -> None:
-    pytest.importorskip("surfalize")
+    _skip_unless_surfalize()
 
     tmd_path = tmp_path / "synth.tmd"
     _write_minimal_v2_tmd(tmd_path)
@@ -51,7 +59,7 @@ def test_roughness_file_json_smoke_quick(tmp_path: Path) -> None:
 
 def test_roughness_file_default_includes_all_iso_parameters(tmp_path: Path) -> None:
     """Default (no --quick / --all / --params) uses Surfalize ISO 25178 set."""
-    pytest.importorskip("surfalize")
+    _skip_unless_surfalize()
     from surfalize import Surface
 
     tmd_path = tmp_path / "synth.tmd"
@@ -67,7 +75,7 @@ def test_roughness_file_default_includes_all_iso_parameters(tmp_path: Path) -> N
 
 
 def test_roughness_sequence_json_ordered(tmp_path: Path) -> None:
-    pytest.importorskip("surfalize")
+    _skip_unless_surfalize()
 
     a = tmp_path / "a.tmd"
     b = tmp_path / "b.tmd"
@@ -85,7 +93,7 @@ def test_roughness_sequence_json_ordered(tmp_path: Path) -> None:
 
 
 def test_roughness_sequence_from_dir_sort_name(tmp_path: Path) -> None:
-    pytest.importorskip("surfalize")
+    _skip_unless_surfalize()
 
     d = tmp_path / "seq"
     d.mkdir()
@@ -103,7 +111,7 @@ def test_roughness_sequence_from_dir_sort_name(tmp_path: Path) -> None:
 
 
 def test_roughness_batch_csv(tmp_path: Path) -> None:
-    pytest.importorskip("surfalize")
+    _skip_unless_surfalize()
 
     d = tmp_path / "tmds"
     d.mkdir()

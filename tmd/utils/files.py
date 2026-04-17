@@ -239,7 +239,8 @@ class TMDFileUtilities:
         """
         try:
             return importlib.import_module(name)
-        except ImportError:
+        except (ImportError, ModuleNotFoundError, TypeError, SyntaxError) as exc:
+            logger.debug("Optional dependency %r not loadable: %s", name, exc)
             return None
 
     @staticmethod

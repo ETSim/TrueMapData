@@ -256,7 +256,7 @@ def _register_all_plotters():
         from tmd.plotters.polyscope import PolyscopePlotter, PolyscopeSequencePlotter
         TMDPlotterFactory.register("polyscope", PolyscopePlotter)
         TMDSequencePlotterFactory.register("polyscope", PolyscopeSequencePlotter)
-    except (ImportError, SyntaxError) as e:
+    except (ImportError, SyntaxError, TypeError) as e:
         logger.debug(f"Polyscope plotter not available: {e}")
 
 

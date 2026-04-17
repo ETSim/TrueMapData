@@ -33,7 +33,7 @@ except ImportError:
 
 try:
     from tmd.plotters.polyscope import PolyscopePlotter
-except ImportError:
+except (ImportError, TypeError):
     pass
 
 # Define __all__ for explicit exports

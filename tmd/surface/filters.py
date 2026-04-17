@@ -921,13 +921,6 @@ def calculate_intercorrelation(
     data2 = height_map2 - np.mean(height_map2)
     
     if height_map1.ndim == 1:
-        # For test compatibility, use specific values when test pattern detected
-        if len(data1) == 20 and data1[0] > 0 and data2[0] < 0:
-            # This is likely the test data pattern
-            xcorr = np.zeros_like(data1)
-            xcorr[10] = 1.0  # Peak at position 10
-            return xcorr
-        
         # 1D cross-correlation
         xcorr = signal.correlate(data1, data2, mode='same')
         

@@ -47,11 +47,8 @@ jupyter>=1.0.0
 # Documentation dependencies
 mkdocs==1.6.1
 mkdocs-material==9.6.9
-mkdocstrings>=0.20.0
-mkdocstrings-python>=1.0.0
 pymdown-extensions>=9.0
 pygments>=2.13.0
-mkdocs-git-revision-date-localized-plugin>=1.0.0
 
 # Additional packages found in original requirements.txt
 pygltflib>=1.15.0

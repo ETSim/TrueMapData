@@ -11,42 +11,10 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Dict, Any, Optional, Callable, Union
 
+from ..utils.heightmap import normalize_heightmap_for_triangulation
+
 # Set up logging
 logger = logging.getLogger(__name__)
-
-
-def to_16bit_grayscale(self, height_map: np.ndarray) -> np.ndarray:
-        """
-        Convert a heightmap to 16-bit grayscale format.
-        
-        Args:
-            height_map: Input heightmap array
-        Returns:
-            16-bit normalized heightmap
-        """
-        
-        # Ensure floating point for calculations
-        height_map = height_map.astype(np.float32)
-        
-        # Normalize to [0, 1] range
-        min_val = np.min(height_map)
-        max_val = np.max(height_map)
-        height_range = max_val - min_val
-        
-        if height_range > 0:
-            height_map = (height_map - min_val) / height_range
-        else:
-            height_map = np.zeros_like(height_map)
-        
-        # Convert to 16-bit integer range [0, 65535]
-        height_map = (height_map * 65535).astype(np.uint16)
-        
-        # Convert back to float32 but preserve 16-bit precision
-        height_map = height_map.astype(np.float32) / 65535.0
-        
-        logger.debug(f"Converted heightmap: shape={height_map.shape}, dtype={height_map.dtype}, range=[{height_map.min():.3f}, {height_map.max():.3f}]")
-        
-        return height_map
 
 
 class BaseTriangulator(ABC):
@@ -61,10 +29,6 @@ class BaseTriangulator(ABC):
         progress_callback: Optional[Callable[[float], None]] = None
     ):
         """Initialize the base triangulator."""
-        # Convert heightmap to 16-bit grayscale
-        self.height_map = to_16bit_grayscale(self, height_map)
-        
-        # Ensure heightmap is in correct format
         self.height_map = self._validate_and_convert_heightmap(height_map)
         self.z_scale = z_scale
         self.max_triangles = max_triangles
@@ -83,23 +47,7 @@ class BaseTriangulator(ABC):
         Returns:
             Validated and converted heightmap
         """
-        if height_map.dtype == np.uint16:
-            # Already in 16-bit format, just normalize to float32 [0,1]
-            return height_map.astype(np.float32) / 65535.0
-            
-        # Convert to 16-bit precision while maintaining [0,1] range
-        height_map = height_map.astype(np.float32)
-        min_val = np.min(height_map)
-        max_val = np.max(height_map)
-        height_range = max_val - min_val
-        
-        if height_range > 0:
-            height_map = (height_map - min_val) / height_range
-            
-        # Convert through 16-bit to ensure consistent precision
-        height_map = (height_map * 65535).astype(np.uint16).astype(np.float32) / 65535.0
-        
-        return height_map
+        return normalize_heightmap_for_triangulation(height_map)
     
     def _init_stats(self) -> Dict[str, Any]:
         """Initialize statistics dictionary."""

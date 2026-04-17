@@ -8,15 +8,15 @@ to various formats using a centralized factory-based approach.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 from tmd.core.tmd import TMD, TMDProcessor, TMDProcessingError
 from tmd.utils.files import TMDFileUtilities
 from tmd.surface.processing import threshold_height_map
+from tmd.surface.transformations import align_height_map_sequence_opencv
 from tmd.sequence.factory import SequenceExporterFactory
-from tmd.exporters.TMDDataIOFactory import TMDDataIOFactory
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +218,58 @@ class TMDSequence:
             return True
         logger.warning(f"Invalid frame index: {index}")
         return False
+
+    def align_height_maps_opencv(
+        self,
+        reference_index: int = 0,
+        method: str = "auto",
+        crop: bool = True,
+        margin: int = 0,
+        phase_refine: bool = False,
+        second_full_pass: bool = False,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Align all frames in this sequence to a reference height map using OpenCV (2D only).
+
+        Replaces ``self.frames`` with aligned (and optionally cropped) arrays. Alignment
+        metadata is stored under ``self.metadata["alignment"]`` and is separate from
+        per-frame ``transformations`` used by :meth:`apply_transformations`.
+
+        Args:
+            reference_index: Index of the frame to use as reference.
+            method: ``"auto"``, ``"affine_ransac"``, or ``"phase_correlation"``.
+            crop: If True, crop to the intersection of valid overlap after warping.
+            margin: Inward shrink of the crop box in pixels (after overlap is computed).
+            phase_refine: If True, apply a second phase-correlation pass (sub-pixel) after
+                the primary method for each non-reference frame.
+            second_full_pass: If True, run a full second registration pass on the aligned
+                stack (see :func:`tmd.surface.transformations.align_height_map_sequence_opencv`).
+            **kwargs: Optional tuning (e.g. ``min_inliers``, ``ransac_reproj_threshold``,
+                ``orb_nfeatures``, ``ratio_test``, ``upsample_factor`` for phase path).
+
+        Returns:
+            The alignment info dict from :func:`tmd.surface.transformations.align_height_map_sequence_opencv`.
+
+        Raises:
+            ImportError: If OpenCV is not installed.
+            ValueError: If there are no frames or ``reference_index`` is invalid.
+        """
+        if not self.frames:
+            raise ValueError("Cannot align an empty sequence")
+        aligned, info = align_height_map_sequence_opencv(
+            self.frames,
+            reference_index=reference_index,
+            method=method,
+            crop=crop,
+            margin=margin,
+            phase_refine=phase_refine,
+            second_full_pass=second_full_pass,
+            **kwargs,
+        )
+        self.frames = aligned
+        self.metadata["alignment"] = info
+        return info
 
     def apply_transformations(self) -> List[np.ndarray]:
         """
@@ -544,4 +596,7 @@ class TMDSequence:
     
     def __repr__(self) -> str:
         """Return a detailed string representation for debugging."""
-        return f"TMDSequence(name='{self.name}', frames={len(self.frames)}, metadata_keys={list(self.metadata.keys
+        return (
+            f"TMDSequence(name={self.name!r}, frames={len(self.frames)}, "
+            f"metadata_keys={list(self.metadata.keys())})"
+        )

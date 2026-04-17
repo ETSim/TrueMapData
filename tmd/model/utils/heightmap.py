@@ -135,39 +135,49 @@ def smooth_heightmap(heightmap: np.ndarray, sigma: float = 1.0) -> np.ndarray:
     return gaussian_filter(heightmap, sigma=sigma)
 
 
-def to_16bit_grayscale(self, height_map: np.ndarray) -> np.ndarray:
-        """
-        Convert a heightmap to 16-bit grayscale format.
-        
-        Args:
-            height_map: Input heightmap array
-        Returns:
-            16-bit normalized heightmap
-        """
-        
-        # Ensure floating point for calculations
-        height_map = height_map.astype(np.float32)
-        
-        # Normalize to [0, 1] range
-        min_val = np.min(height_map)
-        max_val = np.max(height_map)
-        height_range = max_val - min_val
-        
-        if height_range > 0:
-            height_map = (height_map - min_val) / height_range
-        else:
-            height_map = np.zeros_like(height_map)
-        
-        # Convert to 16-bit integer range [0, 65535]
-        height_map = (height_map * 65535).astype(np.uint16)
-        
-        # Convert back to float32 but preserve 16-bit precision
-        height_map = height_map.astype(np.float32) / 65535.0
-        
-        logger.debug(f"Converted heightmap: shape={height_map.shape}, dtype={height_map.dtype}, range=[{height_map.min():.3f}, {height_map.max():.3f}]")
-        
-        return height_map
-    
+def normalize_heightmap_for_triangulation(height_map: np.ndarray) -> np.ndarray:
+    """
+    Normalize a heightmap to float32 in [0, 1] via min–max scaling and a uint16
+    round-trip so triangulation matches export mesh preparation.
+
+    Args:
+        height_map: 2D height array (any numeric dtype).
+
+    Returns:
+        float32 array with values in [0, 1].
+    """
+    if height_map.dtype == np.uint16:
+        out = height_map.astype(np.float32) / 65535.0
+        logger.debug(
+            "Heightmap uint16 -> float32: shape=%s range=[%.3f, %.3f]",
+            height_map.shape,
+            float(out.min()),
+            float(out.max()),
+        )
+        return out
+
+    height_map = height_map.astype(np.float32)
+    min_val = np.min(height_map)
+    max_val = np.max(height_map)
+    height_range = max_val - min_val
+
+    if height_range > 0:
+        height_map = (height_map - min_val) / height_range
+    else:
+        height_map = np.zeros_like(height_map)
+
+    height_map = (height_map * 65535).astype(np.uint16).astype(np.float32) / 65535.0
+
+    logger.debug(
+        "Normalized heightmap for triangulation: shape=%s dtype=%s range=[%.3f, %.3f]",
+        height_map.shape,
+        height_map.dtype,
+        float(height_map.min()),
+        float(height_map.max()),
+    )
+    return height_map
+
+
 def calculate_terrain_complexity(heightmap: np.ndarray, smoothing: float = 0.0) -> np.ndarray:
     """
     Calculate terrain complexity based on heightmap.

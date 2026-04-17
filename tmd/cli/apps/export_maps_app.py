@@ -277,6 +277,11 @@ def create_export_maps_app() -> typer.Typer:
         format: str = typer.Option("png", "--format", "-f", help="Output format"),
         strength: float = typer.Option(1.0, "--strength", "-s", help="Map strength"),
         normalize: bool = typer.Option(False, "--normalize", "-n", help="Normalize height map before processing"),
+        fast: bool = typer.Option(
+            False,
+            "--fast",
+            help="Faster run: omit parallax_ao from default 'all' set; if you pass --types including parallax_ao, uses lighter settings",
+        ),
         metadata: Optional[str] = typer.Option(
             None, "--metadata", "-m", help="Additional parameters as JSON string")
     ):
@@ -285,9 +290,17 @@ def create_export_maps_app() -> typer.Typer:
         if output_dir is None:
             output_dir = Path("textures")
 
-        export_maps_command(input_file, output_dir, types,
-                            compress=compress, format=format, strength=strength,
-                            normalize=normalize, metadata=metadata)
+        export_maps_command(
+            input_file,
+            output_dir,
+            types,
+            compress=compress,
+            format=format,
+            strength=strength,
+            normalize=normalize,
+            metadata=metadata,
+            fast=fast,
+        )
 
     @app.command("synthetic")
     def synthetic(
@@ -311,8 +324,6 @@ def create_export_maps_app() -> typer.Typer:
         if not generate_synthetic_terrain(pattern, width, height, output_dir, types, compress, format, 
                                         normalize=normalize, metadata=metadata):
             raise typer.Exit(1)
-
-    return app
 
     @app.command("parallax_ao")
     def parallax_ao(
@@ -447,3 +458,5 @@ def create_export_maps_app() -> typer.Typer:
             visualization=visualization, colormap=colormap, enhance_contrast=enhance_contrast,
             compress=compress, format=format, normalize=normalize, metadata=metadata
         )
+
+    return app

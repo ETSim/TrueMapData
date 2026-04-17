@@ -1,0 +1,17 @@
+{
+  "name": "TrueMapData",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "forwardPorts": [8000],
+  "postCreateCommand": "bash -lc 'sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libglib2.0-0 libgl1 && python -m pip install --upgrade pip && python -m pip install -r requirements.txt && python -m pip install -e . && python -m pip install -r requirements-dev.txt && python -m pip install ruff && pre-commit install'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      }
+    }
+  }
+}

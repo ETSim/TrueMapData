@@ -24,12 +24,7 @@ from ...image import (
     export_height_map,
     export_hillshade_map,
 )
-from ..core.ui import (
-    display_tmd_info, 
-    display_map_export_info, 
-    display_map_export_results,
-    display_batch_progress
-)
+from ..core.ui import display_tmd_info, display_map_export_info
 
 # Set up logging
 logger = logging.getLogger(__name__)

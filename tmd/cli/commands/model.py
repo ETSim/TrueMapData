@@ -139,20 +139,17 @@ def export_model(
             'error_threshold': kwargs.get('error_threshold', 0.05),
             'min_quad_size': kwargs.get('min_quad_size', 4),
             'max_quad_size': kwargs.get('max_quad_size', 64),
-            'max_triangles': 50000,  # Default value
+            'max_triangles': kwargs.get('max_triangles', 50000),
             'simplify_ratio': kwargs.get('simplify_ratio', 0.25),
             'z_scale': kwargs.get('scale', 1.0),
             'max_subdivisions': kwargs.get('max_subdivisions', 4),
+            'detail_boost': kwargs.get('detail_boost', 1.0),
             'binary': kwargs.get('binary', True),
             'x_length': tmd_data.metadata.get('x_length', 1.0),
             'y_length': tmd_data.metadata.get('y_length', 1.0),
             'x_offset': tmd_data.metadata.get('x_offset', 0.0),
-            'y_offset': tmd_data.metadata.get('y_offset', 0.0)
+            'y_offset': tmd_data.metadata.get('y_offset', 0.0),
         }
-
-        # Override max_triangles if specified in kwargs
-        if 'max_triangles' in kwargs and kwargs['max_triangles'] is not None:
-            config_params['max_triangles'] = kwargs['max_triangles']
 
         # Progress display
         with Progress(
@@ -177,7 +174,13 @@ def export_model(
             
             config = ExportConfig(**config_params)
             config.progress_callback = progress_callback
-            
+            if "base_height" in kwargs:
+                config.base_height = float(kwargs["base_height"])
+            if "save_heightmap" in kwargs:
+                config.extra["save_heightmap"] = bool(kwargs["save_heightmap"])
+            if "colormap" in kwargs:
+                config.extra["colormap"] = kwargs["colormap"]
+
             factory = ModelExporterFactory()
             result = factory.export(
                 input_file=str(input_file),  # Ensure string path

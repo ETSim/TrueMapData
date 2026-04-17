@@ -11,8 +11,6 @@ from tmd.model.utils.mesh import ensure_watertight_mesh
 from ..base import ModelExporter, ExportConfig, MeshData
 from ..utils.validation import validate_heightmap, ensure_directory_exists
 from . import base
-
-from ..base import ModelExporter, ExportConfig, MeshData
 from ..registry import register_exporter
 from ...cli.core.ui import print_error, print_warning
 

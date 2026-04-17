@@ -23,6 +23,17 @@ Color = Tuple[int, int, int]
 ColorList = List[Color]
 
 
+def _triangulation_option(config: Any, attr: str, default: Any) -> Any:
+    """Read triangulation settings from config fields or ``config.extra`` (duck-typed)."""
+    val = getattr(config, attr, None)
+    if val is not None:
+        return val
+    extra = getattr(config, "extra", None) or {}
+    if attr in extra and extra[attr] is not None:
+        return extra[attr]
+    return default
+
+
 class ExportConfig:
     """Configuration parameters for model export operations."""
     
@@ -262,27 +273,32 @@ class ModelExporter(ABC):
         x_scale = config.x_length / (cols - 1)
         y_scale = config.y_length / (rows - 1)
         
+        max_tri = config.max_triangles if getattr(config, "max_triangles", None) is not None else 50000
+        max_subdiv = int(_triangulation_option(config, "max_subdivisions", 8))
+        detail_boost = float(_triangulation_option(config, "detail_boost", 1.0))
+        progress_cb = getattr(config, "progress_callback", None)
+
         # Select triangulation method
         if config.triangulation_method == 'quadtree':
             from .triangulation.quadtree import triangulate_heightmap_quadtree
             vertices, faces, stats = triangulate_heightmap_quadtree(
                 height_map=height_map,
-                max_triangles=config.max_triangles or 50000,
+                max_triangles=max_tri,
                 error_threshold=config.error_threshold,
                 z_scale=z_scale,
-                max_subdivisions=config.extra.get('max_subdivisions', 8),
-                detail_boost=config.extra.get('detail_boost', 1.0),
-                progress_callback=config.progress_callback
+                max_subdivisions=max_subdiv,
+                detail_boost=detail_boost,
+                progress_callback=progress_cb,
             )
         else:
             from .triangulation.adaptive import triangulate_heightmap
             vertices, faces, stats = triangulate_heightmap(
                 height_map=height_map,
-                max_triangles=config.max_triangles,
+                max_triangles=max_tri,
                 error_threshold=config.error_threshold,
                 z_scale=z_scale,
-                detail_boost=config.extra.get('detail_boost', 1.0),
-                progress_callback=config.progress_callback
+                detail_boost=detail_boost,
+                progress_callback=progress_cb,
             )
 
         # Convert vertices to numpy array
@@ -309,36 +325,11 @@ class ModelExporter(ABC):
     @staticmethod
     def _prepare_heightmap_for_triangulation(height_map: np.ndarray) -> np.ndarray:
         """
-        Prepare heightmap for triangulation by converting to 16-bit grayscale.
-        
-        Args:
-            height_map: Input heightmap array
-            
-        Returns:
-            16-bit normalized heightmap
+        Prepare heightmap for triangulation (same normalization as triangulators).
         """
-        # Ensure floating point for calculations
-        height_map = height_map.astype(np.float32)
-        
-        # Normalize to [0, 1] range
-        min_val = np.min(height_map)
-        max_val = np.max(height_map)
-        height_range = max_val - min_val
-        
-        if height_range > 0:
-            height_map = (height_map - min_val) / height_range
-        else:
-            height_map = np.zeros_like(height_map)
-        
-        # Convert to 16-bit integer range [0, 65535]
-        height_map = (height_map * 65535).astype(np.uint16)
-        
-        # Convert back to float32 but preserve 16-bit precision
-        height_map = height_map.astype(np.float32) / 65535.0
-        
-        logger.debug(f"Prepared heightmap: shape={height_map.shape}, dtype={height_map.dtype}, range=[{height_map.min():.3f}, {height_map.max():.3f}]")
-        
-        return height_map
+        from .utils.heightmap import normalize_heightmap_for_triangulation
+
+        return normalize_heightmap_for_triangulation(height_map)
 
 
 def export_heightmap_to_model(

@@ -152,17 +152,20 @@ class NormalMapGenerator(MapGenerator):
             scaling_applied = False
             normal_map = np.zeros((rows, cols, 3), dtype=np.float32)
             
-            # 4a) Physical dimensions if available
+            # 4a) Physical dimensions if available (cell sizes match hillshade / angle maps)
             if 'x_length' in metadata and 'y_length' in metadata:
-                dx = float(metadata['x_length']) / cols if cols > 0 else 1.0
-                dy = float(metadata['y_length']) / rows if rows > 0 else 1.0
+                cell_size_x = float(metadata['x_length']) / cols if cols > 0 else 1.0
+                cell_size_y = float(metadata['y_length']) / rows if rows > 0 else 1.0
                 scaling_applied = True
-                self._log_and_print(f"Using physical dimensions: dx={dx}, dy={dy}", "debug")
+                self._log_and_print(
+                    f"Using physical dimensions: cell_size_x={cell_size_x}, cell_size_y={cell_size_y}",
+                    "debug",
+                )
             
             # 4b) Millimeters per pixel override
             if 'mmpp' in metadata:
                 mmpp = float(metadata['mmpp'])
-                dx = dy = mmpp
+                cell_size_x = cell_size_y = mmpp
                 scaling_applied = True
                 self._log_and_print(f"Using mmpp: {mmpp}", "debug")
                 
@@ -176,14 +179,18 @@ class NormalMapGenerator(MapGenerator):
             # 4c) Fall back to aspect ratio
             if not scaling_applied:
                 aspect = cols / rows if rows > 0 else 1.0
-                dx = 1.0
-                dy = dx / aspect if aspect > 0 else 1.0  # Prevent division by zero
-                self._log_and_print(f"Using aspect ratio: {aspect} with dx={dx}, dy={dy}", "debug")
+                cell_size_x = 1.0
+                cell_size_y = cell_size_x / aspect if aspect > 0 else 1.0  # Prevent division by zero
+                self._log_and_print(
+                    f"Using aspect ratio: {aspect} with cell_size_x={cell_size_x}, cell_size_y={cell_size_y}",
+                    "debug",
+                )
             
-            # 5) Compute gradients
+            cell_size_x = max(float(cell_size_x), 1e-30)
+            cell_size_y = max(float(cell_size_y), 1e-30)
+            
+            # 5) Compute gradients (Sobel with reflect padding, same as hillshade / angle; numpy fallback)
             self._log_and_print("Computing gradients...", "debug")
-            dx_array = np.zeros_like(height_map_norm)
-            dy_array = np.zeros_like(height_map_norm)
             
             # Handle special cases for very small arrays
             if rows < 3 or cols < 3:
@@ -191,33 +198,21 @@ class NormalMapGenerator(MapGenerator):
                 normal_map[:, :, 2] = 1.0
                 return (normal_map + 1.0) * 0.5
             
-            # Central differences for interior points
-            dx_array[:, 1:-1] = (height_map_norm[:, 2:] - height_map_norm[:, :-2]) / (2.0 * dx)
-            dy_array[1:-1, :] = (height_map_norm[2:, :] - height_map_norm[:-2, :]) / (2.0 * dy)
-            
-            # Forward/backward differences for edges
-            dx_array[:, 0] = (height_map_norm[:, 1] - height_map_norm[:, 0]) / dx
-            dx_array[:, -1] = (height_map_norm[:, -1] - height_map_norm[:, -2]) / dx
-            dy_array[0, :] = (height_map_norm[1, :] - height_map_norm[0, :]) / dy
-            dy_array[-1, :] = (height_map_norm[-1, :] - height_map_norm[-2, :]) / dy
-            
-            # Handle corners explicitly by averaging neighboring values
-            self._log_and_print("Handling corner cases...", "debug")
-            # Top-left corner
-            dx_array[0, 0] = dx_array[0, 1]
-            dy_array[0, 0] = dy_array[1, 0]
-            
-            # Top-right corner
-            dx_array[0, -1] = dx_array[0, -2]
-            dy_array[0, -1] = dy_array[1, -1]
-            
-            # Bottom-left corner
-            dx_array[-1, 0] = dx_array[-1, 1]
-            dy_array[-1, 0] = dy_array[-2, 0]
-            
-            # Bottom-right corner
-            dx_array[-1, -1] = dx_array[-1, -2]
-            dy_array[-1, -1] = dy_array[-2, -1]
+            try:
+                from scipy import ndimage
+                
+                dx_array = (
+                    ndimage.sobel(height_map_norm, axis=1, mode="reflect") / (8.0 * cell_size_x)
+                ).astype(np.float32, copy=False)
+                dy_array = (
+                    ndimage.sobel(height_map_norm, axis=0, mode="reflect") / (8.0 * cell_size_y)
+                ).astype(np.float32, copy=False)
+                self._log_and_print("Gradients computed via scipy.ndimage.sobel (mode=reflect)", "debug")
+            except ImportError:
+                gy, gx = np.gradient(height_map_norm, cell_size_y, cell_size_x)
+                dx_array = gx.astype(np.float32, copy=False)
+                dy_array = gy.astype(np.float32, copy=False)
+                self._log_and_print("Gradients computed via numpy.gradient (scipy not available)", "debug")
             
             # Check for NaNs in gradients
             if np.isnan(dx_array).any() or np.isnan(dy_array).any():

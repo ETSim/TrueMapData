@@ -94,7 +94,8 @@ def create_export_mesh_app() -> typer.Typer:
                 quality_params['error_threshold'] = error_threshold
             if max_triangles is not None:
                 quality_params['max_triangles'] = max_triangles
-        
+            quality_params['max_subdivisions'] = max_subdivisions
+
             # Determine output filename
             if not output_file:
                 output_file = tmd_file.with_suffix(f".{format.lower()}")

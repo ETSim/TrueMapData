@@ -277,8 +277,10 @@ class TestTMDUtils:
             assert result.shape == (5, 5)
         
         # Test fallback path (when scipy is not available)
-        with mock.patch("tmd.utils.core.TMDUtils.get_scipy_or_fallback", 
-                       return_value=(None, False)):
+        with mock.patch(
+            "tmd.utils.utils.TMDUtils.get_scipy_or_fallback",
+            return_value=(None, False),
+        ):
             result = TMDUtils.downsample_array(test_array, 5, 5)
             assert result.shape == (5, 5)
 
@@ -301,9 +303,9 @@ class TestTMDUtils:
         result = TMDUtils.quantize_array(single_value)
         assert np.array_equal(result, single_value)
         
-        # Test with invalid levels
-        with pytest.raises(ValueError):
-            TMDUtils.quantize_array(test_array, levels=1)  # At least 2 levels required
+        # levels < 2 are clamped to 2 (no exception)
+        clamped = TMDUtils.quantize_array(test_array, levels=1)
+        assert clamped.shape == test_array.shape
 
     def test_print_message(self):
         """Test print message formatting."""
@@ -336,13 +338,21 @@ class TestTMDUtils:
             assert scipy is not None
             assert hasattr(scipy, "ndimage")
         
-        # Test the fallback path with a mock
-        with mock.patch("importlib.import_module", side_effect=ImportError):
-            with mock.patch("tmd.utils.core.TMDUtils.print_message") as mock_print:
+        # Test the fallback path when scipy cannot be imported
+        import builtins
+
+        real_import = builtins.__import__
+
+        def block_scipy(name: str, *args, **kwargs):
+            if name == "scipy" or name.startswith("scipy."):
+                raise ImportError("scipy blocked for test")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=block_scipy):
+            with mock.patch("tmd.utils.utils.TMDUtils.print_message") as mock_print:
                 scipy, has_scipy = TMDUtils.get_scipy_or_fallback()
                 assert not has_scipy
                 assert scipy is None
-                # Check that a warning was printed
                 mock_print.assert_called_once()
 
 

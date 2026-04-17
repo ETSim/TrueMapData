@@ -252,7 +252,9 @@ class TMDTerrain:
                 for j in range(width):
                     Z[i, j] = (i + j) % 10 / 10.0
         else:
-            Z = np.zeros((height, width))
+            if seed is not None:
+                np.random.seed(None)
+            return np.zeros((height, width), dtype=np.float32)
 
         # Calculate base amplitude to scale the noise appropriately
         base_amplitude = np.max(np.abs(Z)) if np.max(np.abs(Z)) > 0 else 1.0

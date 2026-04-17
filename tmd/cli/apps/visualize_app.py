@@ -11,6 +11,7 @@ from enum import Enum
 from tmd.cli.core.ui import console, print_error, print_warning, print_success
 from tmd.cli.core.io import auto_open_file
 from tmd.cli.utils.visualization import create_visualization
+from tmd.cli.commands.examples import show_examples
 
 class PlotterChoice(str, Enum):
     """Supported plotter backends."""
@@ -445,47 +446,6 @@ def list_backends():
     except ImportError:
         print_error("Visualization backend detection failed")
         return 1
-
-def show_examples():
-    """Display example commands for visualizing TMD files."""
-    console.print("[bold]TMD Visualization Examples:[/bold]\n")
-    
-    console.print("[bold cyan]Basic 2D Visualization:[/bold cyan]")
-    console.print("  python tmd_cli.py visualize basic Dime.tmd --colormap viridis")
-    console.print("  python tmd_cli.py visualize basic Dime.tmd --plotter plotly --output dime_visualization.html\n")
-    
-    console.print("[bold cyan]3D Surface Visualization:[/bold cyan]")
-    console.print("  python tmd_cli.py visualize 3d Dime.tmd --z-scale 2.0")
-    console.print("  python tmd_cli.py visualize 3d Dime.tmd --plotter plotly --z-scale 1.5 --colormap plasma\n")
-    
-    console.print("[bold cyan]Profile Visualization:[/bold cyan]")
-    console.print("  python tmd_cli.py visualize profile Dime.tmd --row 50")
-    console.print("  python tmd_cli.py visualize profile Dime.tmd --plotter seaborn --row 100 --no-show-markers\n")
-    
-    console.print("[bold cyan]Contour Visualization:[/bold cyan]")
-    console.print("  python tmd_cli.py visualize contour Dime.tmd --levels 15")
-    console.print("  python tmd_cli.py visualize contour Dime.tmd --plotter plotly --colormap terrain\n")
-    
-    console.print("[bold cyan]Enhanced Visualizations (Seaborn/Plotly):[/bold cyan]")
-    console.print("  python tmd_cli.py visualize fancy Dime.tmd --plotter seaborn")
-    console.print("  python tmd_cli.py visualize fancy Dime.tmd --mode distribution --plotter seaborn")
-    console.print("  python tmd_cli.py visualize fancy Dime.tmd --mode joint --plotter plotly\n")
-    
-    console.print("[bold cyan]Comparison Visualizations:[/bold cyan]")
-    console.print("  python tmd_cli.py visualize compare Dime.tmd")
-    console.print("  python tmd_cli.py visualize compare Dime.tmd --second-file Quarter.tmd --plotter seaborn\n")
-    
-    console.print("[bold cyan]Polyscope 3D Visualizations:[/bold cyan]")
-    console.print("  python tmd_cli.py visualize ps-3d Dime.tmd --z-scale 2.0")
-    console.print("  python tmd_cli.py visualize ps-pointcloud Dime.tmd --sample-rate 2 --point-size 3.0")
-    console.print("  python tmd_cli.py visualize ps-mesh Dime.tmd --wireframe --no-smooth\n")
-    
-    console.print("[bold]Tips:[/bold]")
-    console.print("- Use [cyan]--auto-open[/cyan] to automatically open the saved visualization")
-    console.print("- Use [cyan]--plotter auto[/cyan] to let TMD choose the best available visualization backend")
-    console.print("- Run [cyan]visualize backends[/cyan] to see all available visualization backends")
-    
-    return 0
 
 def _resolve_plotter(plotter: PlotterChoice) -> str:
     """

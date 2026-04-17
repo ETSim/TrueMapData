@@ -279,27 +279,16 @@ class TMDUtils:
                 if debug:
                     print("⚠️ Detected v1 file format. Reading metadata...")
             elif version == 2:
-                f.seek(32)  # Default for v2 files
                 if debug:
                     print("⚠️ Detected v2 file format. Reading metadata...")
-                
-                # Read comment section
-                try:
-                    comment_bytes = f.read(24)
-                    metadata["comment"] =  comment_bytes.decode("ascii").strip()
-                    if debug and metadata["comment"]:
-                        print(f"Comment: {metadata['comment']}")
-                except Exception as e:
-                    if debug:
-                        print(f"Error reading comment: {e}")
-                    # Ensure we're in the right position for the next block
-                    metadata["comment"] = None
-                    try:
-                        f.read(24)
-                        f.seek(33)
-                    except Exception:
-                        metadata["comment"] = None
-                        f.seek(33)
+                f.seek(0, 2)
+                file_size = f.tell()
+                f.seek(0)
+                dim_offset, comment = TMDUtils._detect_v2_dimension_offset(
+                    f, file_size, debug=debug
+                )
+                metadata["comment"] = comment
+                f.seek(dim_offset)
             else:
                 logger.error(f"Unsupported TMD file version: {version}")
                 raise TMDDataError(f"Unsupported TMD file version: {version}")
@@ -338,6 +327,63 @@ class TMDUtils:
             # Return default empty height map on error
             logger.error((metadata["height"], metadata["width"]))
             return metadata, np.zeros((metadata["height"], metadata["width"]), dtype=np.float32)
+
+    @staticmethod
+    def _detect_v2_dimension_offset(
+        f: BinaryIO, file_size: int, debug: bool = False
+    ) -> Tuple[int, Optional[str]]:
+        """
+        Find the byte offset where v2 width/height uint32s begin.
+
+        Supports the canonical on-disk layout from ``_write_v2_header`` (32-byte
+        header + 24-byte comment = 56) and alternate files that use a ``\\r\\n``
+        text header followed by null padding before dimensions.
+        """
+        candidates: List[int] = [56]  # 32-byte padded title + 24-byte comment (see _write_v2_header)
+
+        f.seek(0)
+        f.readline()
+        after_line = f.tell()
+        pos = after_line
+        while pos < file_size and pos < after_line + 256:
+            f.seek(pos)
+            if f.read(1) != b"\x00":
+                break
+            pos += 1
+        if pos not in candidates:
+            candidates.append(pos)
+
+        seen: set[int] = set()
+        for dim_off in sorted(candidates):
+            if dim_off in seen or dim_off < 0 or dim_off + 24 > file_size:
+                continue
+            seen.add(dim_off)
+            f.seek(dim_off)
+            try:
+                w, h = struct.unpack("<II", f.read(8))
+            except struct.error:
+                continue
+            if debug:
+                print(f"v2 layout probe at {dim_off}: {w} x {h}")
+            if w <= 0 or h <= 0 or w > 500_000 or h > 500_000:
+                continue
+            expected = dim_off + 24 + w * h * 4
+            if expected != file_size:
+                continue
+
+            comment: Optional[str] = None
+            if dim_off == 56:
+                f.seek(32)
+                comment_bytes = f.read(24)
+                comment = (
+                    comment_bytes.decode("ascii", errors="ignore").split("\x00", 1)[0].strip()
+                ) or None
+            return dim_off, comment
+
+        raise TMDDataError(
+            f"Could not locate v2 width/height (file size {file_size} bytes); "
+            "header may be corrupt or from an unsupported writer."
+        )
 
     @staticmethod
     def _read_dimensions(f: BinaryIO, debug: bool = False) -> Dict[str, Any]:
@@ -623,8 +669,11 @@ class TMDUtils:
                 # Write dimensions: width and height (4 bytes each, little-endian)
                 f.write(struct.pack("<II", width, height))
 
-                # Write spatial info: x_length, y_length, x_offset, y_offset (each as 4-byte float)
-                f.write(struct.pack("<ffff", x_length, y_length, x_offset, y_offset))
+                # Write spatial info: v1 stores only x_length, y_length (8 bytes total).
+                if version == 1:
+                    f.write(struct.pack("<ff", x_length, y_length))
+                else:
+                    f.write(struct.pack("<ffff", x_length, y_length, x_offset, y_offset))
 
                 # Write the height map data (float32 values)
                 height_map_flat = height_map.astype(np.float32).flatten()

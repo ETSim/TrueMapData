@@ -52,7 +52,9 @@ try:
     
     # Rich is available, use its console with theme
     console = Console(theme=tmd_theme)
+    HAS_RICH = True
 except ImportError:
+    HAS_RICH = False
     # Rich is not available, use basic fallback
     console = BasicConsole()
     print("WARNING: rich package not available, falling back to basic output")
@@ -296,137 +298,103 @@ def print_tmd_info_table(tmd_data, console=None):
     
     console.print(table)
 
-def display_map_export_info(input_file: Path, output_dir: Path, types: list, params: dict):
+def display_map_export_info(
+    input_file: Path,
+    output_dir: Path,
+    types: Union[list, List[str]],
+    params: Dict[str, Any],
+) -> None:
     """Display map export configuration."""
-    # Input/Output info
     io_table = Table(title="Export Configuration")
     io_table.add_column("Property", style="cyan")
-    io_table.add_column("Value", style="green")
-    
+    io_table.add_column("Value", style="green", overflow="fold")
+
+    type_str = ", ".join(types) if types else "All"
     io_table.add_row("Input File", str(input_file))
     io_table.add_row("Output Directory", str(output_dir))
-    io_table.add_row("Map Types", ", ".join(types) if types else "All")
-    
-    # Parameters table
+    io_table.add_row("Map Types", type_str)
+
     param_table = Table(title="Export Parameters")
     param_table.add_column("Parameter", style="cyan")
     param_table.add_column("Value", style="yellow")
     param_table.add_column("Description", style="blue")
-    
-    param_info = {
-        'format': ('Image format', 'Output format (png, jpg, webp)'),
-        'compress': ('Compression', 'Compression level (0-100)'),
-        'strength': ('Strength', 'Map effect strength'),
-        'colormap': ('Colormap', 'Color mapping')
+
+    param_rows = {
+        "format": ("Image format", "Output format (png, jpg, webp)"),
+        "compress": ("Compression", "Compression level (0-100)"),
+        "strength": ("Strength", "Map effect strength"),
+        "colormap": ("Colormap", "Color mapping"),
+        "samples": ("Samples", "Number of samples"),
+        "azimuth": ("Azimuth", "Light source angle"),
+        "altitude": ("Altitude", "Light source height"),
+        "fast": ("Fast preset", "Reduced cost map settings"),
     }
-    
+
     for key, value in params.items():
-        if key in param_info:
-            name, desc = param_info[key]
+        if key in param_rows:
+            name, desc = param_rows[key]
             param_table.add_row(name, str(value), desc)
-    
+
     console.print(io_table)
     console.print(param_table)
     console.print()
 
-def display_map_export_results(results: dict):
-    """Display map export results."""
+
+def display_map_export_results(results: Dict[str, Any]) -> None:
+    """Display per-map export results (split path for narrow terminals)."""
     result_table = Table(title="Export Results")
     result_table.add_column("Map Type", style="cyan")
-    result_table.add_column("Status", style="green")
-    result_table.add_column("Output File", style="blue")
-    
-    for map_type, output in results.items():
-        status = "✅ Success" if output else "❌ Failed"
-        style = "green" if output else "red"
-        result_table.add_row(map_type, status, str(output) if output else "", style=style)
-    
+    result_table.add_column("Status", justify="center")
+    result_table.add_column("Time", justify="right", style="green")
+    result_table.add_column("Filename", style="blue", no_wrap=True)
+    result_table.add_column("Directory", style="dim", overflow="fold")
+
+    for map_type, row in results.items():
+        if isinstance(row, dict) and "success" in row:
+            ok = bool(row.get("success"))
+            outp = row.get("path")
+            t = row.get("time")
+        else:
+            ok = bool(row)
+            outp = row if ok else None
+            t = None
+
+        status = "OK" if ok else "FAIL"
+        time_str = f"{float(t):.2f}s" if t is not None else "-"
+        if ok and outp:
+            p = Path(outp)
+            result_table.add_row(map_type, status, time_str, p.name, str(p.parent))
+        else:
+            result_table.add_row(map_type, status, time_str, "-", "-")
+
     console.print(result_table)
 
-def display_batch_progress(stats: dict):
+
+def display_batch_progress(stats: Dict[str, Any]) -> None:
     """Display batch export progress."""
     header = Panel(
         f"[bold cyan]Batch Export Progress[/]\n"
         f"Processing {stats['processed']}/{stats['total']} files\n"
         f"Success: [green]{stats['successful']}[/] Failed: [red]{stats['failed']}[/]",
-        style="cyan"
+        style="cyan",
     )
     console.print(header)
 
-def display_export_info(input_file: Path, output_dir: Path, types: list, params: Dict[str, Any]):
-    """Display map export configuration."""
-    # Input/Output info
-    io_table = Table(title="Export Configuration")
-    io_table.add_column("Property", style="cyan")
-    io_table.add_column("Value", style="green")
-    
-    io_table.add_row("Input File", str(input_file))
-    io_table.add_row("Output Directory", str(output_dir))
-    io_table.add_row("Map Types", ", ".join(types) if types else "All")
-    
-    # Parameters table
-    param_table = Table(title="Export Parameters")
-    param_table.add_column("Parameter", style="cyan")
-    param_table.add_column("Value", style="yellow")
-    param_table.add_column("Description", style="blue")
-    
-    common_params = {
-        'format': ('Format', 'Output format (png, jpg, webp)'),
-        'compress': ('Compression', 'Compression level (0-100)'),
-        'strength': ('Strength', 'Map effect strength'),
-        'colormap': ('Colormap', 'Color mapping'),
-        'samples': ('Samples', 'Number of samples'),
-        'azimuth': ('Azimuth', 'Light source angle'),
-        'altitude': ('Altitude', 'Light source height')
-    }
-    
-    for key, value in params.items():
-        if key in common_params:
-            name, desc = common_params[key]
-            param_table.add_row(name, str(value), desc)
-    
-    console.print(io_table)
-    console.print(param_table)
-    console.print()
 
-def display_map_export_results(results: Dict[str, Any]):
-    """Display map export results."""
-    result_table = Table(title="Export Results")
-    result_table.add_column("Map Type", style="cyan")
-    result_table.add_column("Status", style="green")
-    result_table.add_column("Output File", style="blue")
-    
-    for map_type, output in results.items():
-        status = "✅ Success" if output else "❌ Failed"
-        style = "green" if output else "red"
-        result_table.add_row(map_type, status, str(output) if output else "", style=style)
-    
-    console.print(result_table)
+def display_export_info(
+    input_file: Path, output_dir: Path, types: Union[list, List[str]], params: Dict[str, Any]
+) -> None:
+    """Alias for :func:`display_map_export_info` (legacy name)."""
+    display_map_export_info(input_file, output_dir, types, params)
 
-def display_batch_progress(stats: Dict[str, Any]):
-    """Display batch export progress."""
-    header = Panel(
-        f"[bold cyan]Batch Export Progress[/]\n"
-        f"Processing {stats['processed']}/{stats['total']} files\n"
-        f"Success: [green]{stats['successful']}[/] Failed: [red]{stats['failed']}[/]",
-        style="cyan"
-    )
-    console.print(header)
 
-def display_map_export_info(input_file: Path, output_dir: Path, types: List[str], params: Dict[str, Any]) -> None:
-    """Display information about map export operation."""
-    console.print(Panel(f"[bold cyan]Map Export Configuration[/]"))
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Setting", style="cyan")
-    table.add_column("Value", style="green")
-    
-    table.add_row("Input File", str(input_file))
-    table.add_row("Output Directory", str(output_dir))
-    table.add_row("Map Types", ", ".join(types))
-    table.add_row("Parameters", str(params))
-    
-    console.print(table)
-    console.print()
+def display_single_map_export_result(success: bool, output_path: Path) -> None:
+    """Single-file map export outcome."""
+    if success:
+        console.print(f"[green]Successfully exported map to:[/] {output_path}")
+    else:
+        console.print("[red]Failed to export map[/]")
+
 
 def display_tmd_info(tmd_data: Any) -> None:
     """Display TMD file information."""
@@ -442,14 +410,3 @@ def display_tmd_info(tmd_data: Any) -> None:
         table.add_row(str(key), str(value))
     
     console.print(table)
-
-def display_map_export_results(success: bool, output_path: Path) -> None:
-    """Display results of map export operation."""
-    if success:
-        console.print(f"[green]Successfully exported map to:[/] {output_path}")
-    else:
-        console.print("[red]Failed to export map[/]")
-
-def display_batch_progress(current: int, total: int, filename: str) -> None:
-    """Display batch processing progress."""
-    console.print(f"Processing {current}/{total}: {filename}")

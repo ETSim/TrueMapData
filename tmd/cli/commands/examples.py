@@ -25,7 +25,7 @@ EXAMPLES_MD = """
 python tmd_cli.py --help
 
 # Show information about a TMD file
-python tmd_cli.py info Dime.tmd
+python tmd_cli.py info path/to/file.tmd
 
 # Show version information
 python tmd_cli.py version
@@ -35,13 +35,13 @@ python tmd_cli.py version
 
 ```bash
 # Downsample a TMD file to 50% of its original size
-python tmd_cli.py compress downsample Dime.tmd --scale 0.5
+python tmd_cli.py compress downsample path/to/file.tmd --scale 0.5
 
 # Quantize height values to 256 levels
-python tmd_cli.py compress quantize Dime.tmd --levels 256
+python tmd_cli.py compress quantize path/to/file.tmd --levels 256
 
 # Combine downsampling and quantization
-python tmd_cli.py compress combined Dime.tmd --scale 0.5 --levels 256
+python tmd_cli.py compress combined path/to/file.tmd --scale 0.5 --levels 256
 
 # Batch compression of multiple files
 python tmd_cli.py compress batch tmd_files/ --mode downsample --scale 0.5 --recursive
@@ -51,40 +51,37 @@ python tmd_cli.py compress batch tmd_files/ --mode downsample --scale 0.5 --recu
 
 ```bash
 # Basic 2D visualization with default settings
-python tmd_cli.py visualize basic Dime.tmd
+python tmd_cli.py visualize basic path/to/file.tmd
 
 # 2D visualization with custom colormap
-python tmd_cli.py visualize basic Dime.tmd --colormap viridis
+python tmd_cli.py visualize basic path/to/file.tmd --colormap viridis
 
 # 3D visualization with plotly
-python tmd_cli.py visualize 3d Dime.tmd --z-scale 2.0 --plotter plotly
+python tmd_cli.py visualize 3d path/to/file.tmd --z-scale 2.0 --plotter plotly
 
 # 3D visualization with matplotlib
-python tmd_cli.py visualize 3d Dime.tmd --z-scale 1.5 --plotter matplotlib
+python tmd_cli.py visualize 3d path/to/file.tmd --z-scale 1.5 --plotter matplotlib
 
 # Height profile visualization 
-python tmd_cli.py visualize profile Dime.tmd --row 50
+python tmd_cli.py visualize profile path/to/file.tmd --row 50
 
 # Height profile with seaborn
-python tmd_cli.py visualize profile Dime.tmd --row 75 --plotter seaborn
+python tmd_cli.py visualize profile path/to/file.tmd --row 75 --plotter seaborn
 
 # Interactive 3D visualization with Polyscope
-python tmd_cli.py visualize ps-3d Dime.tmd --z-scale 2.0
+python tmd_cli.py visualize ps-3d path/to/file.tmd --z-scale 2.0
 
 # Point cloud visualization with Polyscope
-python tmd_cli.py visualize ps-pointcloud Dime.tmd --sample-rate 2 --point-size 3.0
+python tmd_cli.py visualize ps-pointcloud path/to/file.tmd --sample-rate 2 --point-size 3.0
 
 # Triangle mesh visualization with Polyscope
-python tmd_cli.py visualize ps-mesh Dime.tmd --wireframe --smooth
-
-# Create animation from multiple TMD files
-python tmd_cli.py visualize polyscope-animate tmd_sequence/*.tmd --fps 30
+python tmd_cli.py visualize ps-mesh path/to/file.tmd --wireframe --smooth
 
 # Check available visualization backends
-python tmd_cli.py visualize plotters
+python tmd_cli.py visualize backends
 
-# Check Polyscope installation
-python tmd_cli.py visualize check-polyscope
+# Full markdown examples (all major CLI areas)
+python tmd_cli.py visualize examples
 ```
 
 ## Cache Management
@@ -146,134 +143,28 @@ python tmd_cli.py maps all input.tmd --output-dir textures/ \\
     --hillshade-azimuth 315
 ```
 
-## Mesh Export Commands
+## Mesh export
 
-### List Available Formats
-```bash
-# Show all supported mesh export formats
-python tmd_cli.py mesh list
-```
-
-### STL Export (Stereolithography)
-```bash
-# Export as binary STL (default, recommended for most use cases)
-python tmd_cli.py mesh stl terrain.tmd --scale 1.0
-
-# Export as ASCII STL (larger file, human-readable)
-python tmd_cli.py mesh stl terrain.tmd --binary false
-
-# Export with custom scaling and output location
-python tmd_cli.py mesh stl terrain.tmd --scale 2.5 --output-file models/terrain.stl
-```
-
-### OBJ Export (Wavefront)
-```bash
-# Basic OBJ export (includes materials and textures)
-python tmd_cli.py mesh obj terrain.tmd
-
-# Export with increased detail and custom scale
-python tmd_cli.py mesh obj terrain.tmd --scale 1.5 --output-file terrain_detailed.obj
-
-# Export with automatic texture generation
-python tmd_cli.py mesh obj terrain.tmd --texture true --texture-resolution 2048,2048
-```
-
-### PLY Export (Stanford Triangle Format)
-```bash
-# Export as binary PLY (default, compact file size)
-python tmd_cli.py mesh ply terrain.tmd
-
-# Export as ASCII PLY with vertex colors
-python tmd_cli.py mesh ply terrain.tmd --binary false --vertex-colors true
-
-# Export with normal vectors and custom scale
-python tmd_cli.py mesh ply terrain.tmd --scale 2.0 --normals true
-```
-
-### GLTF Export (GL Transmission Format)
-```bash
-# Export as binary GLB (default, recommended for web/mobile)
-python tmd_cli.py mesh gltf terrain.tmd
-
-# Export as JSON-based GLTF with external resources
-python tmd_cli.py mesh gltf terrain.tmd --binary false
-
-# Export with PBR materials and high-resolution textures
-python tmd_cli.py mesh gltf terrain.tmd --pbr true --texture-resolution 4096,4096
-```
-
-### USD Export (Universal Scene Description)
-```bash
-# Export as binary USDC (default)
-python tmd_cli.py mesh usd terrain.tmd
-
-# Export as ASCII USDA (for debugging/editing)
-python tmd_cli.py mesh usd terrain.tmd --binary false
-
-# Export as USDZ (for AR Quick Look on iOS)
-python tmd_cli.py mesh usd terrain.tmd --output-file terrain.usdz
-
-# Export with high-quality materials for visualization
-python tmd_cli.py mesh usd terrain.tmd --pbr true --texture true
-```
-
-### Advanced Export Options
-
-#### Scale and Resolution Control
-```bash
-# Export with vertical exaggeration
-python tmd_cli.py mesh stl terrain.tmd --scale 2.5
-
-# Export with high detail preservation
-python tmd_cli.py mesh obj terrain.tmd --error-threshold 0.001
-
-# Export with reduced polygon count
-python tmd_cli.py mesh ply terrain.tmd --max-triangles 100000
-```
-
-#### Material and Texture Options
-```bash
-# Generate PBR materials with all maps
-python tmd_cli.py mesh gltf terrain.tmd --pbr true --maps ao,normal,roughness
-
-# Custom texture resolution
-python tmd_cli.py mesh obj terrain.tmd --texture-resolution 2048,2048
-
-# Specific color scheme for textures
-python tmd_cli.py mesh usd terrain.tmd --color-map terrain
-```
-
-#### Coordinate System Options
-```bash
-# Export with origin at center
-python tmd_cli.py mesh stl terrain.tmd --origin-at-zero true
-
-# Export with specific coordinate system
-python tmd_cli.py mesh obj terrain.tmd --coordinate-system right-handed
-
-# Export with custom base height
-python tmd_cli.py mesh ply terrain.tmd --base-height 10
-```
-
-For more details on each format and its options, use:
-```bash
-python tmd_cli.py mesh <format> --help
-```
-
-## Compression Commands
+Use `tmd-process` instead of `python tmd_cli.py` if you installed the package from PyPI.
 
 ```bash
-# Downsample a TMD file to 50% of its original size
-python tmd_cli.py compress downsample Dime.tmd --scale 0.5
+# Supported destination formats
+python tmd_cli.py mesh formats
 
-# Quantize height values to 256 levels
-python tmd_cli.py compress quantize Dime.tmd --levels 256
+# Convenience exporters (quality preset controls error_threshold / max_triangles)
+python tmd_cli.py mesh stl path/to/terrain.tmd --scale 5.0 --quality high
+python tmd_cli.py mesh stl path/to/terrain.tmd --binary false
+python tmd_cli.py mesh obj path/to/terrain.tmd --error-threshold 0.02 --max-triangles 80000
+python tmd_cli.py mesh ply path/to/terrain.tmd --binary true
+python tmd_cli.py mesh gltf path/to/terrain.tmd --binary true
+python tmd_cli.py mesh usd path/to/terrain.tmd --binary true
 
-# Combine downsampling and quantization
-python tmd_cli.py compress combined Dime.tmd --scale 0.5 --levels 256
+# Full `mesh generate` (method: adaptive or quadtree; extra knobs on CLI)
+python tmd_cli.py mesh generate path/to/terrain.tmd --format stl --method adaptive --quality high
+python tmd_cli.py mesh generate path/to/terrain.tmd --format stl --method quadtree --max-subdivisions 12 --max-triangles 120000
 
-# Batch compression of multiple files
-python tmd_cli.py compress batch tmd_files/ --mode downsample --scale 0.5 --recursive
+python tmd_cli.py mesh stl --help
+python tmd_cli.py mesh generate --help
 ```
 """
 

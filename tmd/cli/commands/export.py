@@ -65,7 +65,9 @@ def export_maps_command(
     """Export a TMD file to multiple map types."""
     try:
         start_time = time.time()
-        
+
+        fast = bool(kwargs.pop("fast", False))
+
         # Ensure compression, format and normalize parameters
         compress = kwargs.pop('compress', 75)  # Use pop instead of get to remove it
         format = kwargs.pop('format', 'png')   # Use pop instead of get to remove it
@@ -93,7 +95,9 @@ def export_maps_command(
                 
         # Get map types to export (all available if none specified)
         if types is None:
-            types = get_available_map_types()
+            types = list(get_available_map_types())
+            if fast:
+                types = [t for t in types if t != "parallax_ao"]
             
         # Merge the provided metadata with the file metadata 
         # This is the key fix - merge metadata correctly
@@ -103,7 +107,7 @@ def export_maps_command(
         
         # Create parameters dict that includes everything EXCEPT metadata
         # We'll pass metadata separately to avoid nesting
-        params = {**kwargs}
+        params = {**kwargs, "fast": fast}
         if 'strength' in kwargs:
             params['strength'] = kwargs['strength']
         
@@ -132,16 +136,23 @@ def export_maps_command(
                 output_path = output_dir / output_file
                 
                 # Export the map with proper parameters
-                # Pass metadata directly as a parameter
+                per_map_kwargs = {k: v for k, v in kwargs.items() if k != "fast"}
+                if fast and map_type == "parallax_ao":
+                    per_map_kwargs["samples"] = min(int(per_map_kwargs.get("samples", 16)), 8)
+                    per_map_kwargs["multi_scale"] = False
+                    per_map_kwargs["max_distance"] = min(
+                        float(per_map_kwargs.get("max_distance", 0.05)), 0.03
+                    )
+
                 success = MapExporter.export_map(
-                    tmd_data.height_map, 
-                    str(output_path), 
+                    tmd_data.height_map,
+                    str(output_path),
                     map_type,
                     compress=compress,
                     format=format,
                     normalize=normalize,
-                    metadata=merged_metadata,  # Pass the merged metadata directly
-                    **params  # Other parameters
+                    metadata=merged_metadata,
+                    **per_map_kwargs,
                 )
                 
                 # Track results
@@ -169,13 +180,17 @@ def display_export_results(results: dict, total_time: float):
     table.add_column("Map Type", style="cyan")
     table.add_column("Status", justify="center")
     table.add_column("Time", justify="right", style="green")
-    table.add_column("Output File", style="blue")
-    
+    table.add_column("Filename", style="blue", no_wrap=True)
+    table.add_column("Directory", style="dim", overflow="fold")
+
     for map_type, result in results.items():
-        status = "✅" if result["success"] else "❌"
+        status = "OK" if result["success"] else "FAIL"
         time_str = f"{result['time']:.2f}s"
-        path_str = str(result["path"]) if result["path"] else "Failed"
-        table.add_row(map_type, status, time_str, path_str)
-    
+        if result["success"] and result["path"]:
+            p = Path(result["path"])
+            table.add_row(map_type, status, time_str, p.name, str(p.parent))
+        else:
+            table.add_row(map_type, status, time_str, "-", "-")
+
     console.print(table)
     console.print(f"\nTotal processing time: [green]{total_time:.2f}s[/]")

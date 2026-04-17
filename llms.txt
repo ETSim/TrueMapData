@@ -1,0 +1,35 @@
+# TrueMapData (truemapdata)
+
+> Python library and CLI for TrueMap v6 and GelSight TMD height maps: I/O, surface processing, visualization, texture map export, and 3D mesh generation. Python 3.8+. Package name on PyPI: `truemapdata`. Console script: `tmd-process`.
+
+## Project & install
+
+- [README (overview, CLI, format notes)](https://github.com/ETSTribology/TrueMapData/blob/main/README.md)
+- [pyproject.toml (dependencies, scripts, tooling)](https://github.com/ETSTribology/TrueMapData/blob/main/pyproject.toml)
+- [requirements.txt](https://github.com/ETSTribology/TrueMapData/blob/main/requirements.txt)
+
+## Published documentation (GitHub Pages)
+
+- [Documentation home](https://etstribology.github.io/TrueMapData/)
+- [Installation](https://etstribology.github.io/TrueMapData/user-guide/installation/)
+- [Getting started](https://etstribology.github.io/TrueMapData/user-guide/getting-started/)
+- [Working with TMD files](https://etstribology.github.io/TrueMapData/user-guide/working-with-tmd-files/)
+- [Visualization](https://etstribology.github.io/TrueMapData/user-guide/visualization/)
+- [Exporting data](https://etstribology.github.io/TrueMapData/user-guide/exporting-data/)
+
+## Repository sources (for agents)
+
+- [MkDocs config (nav, theme)](https://github.com/ETSTribology/TrueMapData/blob/main/mkdocs.yml)
+- [CLI entry](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/cli/main.py)
+- [Package root `tmd/`](https://github.com/ETSTribology/TrueMapData/tree/main/tmd)
+
+## Contributing & policy
+
+- [CONTRIBUTING](https://github.com/ETSTribology/TrueMapData/blob/main/CONTRIBUTING.md)
+- [SECURITY](https://github.com/ETSTribology/TrueMapData/blob/main/SECURITY.md)
+- [License (MIT)](https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE)
+
+## Links
+
+- [Issues](https://github.com/ETSTribology/TrueMapData/issues)
+- [PyPI](https://pypi.org/project/truemapdata/)

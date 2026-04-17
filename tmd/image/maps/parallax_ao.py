@@ -4,7 +4,11 @@ Parallax AO map generator.
 This module provides a generator for creating parallax ambient occlusion maps,
 which combine height-based ambient occlusion with slope-aware adjustments for enhanced depth perception.
 """
+from __future__ import annotations
+
 import logging
+from typing import Dict, Optional, Tuple
+
 import numpy as np
 from scipy import ndimage
 from .base_generator import MapGenerator
@@ -95,37 +99,66 @@ class ParallaxAOMapGenerator(MapGenerator):
         
         # Prepare height map
         height_map_norm = self._prepare_height_map(height_map, normalize=True)
-        
+
+        orig_rows, orig_cols = height_map_norm.shape
+        # Downsample for the heavy AO loop on very large rasters (upscale result at end).
+        max_work_side = 1280
+        zoom_back: Optional[Tuple[float, float]] = None
+        work_map = height_map_norm
+        work_meta: Dict = dict(metadata) if metadata else {}
+        if max(orig_rows, orig_cols) > max_work_side:
+            scale = max_work_side / float(max(orig_rows, orig_cols))
+            zr = (orig_rows * scale) / float(orig_rows)
+            zc = (orig_cols * scale) / float(orig_cols)
+            work_map = ndimage.zoom(height_map_norm, (zr, zc), order=1, prefilter=False).astype(
+                np.float32
+            )
+            h2, w2 = work_map.shape
+            work_meta["width"] = w2
+            work_meta["height"] = h2
+            if "x_length" in work_meta and orig_cols > 0:
+                work_meta["x_length"] = float(work_meta["x_length"]) * (w2 / orig_cols)
+            if "y_length" in work_meta and orig_rows > 0:
+                work_meta["y_length"] = float(work_meta["y_length"]) * (h2 / orig_rows)
+            zoom_back = (orig_rows / float(h2), orig_cols / float(w2))
+            logger.debug(
+                "Parallax AO working resolution %s (from %s) for speed",
+                work_map.shape,
+                height_map_norm.shape,
+            )
+
         try:
             logger.debug(f"Generating parallax AO map with {samples} samples")
-            
+
             # Calculate physical dimensions
-            cell_size_x, cell_size_y = self._get_cell_size(height_map_norm, metadata)
-            
+            cell_size_x, cell_size_y = self._get_cell_size(work_map, work_meta)
+
             # 1. Calculate terrain analysis maps (slope, aspect, curvature)
-            terrain_data = self._analyze_terrain(height_map_norm, cell_size_x, cell_size_y)
-            
+            terrain_data = self._analyze_terrain(work_map, cell_size_x, cell_size_y)
+
             # Create curvature-based cavity map for emphasis if requested
             cavity_map = None
             if cavity_emphasis > 0:
                 try:
-                    # Use mean curvature as cavity indicator (negative = concave)
+                    if height_map_norm.size > 2_500_000:
+                        raise RuntimeError("skip full curvature on very large maps")
                     from .curvature import CurvatureMapGenerator
-                    curvature_gen = CurvatureMapGenerator(mode='mean')
-                    curvature = curvature_gen.generate(height_map_norm, metadata=metadata)
-                    
+
+                    curvature_gen = CurvatureMapGenerator(mode="mean")
+                    curvature = curvature_gen.generate(work_map, metadata=work_meta)
+
                     # Isolate concave regions (values < 0.5 in the normalized map)
                     cavity_map = np.maximum(0, 0.5 - curvature) * 2  # Range 0-1
                     logger.debug("Curvature-based cavity map generated")
                 except (ImportError, Exception) as e:
                     logger.warning(f"Could not generate cavity map: {e}")
                     # Fallback using simple local minima detection
-                    height_blurred = ndimage.gaussian_filter(height_map_norm, sigma=2.0)
-                    cavity_map = np.maximum(0, height_blurred - height_map_norm)
+                    height_blurred = ndimage.gaussian_filter(work_map, sigma=2.0)
+                    cavity_map = np.maximum(0, height_blurred - work_map)
                     cavity_map = cavity_map / np.maximum(0.001, np.max(cavity_map))
-            
+
             # 2. Calculate base AO map
-            rows, cols = height_map_norm.shape
+            rows, cols = work_map.shape
             ao_map = np.ones((rows, cols), dtype=np.float32)
             
             # Calculate sampling parameters
@@ -172,14 +205,14 @@ class ParallaxAOMapGenerator(MapGenerator):
                     
                     # Sample heights with dynamic radius
                     sampled_heights = self._sample_heights(
-                        height_map_norm, 
-                        dx_sample, 
-                        dy_sample, 
-                        radius_map
+                        work_map,
+                        dx_sample,
+                        dy_sample,
+                        radius_map,
                     )
-                    
+
                     # Calculate occlusion based on height differences
-                    height_diff = sampled_heights - height_map_norm
+                    height_diff = sampled_heights - work_map
                     occlusion = np.maximum(0, height_diff) / max(0.001, shadow_softness)
                     occlusion = np.minimum(1, occlusion)
                     
@@ -206,7 +239,14 @@ class ParallaxAOMapGenerator(MapGenerator):
                 parallax_ao = np.power(parallax_ao, emphasis_factor)
             
             logger.debug(f"Parallax AO map generated successfully")
-            
+
+            if zoom_back is not None:
+                parallax_ao = ndimage.zoom(
+                    parallax_ao, zoom_back, order=1, prefilter=False
+                ).astype(np.float32)
+                # Guard against off-by-one from floating zoom
+                parallax_ao = parallax_ao[:orig_rows, :orig_cols]
+
             # Ensure output is in valid range
             return np.clip(parallax_ao, 0.0, 1.0)
             
@@ -329,10 +369,16 @@ class ParallaxAOMapGenerator(MapGenerator):
             
             radius_map = radius_map * focus_weight
         
-        # Ensure reasonable limits
+        # Ensure reasonable limits, then quantize radii so _sample_heights touches few masks.
         rows, cols = slope_norm.shape
-        max_radius = min(rows//4, cols//4, 50)
-        return np.clip(radius_map, 1, max_radius).astype(int)
+        max_radius = min(rows // 4, cols // 4, 50)
+        radius_map = np.clip(radius_map, 1, max_radius).astype(np.int32)
+        max_r = int(np.max(radius_map))
+        if max_r > 1:
+            n_bins = 12
+            step = max(1, (max_r - 1 + n_bins - 2) // (n_bins - 1))
+            radius_map = np.maximum(1, (radius_map // step) * step).astype(np.int32)
+        return radius_map
         
     def _sample_heights(self, height_map, dx, dy, radius_map):
         """Sample heights using variable radius map."""

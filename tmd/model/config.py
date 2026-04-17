@@ -6,7 +6,7 @@ with validation, defaults, and serialization capabilities.
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Tuple, Union, ClassVar
+from typing import Dict, Any, Optional, List, Tuple, Union, ClassVar, Callable
 from dataclasses import dataclass, field, asdict, fields
 
 # Set up logging
@@ -139,7 +139,9 @@ class ExportConfig(ModelConfig):
     use_feature_edges: bool = True
     smoothing: float = 0.0
     max_subdivisions: int = 4 # Added default max_subdivisions
-    
+    detail_boost: float = 1.0
+    progress_callback: Optional[Callable[[float], None]] = None
+
     def __post_init__(self):
         """Handle parameter aliases and validation."""
         # Sync method and triangulation_method
@@ -185,6 +187,9 @@ class ExportConfig(ModelConfig):
             
         if self.max_subdivisions < 1:
             raise ValueError(f"max_subdivisions must be positive, got {self.max_subdivisions}")
+
+        if self.detail_boost < 0:
+            raise ValueError(f"detail_boost must be non-negative, got {self.detail_boost}")
 
 
 class ConfigManager:

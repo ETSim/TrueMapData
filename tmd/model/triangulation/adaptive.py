@@ -4,6 +4,9 @@ Adaptive triangulator for heightmaps.
 This module provides functionality for adaptive triangulation of heightmaps,
 which generates a more efficient mesh by using fewer triangles in flat areas
 and more triangles in detailed areas, resulting in optimal model size.
+
+Vertex convention before world scaling in ``ModelExporter.create_mesh_from_heightmap``:
+each vertex is ``[col, row, z]`` — grid column (x index), grid row (y index), height.
 """
 
 import numpy as np
@@ -16,39 +19,6 @@ from ..utils.heightmap import calculate_terrain_complexity
 # Set up logging
 logger = logging.getLogger(__name__)
 
-def to_16bit_grayscale(self, height_map: np.ndarray) -> np.ndarray:
-        """
-        Convert a heightmap to 16-bit grayscale format.
-        
-        Args:
-            height_map: Input heightmap array
-        Returns:
-            16-bit normalized heightmap
-        """
-        
-        # Ensure floating point for calculations
-        height_map = height_map.astype(np.float32)
-        
-        # Normalize to [0, 1] range
-        min_val = np.min(height_map)
-        max_val = np.max(height_map)
-        height_range = max_val - min_val
-        
-        if height_range > 0:
-            height_map = (height_map - min_val) / height_range
-        else:
-            height_map = np.zeros_like(height_map)
-        
-        # Convert to 16-bit integer range [0, 65535]
-        height_map = (height_map * 65535).astype(np.uint16)
-        
-        # Convert back to float32 but preserve 16-bit precision
-        height_map = height_map.astype(np.float32) / 65535.0
-        
-        logger.debug(f"Converted heightmap: shape={height_map.shape}, dtype={height_map.dtype}, range=[{height_map.min():.3f}, {height_map.max():.3f}]")
-        
-        return height_map
-
 
 class AdaptiveTriangulator(BaseTriangulator):
     """
@@ -57,6 +27,9 @@ class AdaptiveTriangulator(BaseTriangulator):
     This triangulator creates a mesh with varying triangle density based on the
     local curvature and detail level of the heightmap. Areas with high detail
     receive more triangles, while flat areas use fewer triangles.
+
+    Vertices are ``[col, row, z]`` in grid index space until scaled by
+    ``ModelExporter.create_mesh_from_heightmap``.
     """
     
     def __init__(
@@ -318,7 +291,8 @@ class AdaptiveTriangulator(BaseTriangulator):
             triangle_idx: Index of the triangle to subdivide
             
         Returns:
-            List of indices of the new triangles
+            Indices of triangles that must be checked next, or empty if subdivision
+            was skipped (e.g. degenerate midpoint coincident with an edge endpoint).
         """
         # Get the triangle to subdivide
         triangle = self.indices[triangle_idx]
@@ -354,7 +328,10 @@ class AdaptiveTriangulator(BaseTriangulator):
         
         # Add vertex at midpoint
         mid_idx = self._add_vertex(mid_row, mid_col)
-        
+
+        if mid_idx == i1 or mid_idx == i2:
+            return []
+
         # Replace the original triangle with two new ones
         self.indices[triangle_idx] = [i1, mid_idx, i3]
         new_triangle_idx = len(self.indices)
@@ -480,9 +457,10 @@ class AdaptiveTriangulator(BaseTriangulator):
                     logger.info(f"Reached maximum triangle count ({self.max_triangles})")
                     break
                     
-                # Subdivide the triangle
+                # Subdivide the triangle (empty list if midpoint is degenerate)
                 new_triangle_indices = self._subdivide_triangle(triangle_idx)
-                triangles_to_check.extend(new_triangle_indices)
+                if new_triangle_indices:
+                    triangles_to_check.extend(new_triangle_indices)
         
         if self.progress_callback:
             self.progress_callback(0.95)  # Subdivision complete

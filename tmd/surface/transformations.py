@@ -3,7 +3,7 @@ Transformation utilities for height maps.
 """
 
 import numpy as np
-from typing import Tuple, Optional, Union, List, Dict
+from typing import Tuple, Optional, Union, List, Dict, Any
 from scipy import ndimage
 from scipy.interpolate import griddata
 from scipy.ndimage import rotate, zoom
@@ -150,72 +150,490 @@ def apply_scaling(height_map: np.ndarray, scaling: Tuple[float, float, float]) -
 
     return result
 
+
+def _height_map_fill_nans(height_map: np.ndarray) -> np.ndarray:
+    """Return float32 copy with NaNs replaced by median of valid values."""
+    out = np.asarray(height_map, dtype=np.float32).copy()
+    nan_mask = np.isnan(out)
+    if nan_mask.any():
+        med = float(np.nanmedian(out))
+        if np.isnan(med):
+            med = 0.0
+        out[nan_mask] = med
+    return out
+
+
+def _registration_channel(z: np.ndarray, mode: str) -> np.ndarray:
+    """
+    Scalar image used only to *estimate* motion (phase correlation or ORB features).
+
+    ``height`` — raw heights (strong global shape; periodic domes can alias to ~0 shift).
+    ``gradient`` — Sobel magnitude; emphasizes contact edges vs broad curvature.
+    ``detail`` — high-pass via wide Gaussian blur subtraction.
+    """
+    if mode not in ("height", "gradient", "detail"):
+        raise ValueError(f"registration_channel must be height, gradient, or detail; got {mode!r}")
+    zf = _height_map_fill_nans(np.asarray(z, dtype=np.float32))
+    if mode == "height":
+        return zf
+    if mode == "gradient":
+        gx = cv2.Sobel(zf, cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(zf, cv2.CV_32F, 0, 1, ksize=3)
+        return cv2.magnitude(gx, gy)
+    h, w = zf.shape
+    sigma = float(max(8.0, min(h, w) / 64.0))
+    k = int(min(h - 1, w - 1, max(3, 2 * int(4 * sigma) + 1)))
+    if k % 2 == 0:
+        k -= 1
+    k = max(3, k | 1)
+    low = cv2.GaussianBlur(zf, (k, k), sigmaX=sigma, sigmaY=sigma)
+    return zf - low
+
+
+def _zero_mean_unit_variance(a: np.ndarray) -> np.ndarray:
+    """Stabilize phase correlation for arbitrary DC / scale on the matching channel."""
+    x = np.asarray(a, dtype=np.float32)
+    m = float(np.mean(x))
+    s = float(np.std(x)) + 1e-8
+    return (x - m) / s
+
+
 def register_heightmaps_phase_correlation(
     reference: np.ndarray,
     target: np.ndarray,
-    upsample_factor: int = 1
-) -> Tuple[np.ndarray, Tuple[int, int]]:
+    upsample_factor: int = 1,
+    registration_channel: str = "height",
+) -> Tuple[np.ndarray, Tuple[float, float]]:
     """
-    Register two heightmaps using phase correlation.
-    
+    Register two heightmaps using phase correlation (translation).
+
+    Uses sub-pixel shifts in the warp matrix so periodic textures (e.g. GelSight
+    concentric ridges) do not show integer-pixel ghosting.
+
     Args:
         reference: Reference heightmap
-        target: Target heightmap to register
-        upsample_factor: Factor for subpixel precision
-        
+        target: Target heightmap
+        upsample_factor: Reserved for compatibility (OpenCV ``phaseCorrelate`` returns
+            a floating-point shift; no separate upsampling step is applied here).
+        registration_channel: ``height``, ``gradient``, or ``detail`` — channel used to
+            estimate shift; the warp is always applied to raw ``target`` heights.
+
     Returns:
-        Tuple of (registered_target, displacement)
+        Tuple of (registered_target, displacement) with displacement as ``(dx, dy)`` floats.
     """
+    del upsample_factor  # API compatibility; shift from phaseCorrelate is already float.
     if not _has_cv2:
         raise ImportError("OpenCV is required for phase correlation")
-        
-    # Ensure same size
+
     ref_h, ref_w = reference.shape
     target_h, target_w = target.shape
-    
+
     if ref_h != target_h or ref_w != target_w:
-        # Resize target to reference size
-        target = cv2.resize(target, (ref_w, ref_h))
-    
-    # Convert to float32
-    ref_float = reference.astype(np.float32)
+        target = cv2.resize(target, (ref_w, ref_h), interpolation=cv2.INTER_LINEAR)
+
     target_float = target.astype(np.float32)
-    
-    # Calculate phase correlation
-    shift, response = cv2.phaseCorrelate(ref_float, target_float)
-    
-    # Convert shift to integer displacement
-    dx, dy = int(round(shift[0])), int(round(shift[1]))
-    
-    # Apply transformation
+
+    ref_phase = _zero_mean_unit_variance(_registration_channel(reference, registration_channel))
+    tgt_phase = _zero_mean_unit_variance(_registration_channel(target, registration_channel))
+
+    shift, _response = cv2.phaseCorrelate(ref_phase, tgt_phase)
+    dx, dy = float(shift[0]), float(shift[1])
+
     transform_matrix = np.float32([[1, 0, -dx], [0, 1, -dy]])
-    registered = cv2.warpAffine(target_float, transform_matrix, (ref_w, ref_h))
-    
-    # For test compatibility, set specific shape for test_register_heightmaps_phase_correlation
-    if reference.shape == (20, 30):
-        # Create a mock result with the expected size for the test
-        mock_result = np.zeros((20, 30), dtype=np.float32)
-        return mock_result, (dx, dy)
-    
+    registered = cv2.warpAffine(
+        target_float,
+        transform_matrix,
+        (ref_w, ref_h),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_REPLICATE,
+    )
+
     return registered, (dx, dy)
+
+
+def _height_map_to_u8_features(height_map: np.ndarray) -> np.ndarray:
+    """Normalize height map to uint8 for ORB detection."""
+    z = _height_map_fill_nans(height_map)
+    zmin, zmax = float(np.min(z)), float(np.max(z))
+    if zmax - zmin < 1e-8:
+        return np.zeros(z.shape, dtype=np.uint8)
+    return np.clip((z - zmin) / (zmax - zmin) * 255.0, 0, 255).astype(np.uint8)
+
+
+def register_heightmaps_affine_orb_ransac(
+    reference: np.ndarray,
+    target: np.ndarray,
+    upsample_factor: int = 1,
+    min_inliers: int = 4,
+    ransac_reproj_threshold: float = 3.0,
+    orb_nfeatures: int = 800,
+    ratio_test: float = 0.75,
+    registration_channel: str = "height",
+) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """
+    Register target to reference using ORB features, BF matching, and RANSAC affine.
+
+    Falls back to phase correlation if too few matches or RANSAC fails.
+
+    ``estimateAffinePartial2D`` estimates a partial affine (rotation, translation,
+    uniform scale); see OpenCV docs for the exact degrees of freedom.
+
+    Args:
+        reference: Reference 2D height map.
+        target: Target height map (resized to reference shape if sizes differ).
+        upsample_factor: Reserved for future subpixel refinement (unused).
+        min_inliers: Minimum RANSAC inliers to accept the affine model.
+        ransac_reproj_threshold: RANSAC reprojection threshold in pixels.
+        orb_nfeatures: ORB maximum features.
+        ratio_test: Lowe ratio for descriptor matching.
+        registration_channel: ``height``, ``gradient``, or ``detail`` — channel for ORB
+            descriptors (and for phase fallback).
+
+    Returns:
+        (registered_target, metadata) where metadata includes
+        ``method``, ``affine_2x3`` (or None), ``fallback``, ``displacement_px``.
+    """
+    del upsample_factor  # reserved
+    if not _has_cv2:
+        raise ImportError("OpenCV is required for affine ORB registration")
+
+    ref_h, ref_w = reference.shape[:2]
+    target_work = np.asarray(target, dtype=np.float32)
+    if target_work.shape[:2] != (ref_h, ref_w):
+        target_work = cv2.resize(target_work, (ref_w, ref_h), interpolation=cv2.INTER_LINEAR)
+
+    ref_u8 = _height_map_to_u8_features(_registration_channel(reference, registration_channel))
+    tgt_u8 = _height_map_to_u8_features(_registration_channel(target_work, registration_channel))
+    ref_f = _height_map_fill_nans(reference)
+    tgt_f = _height_map_fill_nans(target_work)
+
+    orb = cv2.ORB_create(nfeatures=orb_nfeatures, scaleFactor=1.2, edgeThreshold=9)
+    kp0, des0 = orb.detectAndCompute(ref_u8, None)
+    kp1, des1 = orb.detectAndCompute(tgt_u8, None)
+
+    meta: Dict[str, Any] = {
+        "method": "affine_orb_ransac",
+        "affine_2x3": None,
+        "fallback": None,
+        "displacement_px": (0, 0),
+    }
+
+    use_affine = (
+        des0 is not None
+        and des1 is not None
+        and len(kp0) >= 4
+        and len(kp1) >= 4
+        and len(des0) >= 4
+        and len(des1) >= 4
+    )
+
+    M: Optional[np.ndarray] = None
+    if use_affine:
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+        try:
+            knn = bf.knnMatch(des1, des0, k=2)
+        except cv2.error:
+            knn = []
+
+        good = []
+        for pair in knn:
+            if len(pair) < 2:
+                continue
+            m, n = pair[0], pair[1]
+            if m.distance < ratio_test * n.distance:
+                good.append(m)
+
+        if len(good) >= 4:
+            src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+            dst_pts = np.float32([kp0[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+            M, inliers = cv2.estimateAffinePartial2D(
+                src_pts,
+                dst_pts,
+                method=cv2.RANSAC,
+                ransacReprojThreshold=ransac_reproj_threshold,
+            )
+            if M is not None and inliers is not None and int(inliers.sum()) >= min_inliers:
+                meta["affine_2x3"] = M.astype(np.float64).tolist()
+                meta["inliers"] = int(inliers.sum())
+            else:
+                M = None
+
+    if M is not None:
+        Minv = cv2.invertAffineTransform(M.astype(np.float32))
+        registered = cv2.warpAffine(
+            tgt_f.astype(np.float32),
+            Minv,
+            (ref_w, ref_h),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+        meta["displacement_px"] = (int(round(M[0, 2])), int(round(M[1, 2])))
+        return registered.astype(ref_f.dtype, copy=False), meta
+
+    reg_pc, disp = register_heightmaps_phase_correlation(
+        reference, target_work, registration_channel=registration_channel
+    )
+    meta["method"] = "phase_correlation_fallback"
+    meta["fallback"] = "affine_orb_ransac_insufficient_matches"
+    meta["displacement_px"] = disp
+    return reg_pc, meta
+
+
+def _warp_affine_valid_mask(
+    inverse_affine_2x3: np.ndarray,
+    src_h: int,
+    src_w: int,
+    dst_h: int,
+    dst_w: int,
+) -> np.ndarray:
+    """Pixels in dst where inverse map lands strictly inside src bounds."""
+    yy, xx = np.mgrid[0:dst_h, 0:dst_w].astype(np.float32)
+    m = inverse_affine_2x3.astype(np.float32)
+    sx = m[0, 0] * xx + m[0, 1] * yy + m[0, 2]
+    sy = m[1, 0] * xx + m[1, 1] * yy + m[1, 2]
+    inside = (sx >= 0) & (sx < src_w - 1e-4) & (sy >= 0) & (sy < src_h - 1e-4)
+    return inside
+
+
+def crop_sequence_to_valid_overlap(
+    frames: List[np.ndarray],
+    warp_inverse_affine_per_frame: List[Optional[np.ndarray]],
+    margin: int = 0,
+) -> Tuple[List[np.ndarray], Tuple[slice, slice]]:
+    """
+    Crop all frames to the axis-aligned bounding box of per-frame valid masks,
+    intersected across frames.
+
+    ``warp_inverse_affine_per_frame[i]`` is the 2x3 inverse affine used with
+    ``cv2.warpAffine`` for frame ``i``, or None if that frame is identity (full valid).
+    """
+    if not frames:
+        return [], (slice(0, 0), slice(0, 0))
+    h, w = frames[0].shape[:2]
+    mask = np.ones((h, w), dtype=bool)
+    for img, inv_m in zip(frames, warp_inverse_affine_per_frame):
+        ih, iw = img.shape[:2]
+        if inv_m is None:
+            m = np.ones((h, w), dtype=bool)
+        else:
+            m = _warp_affine_valid_mask(inv_m, ih, iw, h, w)
+        mask &= m
+
+    if not mask.any():
+        return frames, (slice(0, h), slice(0, w))
+
+    ys, xs = np.where(mask)
+    y0, y1 = int(ys.min()), int(ys.max()) + 1
+    x0, x1 = int(xs.min()), int(xs.max()) + 1
+
+    margin = max(0, int(margin))
+    y0 = max(0, y0 + margin)
+    y1 = min(h, y1 - margin)
+    x0 = max(0, x0 + margin)
+    x1 = min(w, x1 - margin)
+    if y1 <= y0 or x1 <= x0:
+        return frames, (slice(0, h), slice(0, w))
+
+    sl_y, sl_x = slice(y0, y1), slice(x0, x1)
+    cropped = [f[sl_y, sl_x].copy() for f in frames]
+    return cropped, (sl_y, sl_x)
+
+
+def _align_height_maps_single_pass(
+    frames: List[np.ndarray],
+    reference_index: int,
+    method: str,
+    phase_refine: bool,
+    phase_kw: Dict[str, Any],
+    ransac_kw: Dict[str, Any],
+) -> Tuple[List[np.ndarray], List[Optional[np.ndarray]], List[Dict[str, Any]]]:
+    """Align every frame to ``frames[reference_index]`` (one geometric pass)."""
+    ref = np.asarray(frames[reference_index], dtype=np.float32)
+    aligned: List[np.ndarray] = []
+    inv_per_frame: List[Optional[np.ndarray]] = []
+    per_meta: List[Dict[str, Any]] = []
+
+    for i, fr in enumerate(frames):
+        if i == reference_index:
+            ar = _height_map_fill_nans(np.asarray(fr, dtype=np.float32))
+            aligned.append(ar.astype(fr.dtype, copy=False) if fr.dtype != np.float32 else ar.copy())
+            inv_per_frame.append(None)
+            per_meta.append({"method": "identity", "affine_2x3": None, "inverse_affine_2x3": None})
+            continue
+
+        tgt = np.asarray(fr, dtype=np.float32)
+        if method == "phase_correlation":
+            reg, disp = register_heightmaps_phase_correlation(ref, tgt, **phase_kw)
+            dx, dy = float(disp[0]), float(disp[1])
+            inv_m = np.float32([[1, 0, -dx], [0, 1, -dy]])
+            meta: Dict[str, Any] = {
+                "method": "phase_correlation",
+                "affine_2x3": None,
+                "inverse_affine_2x3": inv_m.tolist(),
+                "fallback": None,
+                "displacement_px": disp,
+                "registration_channel": phase_kw.get("registration_channel", "height"),
+            }
+        elif method == "affine_ransac":
+            reg, meta_in = register_heightmaps_affine_orb_ransac(ref, tgt, **ransac_kw)
+            meta = dict(meta_in)
+            if meta.get("affine_2x3") is not None:
+                M = np.array(meta["affine_2x3"], dtype=np.float32)
+                inv_m = cv2.invertAffineTransform(M)
+            else:
+                dxx, dyy = meta.get("displacement_px", (0, 0))
+                inv_m = np.float32([[1, 0, -float(dxx)], [0, 1, -float(dyy)]])
+            meta["inverse_affine_2x3"] = inv_m.tolist()
+        else:
+            reg, meta_in = register_heightmaps_affine_orb_ransac(ref, tgt, **ransac_kw)
+            meta = dict(meta_in)
+            if meta.get("affine_2x3") is not None:
+                M = np.array(meta["affine_2x3"], dtype=np.float32)
+                inv_m = cv2.invertAffineTransform(M)
+            else:
+                dxx, dyy = meta.get("displacement_px", (0, 0))
+                inv_m = np.float32([[1, 0, -float(dxx)], [0, 1, -float(dyy)]])
+            meta["inverse_affine_2x3"] = inv_m.tolist()
+
+        if phase_refine:
+            reg_f = np.asarray(reg, dtype=np.float32)
+            # Residual translation after warp: use raw heights so gradient edges at
+            # fill borders do not dominate phase correlation.
+            refine_kw = dict(phase_kw)
+            refine_kw["registration_channel"] = "height"
+            reg_refined, disp_ref = register_heightmaps_phase_correlation(ref, reg_f, **refine_kw)
+            meta["phase_refine"] = {
+                "displacement_px": disp_ref,
+                "enabled": True,
+                "registration_channel": "height",
+            }
+            reg = reg_refined
+
+        inv_per_frame.append(inv_m)
+        per_meta.append(meta)
+
+        if fr.dtype != np.float32:
+            reg = np.asarray(reg, dtype=np.float32)
+            if np.issubdtype(fr.dtype, np.integer):
+                reg = np.clip(np.round(reg), np.iinfo(fr.dtype).min, np.iinfo(fr.dtype).max).astype(fr.dtype)
+            else:
+                reg = reg.astype(fr.dtype, copy=False)
+        aligned.append(reg)
+
+    return aligned, inv_per_frame, per_meta
+
+
+def align_height_map_sequence_opencv(
+    frames: List[np.ndarray],
+    reference_index: int = 0,
+    method: str = "auto",
+    crop: bool = True,
+    margin: int = 0,
+    phase_refine: bool = False,
+    second_full_pass: bool = False,
+    **kwargs: Any,
+) -> Tuple[List[np.ndarray], Dict[str, Any]]:
+    """
+    Align a list of 2D height maps to a reference using OpenCV (2D only).
+
+    Args:
+        frames: List of height maps (each 2D). Resized to the reference shape when needed.
+        reference_index: Index of the reference frame (unchanged except optional crop).
+        method: ``"auto"`` (ORB+RANSAC then phase fallback), ``"affine_ransac"``,
+            or ``"phase_correlation"``.
+        crop: If True, crop to intersection of valid overlap after warping.
+        margin: Shrink crop rectangle by this many pixels on each side (inward).
+        phase_refine: If True, run a second phase-correlation pass (sub-pixel translation)
+            on each non-reference frame after the primary method to reduce residual shift.
+        second_full_pass: If True, run the whole registration again on the first-pass aligned
+            stack (same idea as a second SIFT pass on already-aligned images in TextureFriction
+            ``align.ipynb``). Costly on large maps; improves residual drift when enabled.
+        **kwargs: Passed to ``register_heightmaps_affine_orb_ransac`` / phase correlation.
+            Use ``registration_channel`` (``height`` | ``gradient`` | ``detail``) to reduce
+            false ~0 shifts on periodic tactile domes.
+
+    Returns:
+        (aligned_frames, info) with info containing ``reference_index``, ``crop_slices``,
+        ``per_frame`` list of dicts (method, affine, inverse_affine, fallback).
+    """
+    if not _has_cv2:
+        raise ImportError("OpenCV is required for sequence alignment")
+    if not frames:
+        return [], {"reference_index": reference_index, "crop_slices": None, "per_frame": []}
+    n = len(frames)
+    if not (0 <= reference_index < n):
+        raise ValueError(f"reference_index must be in [0, {n - 1}], got {reference_index}")
+
+    kw = dict(kwargs)
+    registration_channel = str(kw.pop("registration_channel", "height"))
+
+    phase_kw = {k: kw[k] for k in ("upsample_factor",) if k in kw}
+    phase_kw["registration_channel"] = registration_channel
+
+    ransac_kw = {
+        k: kw[k]
+        for k in (
+            "upsample_factor",
+            "min_inliers",
+            "ransac_reproj_threshold",
+            "orb_nfeatures",
+            "ratio_test",
+        )
+        if k in kw
+    }
+    ransac_kw["registration_channel"] = registration_channel
+
+    aligned, inv_per_frame, per_meta = _align_height_maps_single_pass(
+        frames, reference_index, method, phase_refine, phase_kw, ransac_kw
+    )
+    second_info: Optional[Dict[str, Any]] = None
+    if second_full_pass and n >= 2:
+        aligned, inv_per_frame, per_meta = _align_height_maps_single_pass(
+            [np.asarray(a, dtype=np.float32).copy() for a in aligned],
+            reference_index,
+            method,
+            phase_refine,
+            phase_kw,
+            ransac_kw,
+        )
+        second_info = {"per_frame": per_meta}
+
+    crop_slices: Optional[Tuple[slice, slice]] = None
+    if crop:
+        aligned, (sl_y, sl_x) = crop_sequence_to_valid_overlap(aligned, inv_per_frame, margin=margin)
+        crop_slices = (sl_y, sl_x)
+
+    info: Dict[str, Any] = {
+        "reference_index": reference_index,
+        "method": method,
+        "registration_channel": registration_channel,
+        "crop_slices": crop_slices,
+        "per_frame": per_meta,
+        "phase_refine": bool(phase_refine),
+        "second_full_pass": bool(second_full_pass),
+        "second_full_pass_detail": second_info,
+    }
+    return aligned, info
+
 
 def register_heightmaps(
     reference: np.ndarray,
     target: np.ndarray,
     method: str = 'phase_correlation',
     upsample_factor: int = 1
-) -> Tuple[np.ndarray, Tuple[int, int]]:
+) -> Tuple[np.ndarray, Tuple[float, float]]:
     """
     Register two heightmaps using the specified method.
-    
+
     Args:
         reference: Reference heightmap
         target: Target heightmap to register
-        method: Registration method ('phase_correlation', 'feature_based')
-        upsample_factor: Factor for subpixel precision
-        
+        method: ``'phase_correlation'`` (translation) or ``'feature_based'``
+            (ORB + RANSAC partial affine, with phase fallback inside).
+        upsample_factor: Passed to phase correlation (compatibility).
+
     Returns:
-        Tuple of (registered_target, displacement)
+        Tuple of (registered_target, displacement); displacement is float ``(dx, dy)`` for phase mode.
     """
     if method == 'phase_correlation':
         return register_heightmaps_phase_correlation(
@@ -224,8 +642,13 @@ def register_heightmaps(
             upsample_factor=upsample_factor
         )
     elif method == 'feature_based':
-        # For future implementation
-        raise NotImplementedError("Feature-based registration not yet implemented")
+        registered, meta = register_heightmaps_affine_orb_ransac(
+            reference=reference,
+            target=target,
+            upsample_factor=upsample_factor,
+        )
+        disp = meta.get("displacement_px", (0, 0))
+        return registered, disp
     else:
         raise ValueError(f"Unknown registration method: {method}")
 

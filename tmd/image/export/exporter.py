@@ -13,9 +13,15 @@ import numpy as np
 from ..core.image_utils import save_image, get_output_filepath
 from ..core.exceptions import MapGeneratorNotFoundError
 from .registry import MapRegistry
-from ...cli.core.ui import console  # Add UI import
 
 logger = logging.getLogger(__name__)
+
+
+def _cli_console():
+    """Import Rich console lazily to avoid tmd.image <-> tmd.cli circular imports."""
+    from ...cli.core.ui import console
+
+    return console
 
 class MapExporter:
     """
@@ -86,13 +92,15 @@ class MapExporter:
             if saved_path:
                 # Get file size and format
                 size_kb = os.path.getsize(saved_path) / 1024
-                console.print(f"[green]Saved {map_type} map ({size_kb:.1f} KB) with {compress}% compression[/]")
+                _cli_console().print(
+                    f"[green]Saved {map_type} map ({size_kb:.1f} KB) with {compress}% compression[/]"
+                )
             
             return saved_path
             
         except Exception as e:
             logger.error(f"Failed to export {map_type} map: {e}")
-            console.print(f"[red]Error exporting {map_type} map: {e}[/]")
+            _cli_console().print(f"[red]Error exporting {map_type} map: {e}[/]")
             import traceback
             traceback.print_exc()
             return None

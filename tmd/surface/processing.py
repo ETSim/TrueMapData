@@ -59,7 +59,10 @@ def flip_height_map(height_map: np.ndarray, axis: int) -> np.ndarray:
     if axis not in (0, 1):
         raise ValueError("Axis must be 0 (horizontal) or 1 (vertical)")
 
-    return np.flip(height_map, axis=axis).copy()
+    # axis=0: left-right (mirror columns); axis=1: up-down (mirror rows)
+    if axis == 0:
+        return np.fliplr(height_map).copy()
+    return np.flipud(height_map).copy()
 
 
 def rotate_height_map(

@@ -1,3 +1,14 @@
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+
+from .base import BaseExporter
+
+logger = logging.getLogger(__name__)
+
+
 class VideoExporter(BaseExporter):
     """
     Exporter for creating videos (e.g., MP4) from height map sequences.

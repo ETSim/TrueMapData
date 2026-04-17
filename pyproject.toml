@@ -41,6 +41,8 @@ dependencies = [
     "plotly>=5.10.0",
     "seaborn>=0.12.0",
     "meshio>=5.0.0",
+    "psutil>=5.8.0",
+    "noise>=1.2.2",
 ]
 
 [project.optional-dependencies]

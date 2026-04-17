@@ -18,6 +18,8 @@ setup(
         "pillow>=8.0.0",
         "opencv-python>=4.5.0",
         "scipy>=1.6.0",
+        "psutil>=5.8.0",
+        "noise>=1.2.2",
     ],
     extras_require={
         "viz": [

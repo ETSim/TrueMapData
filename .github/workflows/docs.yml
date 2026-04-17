@@ -40,13 +40,16 @@ jobs:
         with:
           path: site
 
+  # No `environment: github-pages` here: org/repo "Deployment branches" on that
+  # environment often reject `main` with "not allowed to deploy". deploy-pages
+  # still works with pages + id-token permissions (Pages source = GitHub Actions).
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -20,8 +20,8 @@ def test_examples_md_has_expected_anchors():
 def test_visualize_examples_cli():
     runner = CliRunner(env={"TERM": "dumb"})
     result = runner.invoke(app, ["visualize", "examples"])
-    assert result.exit_code == 0, (result.stdout or "") + (result.stderr or "")
-    out = (result.stdout or "") + (result.stderr or "")
+    out = result.output
+    assert result.exit_code == 0, out
     assert "Mesh export" in out
     assert "mesh formats" in out
     assert "TMD Command-Line Tool Examples" in out

@@ -2,11 +2,9 @@
 """Tests for plotter factory helpers and registration."""
 
 import numpy as np
-import pytest
 
 from tmd.plotters.factory import (
     TMDPlotterFactory,
-    TMDSequencePlotterFactory,
     get_registered_plotters,
     get_available_plotters,
     get_best_plotter,

@@ -7,7 +7,6 @@ with multiple visualization modes and enhanced customization options.
 import logging
 import numpy as np
 from scipy import ndimage
-import matplotlib.pyplot as plt
 from .base_generator import MapGenerator
 
 logger = logging.getLogger(__name__)
@@ -83,7 +82,7 @@ class AngleMapGenerator(MapGenerator):
         smoothing = float(params.get('smoothing', 0.5))
         highlight_range = params.get('highlight_range')
         highlight_color = params.get('highlight_color', (1.0, 1.0, 1.0))
-        aspect_direction = bool(params.get('aspect_direction', False))
+        bool(params.get('aspect_direction', False))
         custom_gradient = params.get('custom_gradient')
         terrain_class = bool(params.get('terrain_class', False))
         edge_preservation = float(params.get('edge_preservation', 0.5))

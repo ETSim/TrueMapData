@@ -1,7 +1,7 @@
 """Heightmap processing utilities."""
 
 import numpy as np
-from typing import Optional, Tuple, Union
+from typing import Tuple
 import logging
 
 logger = logging.getLogger(__name__)

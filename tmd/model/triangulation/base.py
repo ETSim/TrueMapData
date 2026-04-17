@@ -9,7 +9,7 @@ import time
 import logging
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Dict, Any, Optional, Callable, Union
+from typing import List, Tuple, Dict, Any, Optional, Callable
 
 from ..utils.heightmap import normalize_heightmap_for_triangulation
 

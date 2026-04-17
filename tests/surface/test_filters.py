@@ -9,7 +9,6 @@ functions provided in the height map filtering module.
 import numpy as np
 import pytest
 from scipy import ndimage, signal
-import pywt
 
 # Import the module to test
 import tmd.surface.filters as filtering

@@ -7,9 +7,6 @@ This module provides example usage patterns for the TMD CLI tools.
 
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.table import Table
-from rich.syntax import Syntax
 
 from tmd.cli.core import print_success
 

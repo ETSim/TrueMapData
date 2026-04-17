@@ -13,13 +13,12 @@ base module and use TMDFileUtilities for dependency management.
 import os
 import warnings
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union, ClassVar
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 # Import base classes and utilities
 from tmd.plotters.base import BasePlotter, BaseSequencePlotter
-from tmd.utils.files import TMDFileUtilities
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -54,7 +53,7 @@ class MatplotlibHeightMapPlotter(BasePlotter):
         
         # Check for 3D plotting capability
         try:
-            from mpl_toolkits.mplot3d import Axes3D
+            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
             self.has_3d = True
         except ImportError:
             self.has_3d = False
@@ -183,7 +182,6 @@ class MatplotlibHeightMapPlotter(BasePlotter):
         
         if ax is None:
             # Import will succeed because we checked in __init__
-            from mpl_toolkits.mplot3d import Axes3D
             ax = fig.add_subplot(111, projection="3d")
             
         # Create coordinate grid
@@ -481,7 +479,7 @@ class MatplotlibSequencePlotter(BaseSequencePlotter):
             
         # Check for 3D support
         try:
-            from mpl_toolkits.mplot3d import Axes3D
+            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
             self.has_3d = True
         except ImportError:
             self.has_3d = False
@@ -531,7 +529,7 @@ class MatplotlibSequencePlotter(BaseSequencePlotter):
         fig, ax = self.plt.subplots(figsize=figsize)
         ax.set_title(title)
         im = ax.imshow(frames_data[0], cmap=colormap, animated=True)
-        cbar = self.plt.colorbar(im, ax=ax, label=colorbar_label)
+        self.plt.colorbar(im, ax=ax, label=colorbar_label)
         
         # Animation update function
         def update_frame(i):
@@ -625,7 +623,6 @@ class MatplotlibSequencePlotter(BaseSequencePlotter):
             
         # Create the visualization
         if mode == '3d':
-            from mpl_toolkits.mplot3d import Axes3D
             fig = self.plt.figure(figsize=figsize)
             fig.suptitle(title)
             

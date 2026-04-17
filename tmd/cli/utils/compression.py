@@ -8,10 +8,9 @@ of TMD command-line tools.
 
 import logging
 import numpy as np
-from pathlib import Path
-from typing import Optional, Any, Dict, List, Union, Tuple
+from typing import Optional
 
-from tmd.cli.core.ui import print_error, print_warning, HAS_RICH
+from tmd.cli.core.ui import print_error
 
 logger = logging.getLogger(__name__)
 

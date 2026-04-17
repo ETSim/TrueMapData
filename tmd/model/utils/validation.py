@@ -3,7 +3,7 @@
 import os
 import numpy as np
 import logging
-from typing import Union, List, Tuple, Optional, Any, Dict
+from typing import Union, List, Tuple, Any, Dict
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def validate_vertices(vertices: Union[np.ndarray, List[List[float]]]) -> bool:
             
         return True
         
-    except:
+    except Exception:
         return False
 
 
@@ -68,8 +68,8 @@ def validate_faces(faces: Union[np.ndarray, List[List[int]]]) -> bool:
             return False
             
         return True
-        
-    except:
+
+    except Exception:
         return False
 
 
@@ -116,7 +116,7 @@ def ensure_directory_exists(filename: str) -> bool:
         if directory:
             os.makedirs(directory, exist_ok=True)
         return True
-    except:
+    except Exception:
         return False
 
 

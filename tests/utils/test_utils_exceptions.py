@@ -7,7 +7,6 @@ TMD exceptions module.
 """
 
 import pytest
-import sys
 from typing import Type
 
 # Import all exceptions from the module

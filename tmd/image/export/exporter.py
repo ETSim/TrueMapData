@@ -10,7 +10,7 @@ from typing import Optional
 
 import numpy as np
 
-from ..core.image_utils import save_image, get_output_filepath
+from ..core.image_utils import save_image
 from ..core.exceptions import MapGeneratorNotFoundError
 from .registry import MapRegistry
 

@@ -93,6 +93,13 @@ full = [
 [project.scripts]
 tmd-process = "tmd.cli.main:main"
 
+[tool.ruff]
+extend-exclude = ["tools/**/*.ipynb"]
+
+[tool.ruff.lint.per-file-ignores]
+# Lazy imports and re-exports in package inits
+"tmd/**/__init__.py" = ["E402", "F401"]
+
 [tool.setuptools]
 packages = ["tmd"]
 

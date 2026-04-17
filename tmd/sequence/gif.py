@@ -42,7 +42,7 @@ class GifExporter(BaseExporter):
             return None
         
         # Import required modules
-        plt = import_optional_dependency('matplotlib.pyplot')
+        import_optional_dependency('matplotlib.pyplot')
         cm = import_optional_dependency('matplotlib.cm')
         Image = import_optional_dependency('PIL.Image')
         

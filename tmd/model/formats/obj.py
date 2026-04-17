@@ -8,10 +8,9 @@ height maps to OBJ format, which is widely supported across 3D modeling software
 import os
 import numpy as np
 import logging
-from typing import Optional, List, Tuple, Dict, Any, Union
+from typing import Optional
 
 from ..base import ModelExporter, ExportConfig, MeshData
-from ..utils import validate_heightmap, ensure_directory_exists
 from ..registry import register_exporter
 
 # Set up logging
@@ -79,7 +78,7 @@ def write_obj(
             create_mtl_file(os.path.join(os.path.dirname(filename), mtl_filename))
             
         # Write object name
-        f.write(f"o HeightMap\n")
+        f.write("o HeightMap\n")
         
         # Write vertex data
         for v in mesh.vertices:

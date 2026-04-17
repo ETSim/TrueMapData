@@ -49,7 +49,6 @@ def check_dependencies(auto_install: bool = False, exit_on_failure: bool = True)
         True if all required dependencies are available, False otherwise
     """
     required_deps = ['numpy', 'matplotlib']
-    optional_deps = ['plotly', 'scipy', 'seaborn']
     
     missing = []
     
@@ -69,10 +68,10 @@ def check_dependencies(auto_install: bool = False, exit_on_failure: bool = True)
         
         if auto_install:
             try:
-                console.print(f"[yellow]Attempting to install missing dependencies...[/yellow]")
+                console.print("[yellow]Attempting to install missing dependencies...[/yellow]")
                 import subprocess
                 subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
-                console.print(f"[green]Successfully installed dependencies.[/green]")
+                console.print("[green]Successfully installed dependencies.[/green]")
                 return True
             except Exception as e:
                 console.print(f"[bold red]Failed to install dependencies:[/bold red] {str(e)}")

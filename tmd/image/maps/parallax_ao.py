@@ -169,8 +169,8 @@ class ParallaxAOMapGenerator(MapGenerator):
             # Add directional bias if requested
             if directional_bias > 0:
                 bias_rad = np.radians(bias_direction)
-                bias_x = np.cos(bias_rad)
-                bias_y = np.sin(bias_rad)
+                np.cos(bias_rad)
+                np.sin(bias_rad)
             
             # For multi-scale sampling, use multiple radius values
             if multi_scale:
@@ -238,7 +238,7 @@ class ParallaxAOMapGenerator(MapGenerator):
                 emphasis_factor = 1.0 + cavity_map * cavity_emphasis
                 parallax_ao = np.power(parallax_ao, emphasis_factor)
             
-            logger.debug(f"Parallax AO map generated successfully")
+            logger.debug("Parallax AO map generated successfully")
 
             if zoom_back is not None:
                 parallax_ao = ndimage.zoom(

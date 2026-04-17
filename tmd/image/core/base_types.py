@@ -1,7 +1,7 @@
 """
 Base types for the image processing package.
 """
-from typing import NewType, Union, Dict, Any
+from typing import NewType, Dict, Any
 import numpy as np
 
 # Type definitions for stronger typing

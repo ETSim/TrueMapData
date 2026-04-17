@@ -8,7 +8,7 @@ for all TMD sequence exporters.
 import os
 import re
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

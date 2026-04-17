@@ -8,7 +8,6 @@ with multiple visualization modes and feature detection capabilities.
 import logging
 import numpy as np
 from scipy import ndimage
-import matplotlib.pyplot as plt
 from .base_generator import MapGenerator
 
 logger = logging.getLogger(__name__)
@@ -103,10 +102,10 @@ class CurvatureMapGenerator(MapGenerator):
         sigma = float(params.get('sigma', 1.0))
         multi_scale = bool(params.get('multi_scale', False))
         sigma_levels = params.get('sigma_levels', [0.7, 1.5, 3.0])
-        highlight_features = bool(params.get('highlight_features', False))
+        bool(params.get('highlight_features', False))
         feature_threshold = float(params.get('feature_threshold', 0.1))
         feature_colors = params.get('feature_colors', ((0.0, 0.7, 1.0), (1.0, 0.4, 0.0)))
-        classify_features = bool(params.get('classify_features', False))
+        bool(params.get('classify_features', False))
         percentile_clip = params.get('percentile_clip', (2, 98))
         enhance_contrast = float(params.get('enhance_contrast', 1.0))
         edge_width = int(params.get('edge_width', 1))
@@ -322,8 +321,7 @@ class CurvatureMapGenerator(MapGenerator):
             # Apply colormap (using matplotlib's colormaps if available)
             try:
                 import matplotlib.pyplot as plt
-                from matplotlib import cm
-                
+
                 # Get the colormap
                 cmap = plt.get_cmap(colormap)
                 
@@ -671,7 +669,8 @@ class CurvatureMapGenerator(MapGenerator):
         if params.get('feature_colors') is not None:
             try:
                 ridge_color, valley_color = params['feature_colors']
-                valid_color = lambda c: len(c) == 3 and all(0 <= v <= 1 for v in c)
+                def valid_color(c):
+                    return len(c) == 3 and all(0 <= v <= 1 for v in c)
                 
                 if not (valid_color(ridge_color) and valid_color(valley_color)):
                     logger.warning("Invalid feature_colors format, using defaults")

@@ -1,11 +1,8 @@
 """Mesh manipulation utilities."""
 
-import os
-import time
 import logging
 import numpy as np
-from typing import List, Tuple, Dict, Any, Optional, Union, Callable
-from ..core.mesh import MeshData, MeshOperationError
+from typing import List, Tuple, Optional, Union
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -489,7 +486,7 @@ def ensure_watertight_mesh(
         Tuple of (vertices, faces) with base added if needed
     """
     # Find the minimum z coordinate
-    min_z = np.min(vertices[:, 2])
+    np.min(vertices[:, 2])
     
     # Add a very thin base at the minimum z coordinate
     return _add_base_to_mesh(vertices.tolist(), faces.tolist(), min_base_height)

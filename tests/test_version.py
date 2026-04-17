@@ -8,7 +8,6 @@ information for the TMD (True Map Data) Toolkit.
 
 import pytest
 import re
-import sys
 import importlib.util
 
 

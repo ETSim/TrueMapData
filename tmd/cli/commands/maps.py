@@ -7,11 +7,10 @@ import json
 import typer
 
 from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import Progress
 from rich.panel import Panel
 
-from ..core.ui import print_error, print_success, print_warning
+from ..core.ui import print_error, print_success
 from tmd import TMD
 from ...image import (
     get_available_map_types,
@@ -24,7 +23,7 @@ from ...image import (
     export_height_map,
     export_hillshade_map,
 )
-from ..core.ui import display_tmd_info, display_map_export_info
+from ..core.ui import display_tmd_info
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ def process_metadata(metadata_str: str) -> Dict:
     """Process metadata string into dictionary."""
     try:
         return json.loads(metadata_str)
-    except:
+    except (json.JSONDecodeError, TypeError, ValueError):
         return {}
 
 def create_map_command(map_type: str, **defaults):
@@ -134,8 +133,7 @@ def export_all_maps(
             return
             
         # Load the TMD file once for all exports
-        tmd_data = TMD(str(input_file))
-        height_map = tmd_data.height_map
+        TMD(str(input_file))
         
         # Get available map types if none specified
         if types is None:

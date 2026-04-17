@@ -6,7 +6,7 @@ with validation, defaults, and serialization capabilities.
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Tuple, Union, ClassVar, Callable
+from typing import Dict, Any, Optional, Tuple, ClassVar, Callable
 from dataclasses import dataclass, field, asdict, fields
 
 # Set up logging

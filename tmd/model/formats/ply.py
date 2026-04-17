@@ -5,14 +5,12 @@ This module provides the PLYExporter class and related functions for exporting
 height maps to PLY files, which are commonly used for storing 3D scanned data.
 """
 
-import os
 import numpy as np
 import logging
 import struct
-from typing import Optional, List, Dict, Any, Tuple, Union
+from typing import Optional
 
 from ..base import ModelExporter, ExportConfig, MeshData
-from ..utils import validate_heightmap, ensure_directory_exists
 from ..registry import register_exporter
 
 # Set up logging
@@ -62,7 +60,6 @@ def write_binary_ply(mesh: MeshData, filename: str) -> None:
         mesh: MeshData object containing the mesh to export
         filename: Output filename
     """
-    import struct
     
     vertex_count = len(mesh.vertices)
     face_count = len(mesh.faces)

@@ -255,7 +255,7 @@ class NormalMapGenerator(MapGenerator):
             self._log_and_print("Mapping to RGB range...", "debug")
             result = (normal_map + 1.0) * 0.5
             
-            self._log_and_print(f"Normal map generation completed successfully", "info")
+            self._log_and_print("Normal map generation completed successfully", "info")
             return result
         
         except Exception as e:
@@ -268,7 +268,7 @@ class NormalMapGenerator(MapGenerator):
                 # Try to use the dimensions from the input
                 default = np.zeros((rows, cols, 3), dtype=np.float32)
                 self._log_and_print(f"Using fallback normal map with dimensions: {rows}x{cols}", "debug")
-            except:
+            except Exception:
                 # If that fails, create a small default
                 default = np.zeros((1, 1, 3), dtype=np.float32)
                 self._log_and_print("Using minimal fallback normal map", "debug")

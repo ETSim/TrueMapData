@@ -7,7 +7,6 @@ across different TMD command-line tools.
 """
 
 import logging
-import sys
 from typing import Optional, List, Dict, Any, Tuple, Union
 from pathlib import Path
 
@@ -32,7 +31,6 @@ try:
     from rich.table import Table
     from rich.panel import Panel
     from rich.progress import Progress, SpinnerColumn, TextColumn
-    from rich.syntax import Syntax
     from rich import print as rprint
     from rich.theme import Theme
     

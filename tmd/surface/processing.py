@@ -302,7 +302,7 @@ def extract_profile_at_percentage(
 
         # Generate X positions based on metadata
         if "x_offset" in data_dict and "x_length" in data_dict:
-            positions = np.linspace(
+            np.linspace(
                 data_dict["x_offset"],
                 data_dict["x_offset"] + data_dict["x_length"],
                 cols,

@@ -2,9 +2,7 @@
 """Tests for TMDFileUtilities and related file helpers."""
 
 from pathlib import Path
-from unittest import mock
 
-import pytest
 
 from tmd.utils.files import TMDFileUtilities, _check_visualization_capabilities
 

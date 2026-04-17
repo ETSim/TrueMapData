@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 import json
 import numpy as np
-from typing import Any, Dict, Optional, List, Union, Tuple
+from typing import Any, Dict, List, Tuple
 
 from .base import TMDDataExporter, TMDDataImporter
 

@@ -6,12 +6,10 @@ provides concrete implementations for GIF, PowerPoint (PPTX), and Video exporter
 The factory class returns an exporter instance based on the specified format.
 """
 
-import os
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, List
+from typing import Optional
 
-import numpy as np
 
 # Setup module logger
 logger = logging.getLogger(__name__)

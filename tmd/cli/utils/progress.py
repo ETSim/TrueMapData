@@ -6,16 +6,11 @@ This module provides helpers for creating progress bars and spinners
 using both rich and tqdm libraries, with seamless fallbacks.
 """
 
-import sys
-import time
-from typing import Optional, Any, List, Dict, Union, Callable, Iterator, TypeVar, Generic
-from pathlib import Path
 import logging
+from typing import Any, Callable, Dict, Iterator, List, Optional, TypeVar
 
-# Set up logger
-logger = logging.getLogger(__name__)
-
-# Import Rich components - assumed to always be available 
+from rich import print as rich_print
+from rich.console import Console
 from rich.progress import (
     Progress, 
     SpinnerColumn, 
@@ -23,21 +18,14 @@ from rich.progress import (
     TextColumn, 
     TimeElapsedColumn, 
     TimeRemainingColumn,
-    ProgressColumn
+    ProgressColumn,
 )
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
-from rich import print as rich_print
-
-# Initialize console
-console = Console()
-
-# Import tqdm (now always available)
 from tqdm import tqdm
 
-# Define a type variable for generic iterables
-T = TypeVar('T')
+logger = logging.getLogger(__name__)
+console = Console()
+
+T = TypeVar("T")
 
 def create_progress_bar(total: int, description: str, unit: str = "it",
                        use_rich: bool = True) -> Any:
@@ -249,7 +237,7 @@ def process_with_progress(items: List[T], process_func: Callable[[T], Any],
     close_progress(progress)
     
     # Display summary
-    rich_print(f"[bold]Processing complete:[/bold]")
+    rich_print("[bold]Processing complete:[/bold]")
     rich_print(f"  [green]Success:[/green] {results['success']}")
     rich_print(f"  [red]Failed:[/red] {results['failed']}")
     rich_print(f"  [blue]Total:[/blue] {results['total']}")

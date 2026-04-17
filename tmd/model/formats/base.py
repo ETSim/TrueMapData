@@ -1,7 +1,7 @@
 """Base functionality for mesh generation from heightmaps."""
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple
 import logging
 
 # Set up logging
@@ -78,7 +78,7 @@ def _add_base(
     """Add a solid base to the mesh."""
     try:
         # Get the number of original vertices
-        num_orig_vertices = len(vertices)
+        len(vertices)
         
         # Find the boundary vertices (minimum z-coordinate for each x,y position)
         boundary_verts = {}
@@ -88,7 +88,6 @@ def _add_base(
                 boundary_verts[key] = i
         
         # Create base vertices by duplicating boundary vertices at base_height
-        base_vertices = []
         vert_map = {}  # Maps original index to base vertex index
         
         for orig_idx in boundary_verts.values():

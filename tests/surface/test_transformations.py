@@ -8,7 +8,6 @@ including translation, rotation, scaling, and registration.
 
 import numpy as np
 import pytest
-from unittest import mock
 
 # Import the module to test
 from tmd.surface.transformations import (

@@ -2,7 +2,7 @@
 """Model generation core functionality for TMD CLI."""
 
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Callable
 from enum import Enum
 import logging
 import psutil
@@ -14,7 +14,6 @@ from tmd.cli.core import (
     print_error,
     print_success,
     load_config,
-    save_config,
     load_tmd_file
 )
 
@@ -222,7 +221,6 @@ def batch_export_models(
 ) -> bool:
     """Batch process multiple TMD files."""
     try:
-        import glob
         from concurrent.futures import ProcessPoolExecutor, as_completed
         
         # Find all TMD files
@@ -410,7 +408,7 @@ def generate_model_command(
         try:
             from tmd.model.adaptive_mesh import convert_heightmap_to_adaptive_mesh
             
-            with console.status(f"Generating 3D model..."):
+            with console.status("Generating 3D model..."):
                 result = convert_heightmap_to_adaptive_mesh(
                     height_map=height_map,
                     output_file=str(output_file),

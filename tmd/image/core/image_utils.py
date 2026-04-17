@@ -6,7 +6,7 @@ saving, normalization, resizing, and NaN handling.
 """
 import os
 import logging
-from typing import Optional, Union, Tuple
+from typing import Optional, Union
 from pathlib import Path
 
 import numpy as np

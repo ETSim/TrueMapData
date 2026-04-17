@@ -8,26 +8,15 @@ environment, and performing lazy imports.
 """
 
 import importlib
-import os
-import re
-import glob
-import time
 import logging
-import functools
-import unittest
+import os
 import sys
+import webbrowser
 from pathlib import Path
-from contextlib import contextmanager
-from typing import List, Optional, Tuple, Union, TypeVar, Iterable, Iterator, Any, Dict, Callable, Generic, Set
-
-# Import exceptions from the dedicated exceptions module
-from tmd.utils.exceptions import TMDImportError, TMDEnvironmentError
-# Import TMDFileUtilities for file operations
+from typing import Any, Dict, List, Optional, Union
 
 # Set up logger
 logger = logging.getLogger(__name__)
-T = TypeVar('T')
-R = TypeVar('R')
 
 # Check for rich text formatting library availability
 try:
@@ -41,11 +30,8 @@ except ImportError:
     rprint = print
 
 # Always ensure numpy is available
-try:
-    import numpy as np
-    HAS_NUMPY = True
-except ImportError:
-    HAS_NUMPY = False
+HAS_NUMPY = importlib.util.find_spec("numpy") is not None
+if not HAS_NUMPY:
     logger.error("NumPy is required for TMD file operations but not installed.")
 
 # Check advanced visualization capabilities
@@ -56,25 +42,11 @@ HAS_PIL = False
 def _check_visualization_capabilities():
     """Check for visualization libraries."""
     global HAS_MATPLOTLIB, HAS_SCIPY, HAS_PIL
-    
-    try:
-        import matplotlib.pyplot
-        HAS_MATPLOTLIB = True
-    except ImportError:
-        pass
-    
-    try:
-        import scipy
-        HAS_SCIPY = True
-    except ImportError:
-        pass
-    
-    try:
-        import PIL.Image
-        HAS_PIL = True
-    except ImportError:
-        pass
-    
+
+    HAS_MATPLOTLIB = importlib.util.find_spec("matplotlib") is not None
+    HAS_SCIPY = importlib.util.find_spec("scipy") is not None
+    HAS_PIL = importlib.util.find_spec("PIL") is not None
+
     return (HAS_MATPLOTLIB, HAS_SCIPY, HAS_PIL)
 
 # Perform initial check
@@ -241,10 +213,6 @@ class TMDFileUtilities:
         Args:
             file_path: Path to the file to open
         """
-        import os
-        import sys
-        import webbrowser
-        
         path = Path(file_path)
         if path.suffix.lower() in ['.html', '.htm']:
             webbrowser.open(f"file://{path.absolute()}")
@@ -287,14 +255,18 @@ class TMDFileUtilities:
         """
         required_deps = ['numpy']
         optional_deps = ['matplotlib', 'plotly', 'scipy']
-        
+
         missing = []
-        
+
         # Check required dependencies
         for dep in required_deps:
             if importlib.util.find_spec(dep) is None:
                 missing.append(dep)
-        
+
+        for dep in optional_deps:
+            if importlib.util.find_spec(dep) is None:
+                logger.debug("Optional dependency not installed: %s", dep)
+
         if missing and exit_on_failure:
             logger.error(f"Required dependencies missing: {', '.join(missing)}")
             logger.error(f"Install them with: pip install {' '.join(missing)}")

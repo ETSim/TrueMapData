@@ -8,7 +8,7 @@ import typer
 from rich.panel import Panel
 
 from tmd import TMD
-from tmd.cli.core.ui import console, print_error, display_metadata
+from tmd.cli.core.ui import console, print_error
 from tmd.utils.utils import TMDUtils
 
 def info_command(
@@ -53,7 +53,7 @@ def check_command():
         from tmd import TMD
         console.print("[green]✓[/green] TMD package is available")
         # Try creating a TMD object
-        empty_tmd = TMD(np.zeros((10, 10)), {"comment": "Test data"})
+        TMD(np.zeros((10, 10)), {"comment": "Test data"})
         console.print("[green]✓[/green] TMD object creation is working")
     except ImportError:
         console.print("[red]✗[/red] TMD package is not available")

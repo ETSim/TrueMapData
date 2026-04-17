@@ -17,10 +17,9 @@ import numpy as np
 import pandas as pd
 import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union, ClassVar
+from typing import Any, Dict, List, Optional, Tuple
 import functools
 
-from tmd.utils.utils import TMDUtils
 from tmd.utils.files import TMDFileUtilities
 from tmd.plotters.base import BasePlotter, BaseSequencePlotter
 
@@ -258,7 +257,7 @@ class SeabornHeightMapPlotter(BasePlotter):
         
         # Create figure with matplotlib
         try:
-            from mpl_toolkits.mplot3d import Axes3D
+            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
             fig = plt.figure(figsize=figsize)
             ax = fig.add_subplot(111, projection='3d')
             
@@ -810,7 +809,7 @@ class SeabornProfilePlotter:
         # Sample data if too large
         if len(data) > 10000:
             data = data.sample(10000, random_state=42)
-            logger.info(f"Sampled data to 10000 points for joint distribution plot")
+            logger.info("Sampled data to 10000 points for joint distribution plot")
         
         # Create joint plot
         g = self.sns.jointplot(

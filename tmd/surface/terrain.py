@@ -1,10 +1,13 @@
-import os
-import numpy as np
 import logging
-from typing import Optional, Tuple
-from tmd.utils.files import TMDFileUtilities
-from tmd.utils.utils import TMDUtils
+import os
+from typing import Optional
+
+import numpy as np
 from noise import snoise2
+
+from tmd.utils.utils import TMDUtils
+
+logger = logging.getLogger(__name__)
 
 
 class TMDTerrain:
@@ -111,7 +114,6 @@ class TMDTerrain:
                         noise_val = 0
                         amplitude = 1.0
                         frequency = 1.0
-                        max_amp = 0
                         
                         # First pass: large-scale features
                         noise_val = snoise2(

@@ -6,12 +6,10 @@ This module provides functions for creating various visualizations of TMD files
 using different plotting backends.
 """
 
+import importlib.util
+import logging
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-import numpy as np
-
-# Import TMD core
-from tmd import TMD
+from typing import Dict, Optional
 
 # Import CLI utilities
 from tmd.cli.core import (
@@ -22,15 +20,9 @@ from tmd.cli.core import (
     load_tmd_file,
     auto_open_file,
     create_output_dir,
-    get_output_filename,
     get_file_extension
 )
 
-# Import caching utilities
-from tmd.cli.utils.caching import get_cache_stats, clear_cache
-
-# Import logging
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -47,42 +39,13 @@ def get_available_plotters() -> Dict[str, bool]:
         return get_registered_plotters()
     except ImportError:
         # Fallback if plotter factories aren't available
-        plotters = {
-            "matplotlib": False,
-            "plotly": False,
-            "seaborn": False,
-            "polyscope": False
+        names = {
+            "matplotlib": "matplotlib",
+            "plotly": "plotly",
+            "seaborn": "seaborn",
+            "polyscope": "polyscope",
         }
-        
-        # Check matplotlib
-        try:
-            import matplotlib
-            plotters["matplotlib"] = True
-        except ImportError:
-            pass
-            
-        # Check plotly
-        try:
-            import plotly
-            plotters["plotly"] = True
-        except ImportError:
-            pass
-            
-        # Check seaborn
-        try:
-            import seaborn
-            plotters["seaborn"] = True
-        except ImportError:
-            pass
-            
-        # Check polyscope
-        try:
-            import polyscope
-            plotters["polyscope"] = True
-        except ImportError:
-            pass
-            
-        return plotters
+        return {k: importlib.util.find_spec(v) is not None for k, v in names.items()}
 
 def select_plotter(requested: str, viz_type: str = "2d") -> str:
     """
@@ -108,7 +71,7 @@ def select_plotter(requested: str, viz_type: str = "2d") -> str:
             return plotter
     
     # No plotters available, return the original and let caller handle the error
-    print_warning(f"No visualization backends available. Install matplotlib, plotly, or other visualization libraries.")
+    print_warning("No visualization backends available. Install matplotlib, plotly, or other visualization libraries.")
     return requested.lower()
 
 def visualize_tmd_file(
@@ -265,7 +228,7 @@ def check_available_visualization_backends():
             # Check extra features for matplotlib
             if name == "matplotlib":
                 try:
-                    from mpl_toolkits.mplot3d import Axes3D
+                    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
                     print_success("  ✓ 3D plotting support available")
                 except ImportError:
                     print_warning("  ✗ 3D plotting support not available")

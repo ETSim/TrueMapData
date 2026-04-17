@@ -2,10 +2,8 @@
 import typer
 from pathlib import Path
 from typing import List, Optional
-from datetime import datetime
 
 from ..commands.terrain import generate_synthetic_terrain
-from ...image import get_available_map_types
 
 def create_terrain_app() -> typer.Typer:
     """Create the terrain generation app."""

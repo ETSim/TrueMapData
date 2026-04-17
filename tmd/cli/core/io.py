@@ -12,10 +12,10 @@ import webbrowser
 import logging
 import time
 from pathlib import Path
-from typing import Optional, Any, List, Dict, Union, Tuple, Callable
+from typing import Optional, Any, List
 
 # Terminal interface libraries
-from tmd.cli.core.ui import console, print_warning, print_error, print_success
+from tmd.cli.core.ui import console, print_error, print_success
 from tmd.cli.core.config import load_config
 from tmd.cli.exceptions import FileError
 
@@ -23,7 +23,6 @@ from tmd.cli.exceptions import FileError
 logger = logging.getLogger(__name__)
 
 # Import tqdm for progress bars
-from tqdm import tqdm
 
 # Lazy-loaded caching module to avoid circular imports
 _caching_module = None
@@ -182,7 +181,7 @@ def load_tmd_file(file_path: Path, with_console_status: bool = False,
         # Fall back to normal loading if not using cache or not in cache
         if with_console_status:
             # Enhanced rich progress display for file loading
-            with console.status(f"[bold blue]Loading[/bold blue] {file_path.name}...") as status:
+            with console.status(f"[bold blue]Loading[/bold blue] {file_path.name}..."):
                 # Show file size info
                 try:
                     size_mb = file_path.stat().st_size / (1024 * 1024)

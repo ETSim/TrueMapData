@@ -3,8 +3,7 @@ Transformation utilities for height maps.
 """
 
 import numpy as np
-from typing import Tuple, Optional, Union, List, Dict, Any
-from scipy import ndimage
+from typing import Tuple, Optional, List, Dict, Any
 from scipy.interpolate import griddata
 from scipy.ndimage import rotate, zoom
 

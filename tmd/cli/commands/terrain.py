@@ -1,11 +1,10 @@
 """Terrain generation commands."""
 from pathlib import Path
 from typing import Optional, List
-import time
 from rich.console import Console
 from rich.table import Table
 
-from ..core.ui import print_error, print_success
+from ..core.ui import print_error
 from ...surface.terrain import TMDTerrain
 from .export import export_maps_command
 

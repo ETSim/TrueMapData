@@ -2,18 +2,15 @@
 from pathlib import Path
 from typing import Optional, List
 import time
-from datetime import datetime
 import logging
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.table import Table
-from rich.panel import Panel
-from rich.console import Console
 
 from tmd.model.base import ModelExporter
 from tmd.model.registry import get_available_formats
 
-from ..core.ui import console, print_error, print_success, display_tmd_info
+from ..core.ui import console, print_error
 from ...image import MapExporter, get_available_map_types
 from ...core import TMD
 

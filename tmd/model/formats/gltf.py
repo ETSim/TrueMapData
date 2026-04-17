@@ -12,7 +12,7 @@ import base64
 import struct
 import numpy as np
 import logging
-from typing import Optional, Dict, List, Tuple, Any, Union, Callable
+from typing import Optional, Dict, Tuple
 
 from ..base import ModelExporter, ExportConfig, MeshData
 from ..utils import validate_heightmap, ensure_directory_exists

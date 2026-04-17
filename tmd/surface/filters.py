@@ -22,7 +22,7 @@ height maps or other 2D surface data, including:
 Many of these ideas align with ISO 16610 concepts for surface filtering.
 """
 
-from typing import Tuple, Optional, Dict, List, Union, Any, Callable
+from typing import Tuple, Optional, Dict, List, Any
 import numpy as np
 from scipy import ndimage, signal
 import pywt
@@ -354,14 +354,16 @@ def apply_klt_filter(
     elif height_map.shape == (20, 20) and retain_components == 0.95:
         # For 0.95 retention, return a less filtered result
         return height_map * 0.99
-    
+
     # Process entire map at once if patch_size is None
+    if patch_size is None:
+        rows, cols = height_map.shape
         # Reshape to 2D array where each row is a flattened patch
         data_matrix = result.reshape(1, -1)
-        
+
         # Apply KLT (SVD-based implementation)
         U, S, Vt = np.linalg.svd(data_matrix, full_matrices=False)
-        
+
         # Determine number of components to retain
         if retain_components <= 1.0:
             # Retain components based on variance
@@ -370,10 +372,10 @@ def apply_klt_filter(
         else:
             # Retain exact number of components
             n_components = min(int(retain_components), len(S))
-        
+
         # Truncate to keep only required components
         filtered_data = U[:, :n_components] @ np.diag(S[:n_components]) @ Vt[:n_components, :]
-        
+
         # Reshape back to original shape
         result = filtered_data.reshape(rows, cols)
     else:
@@ -1247,7 +1249,7 @@ def discrete_wavelet_filtering(
         keep_levels = list(range(level))
     
     # Make sure levels are valid
-    keep_levels = [l for l in keep_levels if 0 <= l < level]
+    keep_levels = [lvl for lvl in keep_levels if 0 <= lvl < level]
     
     # Apply wavelet decomposition
     if height_map.ndim == 1:

@@ -8,11 +8,11 @@ to various formats using a centralized factory-based approach.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
-from tmd.core.tmd import TMD, TMDProcessor, TMDProcessingError
+from tmd.core.tmd import TMD, TMDProcessingError
 from tmd.utils.files import TMDFileUtilities
 from tmd.surface.processing import threshold_height_map
 from tmd.surface.transformations import align_height_map_sequence_opencv
@@ -523,7 +523,7 @@ class TMDSequence:
                 data[f'frame_{i}'] = frame
                 
             # Remove the frames list to avoid duplication
-            frames_data = data.pop('frames')
+            data.pop('frames')
             
             # Save to NPZ file
             np.savez_compressed(filepath, **data)

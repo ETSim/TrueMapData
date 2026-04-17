@@ -5,7 +5,6 @@ import logging
 from typing import Optional
 
 from ..base import ModelExporter, ExportConfig, MeshData
-from ..utils.validation import validate_heightmap, ensure_directory_exists
 from ..registry import register_exporter
 
 logger = logging.getLogger(__name__)

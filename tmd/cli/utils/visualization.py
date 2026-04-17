@@ -5,17 +5,19 @@ Visualization utilities for TMD CLI.
 This module provides functions for creating visualizations with different plotting backends.
 """
 
+import importlib.util
 import logging
-import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
-# Set up logger
-logger = logging.getLogger(__name__)
 import numpy as np
 
-from tmd.plotters import TMDPlotterFactory, TMDSequencePlotterFactory
-from tmd.cli.utils.caching import get_cache_stats, clear_cache
+from tmd.plotters import TMDPlotterFactory
+
+if TYPE_CHECKING:
+    from tmd.core.tmd import TMD
+
+logger = logging.getLogger(__name__)
 
 # Delayed imports for CLI-specific modules to prevent circular dependencies
 _io_module = None
@@ -58,41 +60,26 @@ def _get_mesh_converter_module():
 def check_available_visualization_backends() -> Dict[str, bool]:
     """
     Check which visualization backends are available.
-    
+
     Returns:
         Dictionary mapping backend names to availability.
     """
     ui = _get_ui_module()
-    
-    # Define backends to check
-    backends = {
-        "matplotlib": False,
-        "plotly": False,
-        "seaborn": False,
-        "polyscope": False
+
+    module_names = {
+        "matplotlib": "matplotlib",
+        "plotly": "plotly",
+        "seaborn": "seaborn",
+        "polyscope": "polyscope",
     }
-    
-    # Check each backend
-    for backend in backends:
-        try:
-            if backend == "matplotlib":
-                import matplotlib
-                backends[backend] = True
-            elif backend == "plotly":
-                import plotly
-                backends[backend] = True
-            elif backend == "seaborn":
-                import seaborn
-                backends[backend] = True
-            elif backend == "polyscope":
-                import polyscope
-                backends[backend] = True
-                
-            if backends[backend]:
-                ui.print_success(f"✓ {backend} is available")
-        except ImportError:
+    backends = {name: importlib.util.find_spec(mod) is not None for name, mod in module_names.items()}
+
+    for backend, available in backends.items():
+        if available:
+            ui.print_success(f"✓ {backend} is available")
+        else:
             ui.print_warning(f"✗ {backend} is not available")
-    
+
     return backends
 
 def _get_height_map(tmd_obj):
@@ -121,7 +108,7 @@ def _get_height_map(tmd_obj):
         return None
 
 def create_visualization(
-    tmd_file_or_data: Union[Path, 'TMD'],
+    tmd_file_or_data: Union[Path, "TMD"],
     mode: str,
     plotter: str,
     output: Optional[Path] = None,
@@ -407,7 +394,7 @@ def _try_fallback_visualization(
     ui_module = _get_ui_module()
     io_module = _get_io_module()
     
-    ui_module.print_warning(f"Attempting fallback visualization using built-in methods...")
+    ui_module.print_warning("Attempting fallback visualization using built-in methods...")
     
     try:
         # Try matplotlib as a fallback
@@ -415,7 +402,7 @@ def _try_fallback_visualization(
         
         if mode == "3d":
             try:
-                from mpl_toolkits.mplot3d import Axes3D
+                from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
                 fig = plt.figure(figsize=(10, 8))
                 ax = fig.add_subplot(111, projection="3d")
                 

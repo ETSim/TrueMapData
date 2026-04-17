@@ -2,7 +2,7 @@
 
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any, Tuple, Union
 import logging
 
 logger = logging.getLogger(__name__)

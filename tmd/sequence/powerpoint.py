@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
 
@@ -31,7 +31,6 @@ class PowerPointExporter(BaseExporter):
             import matplotlib.pyplot as plt
             from matplotlib import cm
             import io
-            from PIL import Image
             
             frames: List[np.ndarray] = kwargs.get('frames', [])
             output_file: str = kwargs.get('output_file')

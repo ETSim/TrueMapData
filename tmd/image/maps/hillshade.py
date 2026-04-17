@@ -79,7 +79,7 @@ class HillshadeMapGenerator(MapGenerator):
                 
             # Convert angles to radians
             azimuth_rad = math.radians(360.0 - azimuth + 90.0)  # Convert to math angle convention
-            altitude_rad = math.radians(altitude)
+            math.radians(altitude)
             zenith_rad = math.radians(90.0 - altitude)
             
             # Calculate x and y gradients (properly scaled)

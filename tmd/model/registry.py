@@ -10,7 +10,7 @@ import importlib
 import inspect
 import logging
 import pkgutil
-from typing import Dict, Type, List, Optional, Any, Callable
+from typing import Dict, Type, List, Optional, Any
 
 from .base import ModelExporter
 

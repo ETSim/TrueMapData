@@ -7,7 +7,6 @@ from tmd import TMD
 from tmd.cli.core.ui import console
 from ..commands.export import export_maps_command
 from ..commands.terrain import generate_synthetic_terrain
-from ...image import get_available_map_types
 from ...surface.metadata import create_metadata_file
 
 

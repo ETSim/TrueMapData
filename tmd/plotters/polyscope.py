@@ -7,13 +7,11 @@ consistent integration with the TMD plotting framework.
 """
 import logging
 import os
-from typing import Optional, Tuple, List, Dict, Any, Union
-from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 import numpy as np
 
 # Import utility functions from TMD utils
-from tmd.utils.utils import TMDUtils
 from tmd.utils.files import TMDFileUtilities
 from tmd.plotters.base import BasePlotter, BaseSequencePlotter
 
@@ -80,9 +78,9 @@ class PolyscopePlotter(BasePlotter):
         """
         # Extract parameters with defaults
         mode = kwargs.get("mode", "3d").lower()
-        colormap = kwargs.get("colormap", self.DEFAULT_COLORMAP)
-        title = kwargs.get("title", "TMD Height Map")
-        z_scale = kwargs.get("z_scale", 1.0)
+        kwargs.get("colormap", self.DEFAULT_COLORMAP)
+        kwargs.get("title", "TMD Height Map")
+        kwargs.get("z_scale", 1.0)
         
         # Apply partial range if specified
         partial_range = kwargs.get("partial_range", None)
@@ -416,7 +414,7 @@ class PolyscopeSequencePlotter(BaseSequencePlotter):
         ps.set_user_callback(self._animation_callback)
         
         # Initialize with first frame
-        result = self.base_plotter.plot(frames[0], **kwargs)
+        self.base_plotter.plot(frames[0], **kwargs)
         
         # Start the animation
         if kwargs.get("show", True):

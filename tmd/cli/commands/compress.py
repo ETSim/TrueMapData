@@ -6,28 +6,22 @@ This module provides commands for compressing TMD files through downsampling,
 quantization, or a combination of both methods.
 """
 
-import os
-import time
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
+from typing import Optional
 
 # Import NumPy
-import numpy as np
 
 # Import TMD core
-from tmd import TMD
 
 from tmd.cli.core import (
     load_tmd_file, create_output_dir, 
-    print_warning, print_error, print_success,
-    auto_open_file, console
+    print_error, auto_open_file, console
 )
 
 from tmd.utils.utils import TMDUtils
 from tmd.cli.exceptions import CommandError, InputError
 
 # Import caching utilities
-from tmd.cli.utils.caching import get_cache_stats, clear_cache
 
 def display_file_info_command(
     tmd_file: Path,
@@ -154,7 +148,7 @@ def compress_tmd_command(
             elif mode == "quantize":
                 suffix = f"_q{levels}"
             else:
-                suffix = f"_comp"
+                suffix = "_comp"
                 
             output = output_dir / f"{tmd_file.stem}{suffix}.tmd"
         

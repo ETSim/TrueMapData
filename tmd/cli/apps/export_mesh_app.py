@@ -1,11 +1,10 @@
 """Mesh export functionality for the CLI"""
 import typer
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 import logging
 
 from rich.console import Console
-from rich.panel import Panel
 
 # Import core functionality from commands
 from ..commands.model import (

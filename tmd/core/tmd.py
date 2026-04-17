@@ -11,9 +11,8 @@ Classes:
   - TMD: High-level interface for working with TMD files.
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional, Tuple, Union, List, cast
+from typing import Dict, Any, Optional, Tuple, Union, List
 from pathlib import Path
 
 import numpy as np

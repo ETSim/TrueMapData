@@ -7,8 +7,7 @@ that can be used across different TMD command-line tools.
 """
 
 import sys
-from pathlib import Path
-from typing import Optional, List, Dict, Any, Callable, Union
+from typing import List, Any
 
 import typer
 

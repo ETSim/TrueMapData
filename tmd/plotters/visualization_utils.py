@@ -13,9 +13,7 @@ Classes:
 
 import numpy as np
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
-import functools
-import colorsys
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -53,7 +51,6 @@ class ColorMapRegistry:
     def create_matplotlib_cmap(cmap_name: str, n_colors: int = 256) -> Any:
         """Create a matplotlib colormap from a registered colormap name."""
         try:
-            import matplotlib.colors as mcolors
             from matplotlib.colors import LinearSegmentedColormap
         except ImportError:
             logger.error("matplotlib is required for this functionality")
@@ -467,7 +464,7 @@ class TMDVisualizationUtils:
         if "Matplotlib" in plotter_type:
             try:
                 import matplotlib.pyplot as plt
-                from mpl_toolkits.mplot3d import Axes3D
+                from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
                 
                 # Extract parameters
                 figsize = kwargs.get("figsize", (15, 10))
@@ -489,7 +486,7 @@ class TMDVisualizationUtils:
                 rows, cols = height_map.shape
                 x, y = np.meshgrid(np.arange(cols), np.arange(rows))
                 z_scale = kwargs.get("z_scale", 1.0)
-                surf = ax2.plot_surface(
+                ax2.plot_surface(
                     x, y, height_map * z_scale, 
                     cmap=cmap, linewidth=0, antialiased=True
                 )

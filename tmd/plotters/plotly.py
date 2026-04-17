@@ -13,7 +13,7 @@ Both classes implement the BasePlotter and BaseSequencePlotter interfaces.
 
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 

@@ -7,26 +7,18 @@ including version detection, reading, writing, and formatting binary data.
 """
 
 import logging
-import os
 import struct
-import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union, BinaryIO, List
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple, Union
 
-# Define logger before it's used
-logger = logging.getLogger(__name__)
-
-# Required dependencies
 import numpy as np
-
-# Import exceptions from the dedicated exceptions module
-from tmd.utils.exceptions import TMDFileError, TMDVersionError, TMDDataError
-
-# Rich text formatting library for advanced console output
 from rich import print as rprint
 from rich.console import Console
 
-# Initialize rich console
+from tmd.utils.exceptions import TMDDataError, TMDFileError, TMDVersionError
+
+logger = logging.getLogger(__name__)
+
 console = Console()
 
 
@@ -306,7 +298,7 @@ class TMDUtils:
                     print(f"Using forced offsets: x_offset={metadata['x_offset']}, y_offset={metadata['y_offset']}")
                     
             # Calculate derived values
-            width, height = metadata["width"], metadata["height"]
+            width = metadata["width"]
             x_offset, y_offset = metadata["x_offset"], metadata["y_offset"]
             
             # Calculate mm per pixel and pixel offsets

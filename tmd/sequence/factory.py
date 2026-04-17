@@ -8,7 +8,7 @@ functionality to reduce code duplication in the TMDSequence class.
 
 import os
 import logging
-from typing import Dict, Type, Optional, Any, List, Union
+from typing import Dict, Type, Optional, List
 from pathlib import Path
 import numpy as np
 
@@ -263,7 +263,7 @@ class SequenceExporterFactory:
                 
                 # Create figure and plot
                 fig = Figure(figsize=(8, 6), dpi=dpi)
-                canvas = FigureCanvas(fig)
+                FigureCanvas(fig)
                 ax = fig.add_subplot(111)
                 
                 # Plot height map

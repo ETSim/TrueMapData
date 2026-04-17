@@ -32,7 +32,6 @@ class VideoExporter(BaseExporter):
             import matplotlib
             import matplotlib.pyplot as plt
             import matplotlib.animation as animation
-            from matplotlib import cm
             from tqdm import tqdm
             
             frames: List[np.ndarray] = kwargs.get('frames', [])

@@ -5,13 +5,11 @@ This module provides strategies for compressing sequence data using different fo
 (NPZ, Pickle, NPY) and a factory for creating the appropriate strategy.
 """
 
-import os
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Type, Union
+from typing import Dict, Any, List, Optional, Type
 
-import numpy as np
 
 from tmd.compression.factory import TMDDataIOFactory
 from tmd.compression.base import TMDDataExporter, TMDDataImporter

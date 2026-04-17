@@ -6,7 +6,6 @@ This module contains unit tests for the surface processing utilities
 that handle height map manipulations.
 """
 
-import os
 import numpy as np
 import pytest
 from unittest import mock
@@ -234,8 +233,8 @@ class TestHeightMapProcessing:
         
         # Mock np.save to avoid creating files during test
         with mock.patch("numpy.save") as mock_save:
-            with mock.patch("builtins.print") as mock_print:
-                profile_save = extract_profile_at_percentage(
+            with mock.patch("builtins.print"):
+                extract_profile_at_percentage(
                     self.height_map, 
                     self.data_dict, 
                     axis="x", 

@@ -87,7 +87,7 @@ class DepthMapGenerator(MapGenerator):
         normalize = bool(params.get('normalize', True))
         
         # Get metadata for scale information
-        metadata = kwargs.get('metadata', {}) or {}
+        kwargs.get('metadata', {}) or {}
         
         # Prepare height map
         height_map_norm = self._prepare_height_map(height_map, normalize=normalize)
@@ -156,7 +156,6 @@ class DepthMapGenerator(MapGenerator):
         """Apply a colormap to the depth map."""
         # Create RGB visualization
         import matplotlib.pyplot as plt
-        from matplotlib import cm
         
         # Enhance contrast if requested
         if enhance_contrast != 1.0:

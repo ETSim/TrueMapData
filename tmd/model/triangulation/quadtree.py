@@ -8,10 +8,10 @@ heightmaps, which recursively subdivides regions based on terrain complexity.
 import numpy as np
 import logging
 import time
-from typing import List, Tuple, Dict, Any, Optional, Set, Union, Callable
+from typing import List, Tuple, Dict, Any, Optional, Callable
 
 from .base import BaseTriangulator
-from ..utils.heightmap import calculate_terrain_complexity, sample_heightmap
+from ..utils.heightmap import calculate_terrain_complexity
 
 # Set up logging
 logger = logging.getLogger(__name__)

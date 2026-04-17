@@ -7,7 +7,7 @@ pattern to decouple plotter creation from the client code.
 """
 
 import logging
-from typing import Dict, List, Type, Optional, Any, ClassVar, Union
+from typing import Dict, List, Type, Optional, ClassVar
 import inspect
 
 # Import base classes with a TYPE_CHECKING check to avoid circular imports
@@ -42,7 +42,7 @@ class TMDPlotterFactory:
         from tmd.plotters.base import BasePlotter
         
         if not inspect.isclass(plotter_class) or not issubclass(plotter_class, BasePlotter):
-            raise TypeError(f"Plotter class must be a subclass of BasePlotter")
+            raise TypeError("Plotter class must be a subclass of BasePlotter")
         
         cls._plotter_registry[name.lower()] = plotter_class
         logger.debug(f"Registered plotter '{name}' with class {plotter_class.__name__}")
@@ -138,7 +138,7 @@ class TMDSequencePlotterFactory:
         from tmd.plotters.base import BaseSequencePlotter
         
         if not inspect.isclass(plotter_class) or not issubclass(plotter_class, BaseSequencePlotter):
-            raise TypeError(f"Sequence plotter class must be a subclass of BaseSequencePlotter")
+            raise TypeError("Sequence plotter class must be a subclass of BaseSequencePlotter")
         
         cls._plotter_registry[name.lower()] = plotter_class
         logger.debug(f"Registered sequence plotter '{name}' with class {plotter_class.__name__}")

@@ -4,11 +4,11 @@ Visualization app for TMD CLI.
 """
 
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 import typer
 from enum import Enum
 
-from tmd.cli.core.ui import console, print_error, print_warning, print_success
+from tmd.cli.core.ui import console, print_error, print_warning
 from tmd.cli.core.io import auto_open_file
 from tmd.cli.utils.visualization import create_visualization
 from tmd.cli.commands.examples import show_examples
@@ -475,9 +475,9 @@ def _resolve_plotter(plotter: PlotterChoice) -> str:
 
 def _check_polyscope_available() -> bool:
     """Check if polyscope is available and print appropriate message."""
-    try:
-        import polyscope
+    import importlib.util
+
+    if importlib.util.find_spec("polyscope") is not None:
         return True
-    except ImportError:
-        print_error("Polyscope is not available. Install with: pip install polyscope")
-        return False
+    print_error("Polyscope is not available. Install with: pip install polyscope")
+    return False

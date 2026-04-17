@@ -4,15 +4,15 @@ import os
 import numpy as np
 import struct
 import logging
-from typing import Optional, List, Tuple, Union
+from typing import Optional, Tuple
+
+from scipy.ndimage import zoom
 
 from tmd.model.utils.mesh import ensure_watertight_mesh
 
 from ..base import ModelExporter, ExportConfig, MeshData
 from ..utils.validation import validate_heightmap, ensure_directory_exists
-from . import base
 from ..registry import register_exporter
-from ...cli.core.ui import print_error, print_warning
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -248,7 +248,6 @@ def generate_heightmap_texture(
     # Import matplotlib for colormaps
     try:
         import matplotlib.pyplot as plt
-        from matplotlib import cm
     except ImportError:
         logger.error("Matplotlib is required for colormap generation")
         raise ImportError("Matplotlib is required for heightmap texturing")

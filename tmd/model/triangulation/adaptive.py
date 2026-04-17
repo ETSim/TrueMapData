@@ -11,7 +11,7 @@ each vertex is ``[col, row, z]`` — grid column (x index), grid row (y index), 
 
 import numpy as np
 import logging
-from typing import List, Tuple, Optional, Dict, Any, Set, Union, Callable
+from typing import List, Tuple, Optional, Dict, Any, Callable
 
 from .base import BaseTriangulator
 from ..utils.heightmap import calculate_terrain_complexity

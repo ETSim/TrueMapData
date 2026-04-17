@@ -5,7 +5,6 @@ This module provides the abstract base class that all map generators must implem
 """
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
 
 import numpy as np
 

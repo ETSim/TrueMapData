@@ -6,11 +6,9 @@ various 3D model exporters (STL, OBJ, PLY, GLTF, USD, etc.) for height map data.
 """
 
 import logging
-from typing import Dict, Type, Optional
-import numpy as np
 import os
 
-from .base import ModelExporter, ExportConfig
+from .base import ExportConfig
 from .registry import get_exporter, get_available_formats
 from ..core import TMD 
 

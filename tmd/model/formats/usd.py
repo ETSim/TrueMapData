@@ -6,12 +6,13 @@ height maps to USD/USDZ format, which is commonly used for AR applications,
 particularly on Apple platforms.
 """
 
+import importlib.util
+import logging
 import os
 import tempfile
-import shutil
+from typing import Optional, Tuple
+
 import numpy as np
-import logging
-from typing import Optional, Dict, Any, Tuple, Union, List
 
 from ..base import ModelExporter, ExportConfig, MeshData
 from ..utils import validate_heightmap, ensure_directory_exists
@@ -46,9 +47,7 @@ class USDExporter(ModelExporter):
         Returns:
             Path to the created file if successful, None otherwise
         """
-        try:
-            import usd
-        except ImportError:
+        if importlib.util.find_spec("pxr") is None:
             logger.error("USD export requires the USD library. Install with: pip install usd-core")
             return None
 
@@ -146,7 +145,7 @@ def export_mesh_to_usd(
     """
     try:
         # Check if USD library is available
-        from pxr import Usd, UsdGeom, UsdShade, Sdf, Gf, Vt
+        from pxr import Sdf, Usd, UsdGeom, UsdShade
     except ImportError:
         logger.error("Cannot export to USD: PixarUSD library not available")
         return None
@@ -315,7 +314,7 @@ def convert_to_usdz(usd_filename: str) -> Optional[str]:
         usdz_filename = os.path.splitext(usd_filename)[0] + ".usdz"
         
         # Create a temporary directory for processing
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory():
             # Find assets that need to be included (like textures)
             asset_dir = os.path.dirname(usd_filename)
             

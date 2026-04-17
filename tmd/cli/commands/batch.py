@@ -5,7 +5,6 @@ Batch processing functionality for TMD CLI.
 This module provides tools for processing multiple TMD files in a batch operation.
 """
 
-import time
 from pathlib import Path
 from typing import Callable, List, Dict, Any, Optional
 
@@ -128,10 +127,10 @@ class BatchProcessor:
                     if success:
                         success_count += 1
                         processed_files.append(str(file_path))
-                        print(f"  ✓ Success")
+                        print("  ✓ Success")
                     else:
                         failed_count += 1
-                        print(f"  ✗ Failed")
+                        print("  ✗ Failed")
                 except Exception as e:
                     print(f"  ✗ Error: {e}")
                     failed_count += 1

@@ -5,10 +5,8 @@ This module provides a generator for processing and exporting height maps.
 This may involve normalization, inversion, and other basic processing.
 """
 import logging
-from typing import Optional
 import numpy as np
 
-from ..core.image_utils import prepare_height_map, save_image
 from .base_generator import MapGenerator
 
 # Set up logging

@@ -4,7 +4,7 @@ from rich.console import Console
 
 from typer.testing import CliRunner
 
-from tmd.cli.commands.examples import EXAMPLES_MD, show_examples
+from tmd.cli.commands.examples import EXAMPLES_MD
 from tmd.cli.main import app
 
 

@@ -6,11 +6,10 @@ This module provides functions for loading, saving, and accessing configuration
 settings used by TMD command-line tools.
 """
 
-import os
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 

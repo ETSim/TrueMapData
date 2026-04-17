@@ -6,7 +6,7 @@ This module provides a factory to get the appropriate exporter or importer
 for TMD data based on a format string.
 """
 
-from typing import Any, Dict, Type
+from typing import Dict, Type
 from .base import TMDDataExporter, TMDDataImporter
 from .npz import NPZExporter, NPZImporter
 from .pickle import PickleExporter, PickleImporter

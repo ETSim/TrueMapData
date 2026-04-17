@@ -5,7 +5,7 @@ A package for working with topographic surface data, including reading,
 writing, visualizing, and analyzing TMD files.
 """
 
-__version__ = "2.0.0"
+__version__ = "1.0.5"
 
 # Import the main exception classes for easy access
 from tmd.exceptions import TMDException, TMDFileError, TMDVersionError, TMDDataError

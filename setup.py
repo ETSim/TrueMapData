@@ -1,18 +1,16 @@
-""".
-
+"""
 Setup configuration for the TMD Processor package.
 This setup.py file is maintained for backward compatibility with older tools.
 The primary build configuration is in pyproject.toml.
 
-Version 0.1.4 - Added support for 3D model exporters (STL, OBJ, PLY) and
-improved image exporters for material creation.
+Version 1.0.5.
 """
 
 from setuptools import find_packages, setup
 
 setup(
     name="truemapdata",
-    version="0.1.4",
+    version="1.0.5",
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",

@@ -42,6 +42,9 @@ ENV/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Notebook / demo outputs (quadtree_maps_and_stl.ipynb)
+data/
+
 # Output files
 *.html
 *.png

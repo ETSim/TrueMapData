@@ -7,6 +7,7 @@ various 3D model exporters (STL, OBJ, PLY, GLTF, USD, etc.) for height map data.
 
 import logging
 import os
+from typing import Any, Optional
 
 from .base import ExportConfig
 from .registry import get_exporter, get_available_formats
@@ -87,7 +88,36 @@ class ModelExporterFactory:
             import traceback
             logger.debug(traceback.format_exc())
             return False
-    
+
+    @staticmethod
+    def export_heightmap(
+        height_map: Any,
+        filename: str,
+        format_name: str,
+        config: ExportConfig,
+    ) -> Optional[str]:
+        """Export a numpy height map to a file using the registered format exporter."""
+        format_name = format_name.lower().strip()
+        try:
+            exporter_class = get_exporter(format_name)
+        except ValueError as e:
+            logger.error(str(e))
+            return None
+
+        if config.triangulation_method not in ["adaptive", "quadtree"]:
+            logger.warning(
+                "Invalid triangulation method: %s. Using adaptive.",
+                config.triangulation_method,
+            )
+            config.triangulation_method = "adaptive"
+
+        logger.info("Using %s triangulation method", config.triangulation_method)
+        return exporter_class.export(
+            height_map=height_map,
+            filename=filename,
+            config=config,
+        )
+
     @staticmethod
     def get_available_formats() -> list:
         """Get list of available export formats."""

@@ -64,8 +64,9 @@ class ExportConfig:
         self.y_offset = kwargs.get('y_offset', 0.0)
         self.base_height = kwargs.get('base_height', 0.0)
         
-        # Triangulation parameters
-        self.triangulation_method = str(kwargs.get('method', 'adaptive')).replace('MeshMethod.', '').lower()
+        # Triangulation parameters (accept triangulation_method or method alias)
+        _tri = kwargs.get("triangulation_method", kwargs.get("method", "adaptive"))
+        self.triangulation_method = str(_tri).replace("MeshMethod.", "").lower()
         self.error_threshold = kwargs.get('error_threshold', 0.01)
         self.min_quad_size = kwargs.get('min_quad_size', 2)
         self.max_quad_size = kwargs.get('max_quad_size', 32)
@@ -80,8 +81,16 @@ class ExportConfig:
         self.coordinate_system = kwargs.get('coordinate_system', 'right-handed')
         self.origin_at_zero = kwargs.get('origin_at_zero', True)
         
-        # Store any remaining parameters
-        self.extra = {k: v for k, v in kwargs.items() if not hasattr(self, k)}
+        # Store remaining kwargs in ``extra``; merge a nested ``extra`` dict (do not nest twice)
+        self.extra: Dict[str, Any] = {}
+        nested = kwargs.get("extra")
+        if isinstance(nested, dict):
+            self.extra.update(nested)
+        for k, v in kwargs.items():
+            if k == "extra":
+                continue
+            if not hasattr(self, k):
+                self.extra[k] = v
         
     def __repr__(self) -> str:
         """Return string representation of config."""

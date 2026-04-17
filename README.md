@@ -21,7 +21,7 @@ A Python library and CLI for **TrueMap v6** and **GelSight** TMD height maps: I/
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-- [CLI and mesh export](#cli-and-mesh-export)
+- [CLI command reference](#cli-command-reference)
 - [TMD file format](#tmd-file-format)
 - [Sample data](#sample-data)
 - [Visual examples](#visual-examples)
@@ -75,30 +75,72 @@ Use a real `.tmd` from your instrument or pipeline; **no sample `.tmd` files are
 
 ---
 
-## CLI and mesh export
+## CLI command reference
 
-- **Help:** `tmd-process --help` or `python tmd_cli.py --help`
-- **CLI examples (markdown):** `tmd-process visualize examples` or `python tmd_cli.py visualize examples`
+Console entry point: **`tmd-process`** (or **`python tmd_cli.py`** from a checkout). Global help: `tmd-process --help`. Embedded CLI examples (markdown): `tmd-process visualize examples`.
 
-**Maps** (normal, height, AO, etc.):
+Full documentation: [GitHub Pages](https://etstribology.github.io/TrueMapData/) (same URL as [`pyproject.toml` `[project.urls] Documentation`](pyproject.toml)).
 
-```bash
-tmd-process maps list
-tmd-process maps height path/to/file.tmd --output-file height.png
-```
+### Top-level commands
 
-**Meshes** (height field → 3D surface):
+| Command | Feature | Example |
+|---------|---------|---------|
+| `info` | Inspect one `.tmd` (metadata, optional height sample) | `tmd-process info path/to/file.tmd` |
+| `version` | Print CLI and core `__version__` | `tmd-process version` |
+| `check` | Verify optional dependencies / environment | `tmd-process check` |
+| `maps` | Export image maps (normal, height, AO, …) | `tmd-process maps list` |
+| `mesh` | Height field → STL / OBJ / PLY / glTF / USD | `tmd-process mesh formats` |
+| `visualize` | 2D/3D plots, profiles, Polyscope, backends | `tmd-process visualize basic path/to/file.tmd` |
+| `sequence` | Align frames and export maps/meshes from a run | `tmd-process sequence align a.tmd b.tmd c.tmd -o ./aligned` |
+| `roughness` | ISO 25178 areal roughness (needs **Surfalize**) | `tmd-process roughness file path/to/file.tmd --quick` |
+| `terrain` | Synthetic heightmaps and texture exports | `tmd-process terrain generate perlin --width 512 --height 512 -o ./synthetic` |
+| `compress` | Downsample / quantize / combined / batch TMDs | `tmd-process compress downsample path/to/file.tmd --scale 0.5` |
+| `cache` | Inspect or clear visualization cache | `tmd-process cache info` |
+| `config` | Show or change CLI-related settings | `tmd-process config show` |
 
-```bash
-tmd-process mesh formats
-tmd-process mesh stl path/to/file.tmd --quality high
-tmd-process mesh generate path/to/file.tmd --format stl --method adaptive --quality high
-```
+### `maps` subcommands
+
+| Subcommand | Feature | Example |
+|------------|---------|---------|
+| `list` | List supported map type names | `tmd-process maps list` |
+| `batch` | Export many `.tmd` files from a directory | `tmd-process maps batch ./data -o ./textures --pattern "*.tmd"` |
+| `all` | Export the default map set for one file | `tmd-process maps all path/to/file.tmd -o ./maps_out` |
+| `height` | Grayscale height map PNG | `tmd-process maps height path/to/file.tmd --output-file height.png` |
+| `normal` | Tangent-space normal map | `tmd-process maps normal path/to/file.tmd -o normal.png` |
+| `ao` | Ambient occlusion map | `tmd-process maps ao path/to/file.tmd -o ao.png` |
+| `bump` | Bump / relief map | `tmd-process maps bump path/to/file.tmd -o bump.png` |
+| `hillshade` | Hillshade rendering | `tmd-process maps hillshade path/to/file.tmd --output-file hill.png` |
+| `curvature` | Curvature visualization | `tmd-process maps curvature path/to/file.tmd --output-file curv.png` |
+| `displacement` | Displacement map | `tmd-process maps displacement path/to/file.tmd --output-file disp.png` |
+
+Use `tmd-process maps --help` for every map type (`roughness`, `metallic`, `parallax_ao`, `angle`, `depth`, `synthetic`, …).
+
+### `mesh` subcommands
+
+| Subcommand | Feature | Example |
+|------------|---------|---------|
+| `formats` | List registered mesh exporters | `tmd-process mesh formats` |
+| `generate` | Unified mesh export (`--format`, `--method`, `--quality`) | `tmd-process mesh generate path/to/file.tmd --format stl --method adaptive --quality high` |
+| `stl` / `obj` / `ply` / `gltf` / `usd` | Shorthand export to one format | `tmd-process mesh stl path/to/file.tmd --quality high` |
+| `batch` | Mesh many files from a directory | `tmd-process mesh batch ./data --output-dir ./meshes --pattern "*.tmd"` |
+
+Mesh generation notes:
 
 - **`adaptive`** — error-driven refinement; lower **`error_threshold`** and higher **`max_triangles`** yield finer meshes.
-- **`quadtree`** — hierarchical grid refinement; **`max_subdivisions`** caps depth. Python API also exposes **`detail_boost`** on `ExportConfig`.
+- **`quadtree`** — hierarchical grid refinement; **`max_subdivisions`** caps depth. The Python API also exposes **`detail_boost`** on `ExportConfig`.
 
-Documentation: [GitHub Pages](https://etstribology.github.io/TrueMapData/) (same URL as [`pyproject.toml` `[project.urls] Documentation`](pyproject.toml)).
+### Other useful `visualize` / `sequence` commands
+
+| Command | Feature | Example |
+|---------|---------|---------|
+| `visualize 3d` | 3D surface (matplotlib / plotly / …) | `tmd-process visualize 3d path/to/file.tmd -o surf.html` |
+| `visualize profile` | Row or column height profile | `tmd-process visualize profile path/to/file.tmd` |
+| `visualize backends` | Which backends are installed | `tmd-process visualize backends` |
+| `sequence export` | After `sequence align`, export maps + meshes for `*_aligned.tmd` | `tmd-process sequence export ./aligned_out` |
+| `roughness batch` | CSV / stdout roughness over a folder | `tmd-process roughness batch ./tmds --pattern "*.tmd"` |
+| `compress quantize` | Reduce unique height levels | `tmd-process compress quantize path/to/file.tmd` |
+| `cache clear` | Drop cached visualization artifacts | `tmd-process cache clear` |
+| `config set` | Persist a config key | `tmd-process config set --help` |
 
 ---
 

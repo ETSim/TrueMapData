@@ -26,6 +26,7 @@ from tmd.cli.apps.export_mesh_app import create_export_mesh_app
 from tmd.cli.apps.roughness_app import create_roughness_app
 from tmd.cli.apps.sequence_app import create_sequence_app
 from tmd.cli.apps.terrain_app import create_terrain_app
+from tmd.cli.apps.defect_app import create_defect_app
 
 console = Console()
 
@@ -58,6 +59,11 @@ def _add_subcommands() -> None:
         create_roughness_app(),
         name="roughness",
         help="Areal roughness (ISO 25178) via optional Surfalize",
+    )
+    app.add_typer(
+        create_defect_app(),
+        name="defect",
+        help="Detect pits, peaks, scratches, cracks and directionality anomalies",
     )
     app.add_typer(create_visualize_app(), name="visualize", help="Visualize TMD files")
     app.add_typer(create_terrain_app(), name="terrain", help="Generate synthetic terrain and textures")

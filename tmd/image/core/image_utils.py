@@ -180,17 +180,32 @@ def save_image(
     if normalize:
         img_data = normalize_array(image)
     else:
-        img_data = image.copy()
+        img_data = np.asarray(image)
     
     # Try to save using PIL (Pillow)
     try:
         from PIL import Image, PngImagePlugin
         
-        # Convert array to appropriate format for PIL
+        # Convert array to appropriate format for PIL.
+        # Important: if data is already integer-encoded and normalize=False, preserve values.
         if bit_depth == 16:
-            img_array = (img_data * 65535).astype(np.uint16)
+            if not normalize and img_data.dtype == np.uint16:
+                img_array = img_data
+            elif not normalize and img_data.dtype == np.uint8:
+                img_array = (img_data.astype(np.uint16) * 257).astype(np.uint16, copy=False)
+            elif np.issubdtype(img_data.dtype, np.floating):
+                img_array = (np.clip(img_data, 0.0, 1.0) * 65535).astype(np.uint16)
+            else:
+                img_array = np.clip(img_data, 0, 65535).astype(np.uint16)
         else:
-            img_array = (img_data * 255).astype(np.uint8)
+            if not normalize and img_data.dtype == np.uint8:
+                img_array = img_data
+            elif not normalize and img_data.dtype == np.uint16:
+                img_array = (img_data / 257).astype(np.uint8)
+            elif np.issubdtype(img_data.dtype, np.floating):
+                img_array = (np.clip(img_data, 0.0, 1.0) * 255).astype(np.uint8)
+            else:
+                img_array = np.clip(img_data, 0, 255).astype(np.uint8)
         
         # Create PIL image based on input dimensions
         if img_array.ndim == 2:

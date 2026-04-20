@@ -19,8 +19,9 @@ class TestBasicFilters:
 
     def setup_method(self):
         """Set up test data for each test."""
+        rng = np.random.default_rng(101)
         # Create a simple synthetic height map with known features
-        self.height_map_1d = np.sin(np.linspace(0, 10 * np.pi, 100)) + 0.2 * np.random.randn(100)
+        self.height_map_1d = np.sin(np.linspace(0, 10 * np.pi, 100)) + 0.2 * rng.standard_normal(100)
         
         # Create a 2D height map with combined low and high frequency features
         x = np.linspace(0, 5, 50)
@@ -29,7 +30,7 @@ class TestBasicFilters:
         # Low frequency component
         low_freq = np.sin(X) + np.cos(Y)
         # High frequency component (noise)
-        high_freq = 0.2 * np.random.randn(50, 50)
+        high_freq = 0.2 * rng.standard_normal((50, 50))
         # Combined height map
         self.height_map_2d = low_freq + high_freq
 
@@ -137,6 +138,7 @@ class TestAdvancedFilters:
 
     def setup_method(self):
         """Set up test data for each test."""
+        rng = np.random.default_rng(202)
         # Create a 2D height map with mixed features
         x = np.linspace(0, 2 * np.pi, 50)
         y = np.linspace(0, 2 * np.pi, 50)
@@ -146,7 +148,7 @@ class TestAdvancedFilters:
         low_freq = np.sin(X) + np.cos(Y)
         med_freq = 0.5 * np.sin(5 * X) + 0.5 * np.cos(5 * Y)
         high_freq = 0.2 * np.sin(10 * X) + 0.2 * np.cos(10 * Y)
-        noise = 0.1 * np.random.randn(50, 50)
+        noise = 0.1 * rng.standard_normal((50, 50))
         
         # Combined height map
         self.height_map = low_freq + med_freq + high_freq + noise
@@ -250,9 +252,14 @@ class TestSpectralAnalysis:
 
     def setup_method(self):
         """Set up test data for spectral analysis tests."""
+        rng = np.random.default_rng(303)
         # Create 1D profile with known period
         t = np.linspace(0, 10, 100)
-        self.profile_1d = np.sin(2 * np.pi * 0.5 * t) + 0.5 * np.sin(2 * np.pi * 1.5 * t) + 0.1 * np.random.randn(100)
+        self.profile_1d = (
+            np.sin(2 * np.pi * 0.5 * t)
+            + 0.5 * np.sin(2 * np.pi * 1.5 * t)
+            + 0.1 * rng.standard_normal(100)
+        )
         
         # Create 2D height map with directional features
         x = np.linspace(0, 10, 50)
@@ -266,7 +273,7 @@ class TestSpectralAnalysis:
         # Diagonal pattern
         diagonal = 0.3 * np.sin(X + Y)
         # Noise
-        noise = 0.1 * np.random.randn(50, 50)
+        noise = 0.1 * rng.standard_normal((50, 50))
         
         # Combined height map
         self.height_map_2d = horizontal + vertical + diagonal + noise

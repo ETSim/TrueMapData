@@ -20,6 +20,8 @@ import numpy as np
 from tmd.utils.utils import TMDUtils
 from tmd.utils.files import TMDFileUtilities
 from tmd.surface.metadata import compute_stats, export_metadata
+from tmd.surface.defects import detect_surface_defects
+from tmd.surface.types import DefectAnalysisResult, DefectDetectionConfig
 from tmd.plotters.factory import TMDPlotterFactory, TMDSequencePlotterFactory
 from tmd.exceptions import TMDProcessingError
 
@@ -293,6 +295,21 @@ class TMDProcessor:
             self.process()
         return self.height_map
 
+    def analyze_defects(self, **config_kwargs: Any) -> DefectAnalysisResult:
+        """
+        Detect surface defects from the processor height map.
+
+        Args:
+            **config_kwargs: Optional DefectDetectionConfig fields.
+
+        Returns:
+            Defect analysis payload with class masks and summary.
+        """
+        if self.height_map is None:
+            self.process()
+        config = DefectDetectionConfig(**config_kwargs) if config_kwargs else DefectDetectionConfig()
+        return detect_surface_defects(self.height_map, config)
+
     def load(self) -> Dict[str, Any]:
         """
         Load data from the TMD file without additional processing transformations.
@@ -493,7 +510,7 @@ class TMDProcessor:
 class TMD:
     """Main TMD class for working with topographic mesh data."""
     
-    def __init__(self, height_map_or_path=None, metadata=None):
+    def __init__(self, height_map_or_path=None, metadata=None, compute_initial_stats: bool = False):
         """
         Initialize a TMD object with height map and metadata.
         
@@ -505,7 +522,7 @@ class TMD:
         if isinstance(height_map_or_path, (str, Path)):
             # Load the file
             self._filepath = Path(height_map_or_path)
-            self._load_from_file(self._filepath)
+            self._load_from_file(self._filepath, compute_initial_stats=compute_initial_stats)
         else:
             # Set defaults if not provided
             if height_map_or_path is None:
@@ -516,8 +533,9 @@ class TMD:
             self._height_map = height_map_or_path
             self._metadata = metadata
             
-            # Set up analysis tools
-            self._initialize_analysis()
+            self._stats = {}
+            if compute_initial_stats:
+                self._initialize_analysis()
             
         # Default plotting strategy
         self._default_plotter_strategy = "matplotlib"
@@ -535,7 +553,7 @@ class TMD:
             logger.error(f"Height map validation failed: {e}")
             raise
 
-    def _load_from_file(self, filepath):
+    def _load_from_file(self, filepath, compute_initial_stats: bool = False):
         """Load TMD data from a file."""
         processor = TMDProcessor(filepath)
         result = processor.process()
@@ -544,7 +562,8 @@ class TMD:
         self._stats = {}  # Initialize stats to be computed later
         
         # Initialize analysis tools
-        self._initialize_analysis()
+        if compute_initial_stats:
+            self._initialize_analysis()
 
     def _initialize_analysis(self):
         """Initialize analysis tools and compute initial statistics."""
@@ -598,9 +617,24 @@ class TMD:
             'resolution_x': resolution_x,
             'resolution_y': resolution_y
         }
+
+    def analyze_defects(self, **config_kwargs: Any) -> DefectAnalysisResult:
+        """
+        Detect pits, peaks, scratches, cracks and directionality anomalies.
+
+        Args:
+            **config_kwargs: Optional DefectDetectionConfig fields.
+
+        Returns:
+            Typed defect analysis result with masks, labels and confidences.
+        """
+        if self._height_map is None or self._height_map.size == 0:
+            raise ValueError("Cannot analyze defects on an empty height map")
+        config = DefectDetectionConfig(**config_kwargs) if config_kwargs else DefectDetectionConfig()
+        return detect_surface_defects(self._height_map, config)
         
     @classmethod
-    def load(cls, filepath: Union[str, Path]) -> "TMD":
+    def load(cls, filepath: Union[str, Path], compute_initial_stats: bool = False) -> "TMD":
         """
         Load a TMD file and return a TMD object.
         
@@ -631,7 +665,7 @@ class TMD:
             if required_memory > 8 * 1024 * 1024 * 1024:
                 raise ValueError("Height map would require too much memory")
                 
-            return cls(result["height_map"], result["metadata"])
+            return cls(result["height_map"], result["metadata"], compute_initial_stats=compute_initial_stats)
             
         except Exception as e:
             logger.error(f"Failed to load TMD file: {e}")

@@ -93,6 +93,7 @@ Full documentation: [GitHub Pages](https://etstribology.github.io/TrueMapData/) 
 | `visualize` | 2D/3D plots, profiles, Polyscope, backends | `tmd-process visualize basic path/to/file.tmd` |
 | `sequence` | Align frames and export maps/meshes from a run | `tmd-process sequence align a.tmd b.tmd c.tmd -o ./aligned` |
 | `roughness` | ISO 25178 areal roughness (needs **Surfalize**) | `tmd-process roughness file path/to/file.tmd --quick` |
+| `defect` | Detect pits, peaks, scratches, cracks, and directionality anomalies | `tmd-process defect file path/to/file.tmd --json` |
 | `terrain` | Synthetic heightmaps and texture exports | `tmd-process terrain generate perlin --width 512 --height 512 -o ./synthetic` |
 | `compress` | Downsample / quantize / combined / batch TMDs | `tmd-process compress downsample path/to/file.tmd --scale 0.5` |
 | `cache` | Inspect or clear visualization cache | `tmd-process cache info` |
@@ -138,11 +139,22 @@ Mesh generation notes:
 | `visualize backends` | Which backends are installed | `tmd-process visualize backends` |
 | `sequence export` | After `sequence align`, export maps + meshes for `*_aligned.tmd` | `tmd-process sequence export ./aligned_out` |
 | `roughness batch` | CSV / stdout roughness over a folder | `tmd-process roughness batch ./tmds --pattern "*.tmd"` |
+| `defect batch` | CSV / stdout defect counts and confidence over a folder | `tmd-process defect batch ./tmds -o ./defects.csv` |
 | `compress quantize` | Reduce unique height levels | `tmd-process compress quantize path/to/file.tmd` |
 | `cache clear` | Drop cached visualization artifacts | `tmd-process cache clear` |
 | `config set` | Persist a config key | `tmd-process config set --help` |
 
 ---
+
+### Defect command speed defaults
+
+- `tmd-process defect file --json` and `tmd-process defect batch` now use a fast summary mode by default.
+- Opt into heavier computations only when needed:
+  - `--include-mask`
+  - `--include-overlay`
+  - `--include-responses`
+  - `--mask-output <file.png>`
+  - `--overlay-output <file.png>`
 
 ## TMD file format
 

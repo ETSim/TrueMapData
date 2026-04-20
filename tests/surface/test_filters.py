@@ -381,8 +381,8 @@ class TestSpectralAnalysis:
         # Should find at least one period
         assert len(periodicity['periods']) > 0
         
-        # Test random noise (shouldn't be periodic)
-        noise_map = np.random.randn(30, 30)
+        # Test random noise (shouldn't be periodic); fixed seed avoids flaky global RNG.
+        noise_map = np.random.default_rng(42).standard_normal((30, 30))
         noise_periodicity = filtering.detect_surface_periodicity(noise_map, threshold=0.9)
         
         # Check if it correctly identifies non-periodic surfaces

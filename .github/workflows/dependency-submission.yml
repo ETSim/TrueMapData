@@ -1,0 +1,47 @@
+name: Dependency submission
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Required for the dependency submission API (see actions/component-detection-dependency-submission-action).
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  dependency-submission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Root requirements.txt pulls a very large optional stack and duplicates resolution from
+      # setup.py / pyproject.toml. Stash it so PipReport focuses on installable package manifests.
+      - name: Stash broad requirements for graph scan
+        run: |
+          mkdir -p .graph-scan-stash
+          if [ -f requirements.txt ]; then
+            mv requirements.txt .graph-scan-stash/requirements.txt
+          fi
+
+      - name: Submit dependencies to GitHub
+        id: submit
+        continue-on-error: true
+        uses: actions/component-detection-dependency-submission-action@374343effede691df3a5ffaf36b4e7acab919590
+        with:
+          detectorsFilter: PipReport
+          detectorsCategories: Python
+          directoryExclusionList: ".graph-scan-stash"
+
+      - name: Report submission failure
+        if: steps.submit.outcome == 'failure'
+        run: |
+          echo "::warning::Dependency snapshot upload failed (often a transient GitHub API error). Re-run this workflow; the job is green because submission uses continue-on-error."

@@ -1,12 +1,19 @@
-# Build wheels/sdist, create a GitHub Release with auto-generated notes, and publish to PyPI.
-# Trigger: push a semver tag, for example:
-#   git tag -a v1.0.5 -m "Release v1.0.5" && git push origin v1.0.5
+# Build wheels/sdist, create a GitHub Release, and publish to PyPI — **manual only**.
+#
+# 1. Push an annotated tag to the commit you want to ship, e.g.:
+#      git tag -a v1.0.6 -m "Release v1.0.6" && git push origin v1.0.6
+# 2. In GitHub: Actions → "Release and publish" → Run workflow → enter that tag as **ref** (e.g. v1.0.6).
+#
+# PyPI is not triggered by tag push; only this workflow_dispatch run publishes.
 name: Release and publish
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Existing git tag to build and publish (e.g. v1.0.6). Push the tag before running."
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,8 +23,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate release ref
+        run: |
+          ref="${{ inputs.ref }}"
+          case "$ref" in
+            v*.*.*) ;;
+            *)
+              echo "::error::ref must be a semver-style tag on the remote (e.g. v1.0.6). Got: $ref"
+              exit 1
+              ;;
+          esac
+
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -40,6 +60,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -60,8 +82,13 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.ref }}
           files: dist/*
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          make_latest: true
+          # Allow re-running this workflow for the same tag (e.g. after a transient PyPI failure).
+          allowUpdates: true
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

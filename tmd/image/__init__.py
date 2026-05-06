@@ -107,6 +107,16 @@ def get_available_map_types():
         "depth"
     ]
 
+
+def get_material_binding_map_types() -> dict[str, str]:
+    """Canonical material-binding map types used by mesh exporters."""
+    return {
+        "map_kd": "height",
+        "map_bump": "normal",
+        "map_disp": "displacement",
+        "map_pr": "roughness",
+    }
+
 __all__ = [
     # Core functionality
     'normalize_array',
@@ -141,5 +151,6 @@ __all__ = [
     'export_height_map',
     'export_hillshade_map',
     'export_depth_map',
-    'get_available_map_types'
+    'get_available_map_types',
+    'get_material_binding_map_types',
 ]

@@ -18,6 +18,16 @@ from ...core import TMD
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def default_material_slot_types() -> dict:
+    """Canonical map type mapping for OBJ/glTF material binding."""
+    return {
+        "map_kd": "height",
+        "map_bump": "normal",
+        "map_disp": "displacement",
+        "map_pr": "roughness",
+    }
+
 def export_command(
     tmd_file: Path,
     output: Optional[Path] = None,

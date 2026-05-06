@@ -1,6 +1,11 @@
 # TrueMap Data (TMD)
 
-Python library and CLI for reading **TrueMap v6** and **GelSight** TMD height maps: I/O, processing, visualization, texture-style map export, and 3D mesh generation.
+Python library and CLI for reading **TrueMap v6** and **GelSight** TMD height maps:
+I/O, processing, visualization, texture-style map export, 3D mesh generation, and
+apply-on-mesh OBJ/MTL bundling.
+
+Apply-on-mesh uses physical tiling: template OBJ bounds (default meters) are converted with
+`OBJ_UNITS_TO_MM=1000` and combined with TMD `mm_per_pixel` to derive atlas and tile sizes.
 
 ## Links
 

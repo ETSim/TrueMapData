@@ -98,6 +98,7 @@ Full documentation: [GitHub Pages](https://etstribology.github.io/TrueMapData/) 
 | `compress` | Downsample / quantize / combined / batch TMDs | `tmd-process compress downsample path/to/file.tmd --scale 0.5` |
 | `cache` | Inspect or clear visualization cache | `tmd-process cache info` |
 | `config` | Show or change CLI-related settings | `tmd-process config show` |
+| `mesh apply` | Apply TMD maps onto an existing template OBJ mesh | `tmd-process mesh apply path/to/file.tmd -o ./bundle --template-plane-dir e:\\master\\TextureFriction\\notebook\\fixtures\\template_plane --mode uv` |
 
 ### `maps` subcommands
 
@@ -124,11 +125,28 @@ Use `tmd-process maps --help` for every map type (`roughness`, `metallic`, `para
 | `generate` | Unified mesh export (`--format`, `--method`, `--quality`) | `tmd-process mesh generate path/to/file.tmd --format stl --method adaptive --quality high` |
 | `stl` / `obj` / `ply` / `gltf` / `usd` | Shorthand export to one format | `tmd-process mesh stl path/to/file.tmd --quality high` |
 | `batch` | Mesh many files from a directory | `tmd-process mesh batch ./data --output-dir ./meshes --pattern "*.tmd"` |
+| `apply` | Separate apply-on-mesh flow (template mesh + maps → OBJ/MTL bundle) | `tmd-process mesh apply path/to/file.tmd -o ./bundle --template-mesh ./plane.obj --mode uv` |
 
 Mesh generation notes:
 
 - **`adaptive`** — error-driven refinement; lower **`error_threshold`** and higher **`max_triangles`** yield finer meshes.
 - **`quadtree`** — hierarchical grid refinement; **`max_subdivisions`** caps depth. The Python API also exposes **`detail_boost`** on `ExportConfig`.
+
+Apply-on-mesh notes:
+
+- `mesh apply` is separate from `mesh generate`; it does not regenerate topology by default.
+- Built-in templates are available with `--template-kind plane|sphere|cube`.
+- `--mode uv` (default) keeps template geometry unchanged and binds maps in MTL.
+- `--mode displace` is opt-in and emits displacement-ready material binding (`map_disp`) for downstream tools.
+- `--uv-alignment-mode preserve` is default and keeps template UVs unchanged.
+- Template OBJ units are treated as meters by default and converted with `--obj-units-to-mm` (default `1000`).
+- Physical tiling uses measured scale:
+  - `target_w_px = round(template_x_mm / tmd_mm_per_pixel)`
+  - `target_h_px = round(template_z_mm / tmd_mm_per_pixel)`
+  - `tile_w_px = round(tmd_x_length_mm / tmd_mm_per_pixel)`
+  - `tile_h_px = round(tmd_y_length_mm / tmd_mm_per_pixel)`
+- Use `--tmd-mm-per-pixel` to override metadata `mm_per_pixel` when needed.
+- Generated MTL uses standard keys only: `map_Kd`, `map_Bump`, `map_disp`, `map_Pr`.
 
 ### Other useful `visualize` / `sequence` commands
 

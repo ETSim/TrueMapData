@@ -35,6 +35,9 @@ ENV/
 # IDEs and editors
 .idea/
 .vscode/
+.cursor/
+.claude/
+.codex/
 *.swp
 *.swo
 *~

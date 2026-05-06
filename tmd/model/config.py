@@ -126,6 +126,17 @@ class ExportConfig(ModelConfig):
     texture: bool = False
     color_map: str = 'terrain'
     texture_resolution: Optional[Tuple[int, int]] = None
+    bind_material_maps: bool = False
+    material_map_bindings: Dict[str, str] = field(default_factory=dict)
+    template_mesh_path: Optional[str] = None
+    template_plane_dir: Optional[str] = None
+    template_kind: str = "plane"
+    template_fixtures_dir: Optional[str] = None
+    application_mode: str = "uv"
+    uv_alignment_mode: str = "preserve"
+    strict_material_maps: bool = False
+    obj_units_to_mm: float = 1000.0
+    tmd_mm_per_pixel: Optional[float] = None
     
     # Mesh generation parameters
     triangulation_method: str = "quadtree"  # Changed from adaptive to quadtree for better speed
@@ -190,6 +201,24 @@ class ExportConfig(ModelConfig):
 
         if self.detail_boost < 0:
             raise ValueError(f"detail_boost must be non-negative, got {self.detail_boost}")
+
+        if self.obj_units_to_mm <= 0:
+            raise ValueError(f"obj_units_to_mm must be positive, got {self.obj_units_to_mm}")
+
+        if self.tmd_mm_per_pixel is not None and self.tmd_mm_per_pixel <= 0:
+            raise ValueError(f"tmd_mm_per_pixel must be positive when provided, got {self.tmd_mm_per_pixel}")
+
+        valid_template_kinds = {"plane", "sphere", "cube", "custom"}
+        if self.template_kind not in valid_template_kinds:
+            raise ValueError(
+                f"template_kind must be one of {sorted(valid_template_kinds)}, got {self.template_kind}"
+            )
+
+        valid_uv_modes = {"preserve", "remap_bbox"}
+        if self.uv_alignment_mode not in valid_uv_modes:
+            raise ValueError(
+                f"uv_alignment_mode must be one of {sorted(valid_uv_modes)}, got {self.uv_alignment_mode}"
+            )
 
 
 class ConfigManager:

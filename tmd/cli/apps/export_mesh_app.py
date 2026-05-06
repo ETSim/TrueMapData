@@ -9,6 +9,7 @@ from rich.console import Console
 # Import core functionality from commands
 from ..commands.model import (
     export_model,
+    apply_maps_to_mesh,
     batch_export_models, 
     list_model_formats,
     get_quality_params,
@@ -81,7 +82,12 @@ def create_export_mesh_app() -> typer.Typer:
         max_subdivisions: int = typer.Option(12, help="Maximum quadtree subdivisions"),
         binary: Optional[bool] = typer.Option(None, help="Use binary format if supported"),
         coordinate_system: str = typer.Option("right-handed", help="Coordinate system orientation"),
-        optimize: bool = typer.Option(True, help="Optimize mesh after generation")
+        optimize: bool = typer.Option(True, help="Optimize mesh after generation"),
+        bind_material_maps: bool = typer.Option(
+            False,
+            "--bind-material-maps/--no-bind-material-maps",
+            help="Bind generated maps into OBJ/GLTF materials during mesh export.",
+        ),
     ):
         """Generate a 3D model from a TMD file."""
         try:
@@ -110,6 +116,7 @@ def create_export_mesh_app() -> typer.Typer:
                 binary=binary,
                 coordinate_system=coordinate_system,
                 optimize=optimize,
+                bind_material_maps=bind_material_maps,
                 save_heightmap=save_heightmap,
                 colormap=colormap,
                 **quality_params
@@ -222,7 +229,12 @@ def create_export_mesh_app() -> typer.Typer:
         scale: float = typer.Option(5.0, help="Mesh scale factor"),
         quality: QualityPreset = typer.Option(QualityPreset.HIGH, help="Quality preset"),
         max_triangles: Optional[int] = typer.Option(None, help="Override maximum triangle count"),
-        error_threshold: Optional[float] = typer.Option(None, help="Override error threshold")
+        error_threshold: Optional[float] = typer.Option(None, help="Override error threshold"),
+        bind_material_maps: bool = typer.Option(
+            False,
+            "--bind-material-maps/--no-bind-material-maps",
+            help="Bind map_Kd/map_Bump/map_disp/map_Pr in generated MTL.",
+        ),
     ):
         """Export as OBJ mesh."""
         # Get quality parameters and override if specified
@@ -241,6 +253,7 @@ def create_export_mesh_app() -> typer.Typer:
             output_file=output_file,
             format="obj",
             scale=scale,
+            bind_material_maps=bind_material_maps,
             **quality_params
         )
         
@@ -289,7 +302,12 @@ def create_export_mesh_app() -> typer.Typer:
         quality: QualityPreset = typer.Option(QualityPreset.HIGH, help="Quality preset"),
         binary: bool = typer.Option(True, help="Use GLB format"),
         max_triangles: Optional[int] = typer.Option(None, help="Override maximum triangle count"),
-        error_threshold: Optional[float] = typer.Option(None, help="Override error threshold")
+        error_threshold: Optional[float] = typer.Option(None, help="Override error threshold"),
+        bind_material_maps: bool = typer.Option(
+            False,
+            "--bind-material-maps/--no-bind-material-maps",
+            help="Bind baseColor/normal/roughness-capable textures in glTF/GLB.",
+        ),
     ):
         """Export as GLTF/GLB mesh."""
         # Get quality parameters and override if specified
@@ -310,6 +328,7 @@ def create_export_mesh_app() -> typer.Typer:
             format="gltf",
             scale=scale,
             binary=binary,
+            bind_material_maps=bind_material_maps,
             **quality_params
         )
         
@@ -349,6 +368,80 @@ def create_export_mesh_app() -> typer.Typer:
         )
         
         if not success:
+            raise typer.Exit(code=1)
+
+    @app.command("apply")
+    def apply_command(
+        tmd_file: Path = typer.Argument(..., help="Input TMD file"),
+        output_dir: Path = typer.Option(..., "--output-dir", "-o", help="Output bundle directory"),
+        output_prefix: str = typer.Option("applied_mesh", "--output-prefix", help="Output bundle prefix"),
+        template_kind: str = typer.Option(
+            "plane",
+            "--template-kind",
+            help="Built-in template kind: plane, sphere, cube.",
+        ),
+        template_fixtures_dir: Optional[Path] = typer.Option(
+            None,
+            "--template-fixtures-dir",
+            help="Override built-in template fixtures root directory.",
+        ),
+        template_mesh: Optional[Path] = typer.Option(None, "--template-mesh", help="Template OBJ mesh path"),
+        template_plane_dir: Optional[Path] = typer.Option(
+            None,
+            "--template-plane-dir",
+            help="Template directory containing plane.obj",
+        ),
+        mode: str = typer.Option("uv", "--mode", help="Apply mode: uv or displace"),
+        uv_alignment_mode: str = typer.Option(
+            "preserve",
+            "--uv-alignment-mode",
+            help="UV behavior: preserve (default) or remap_bbox.",
+        ),
+        obj_units_to_mm: float = typer.Option(
+            1000.0,
+            "--obj-units-to-mm",
+            help="Template OBJ units to millimeters conversion factor (meters=1000).",
+        ),
+        tmd_mm_per_pixel: Optional[float] = typer.Option(
+            None,
+            "--tmd-mm-per-pixel",
+            help="Physical TMD scale in millimeters per pixel (overrides metadata mm_per_pixel).",
+        ),
+        max_texture_edge: Optional[int] = typer.Option(
+            8192,
+            "--max-texture-edge",
+            help="Cap largest texture edge in pixels for tiled material maps (set 0 to disable).",
+        ),
+        compress: int = typer.Option(75, "--compress", help="Texture compression 0-100"),
+        normalize: bool = typer.Option(True, "--normalize/--no-normalize", help="Normalize exported maps"),
+    ):
+        """Apply TMD maps onto an external mesh (separate from mesh generation)."""
+        try:
+            result = apply_maps_to_mesh(
+                tmd_file=tmd_file,
+                output_root=output_dir,
+                template_mesh_path=template_mesh,
+                template_plane_dir=template_plane_dir,
+                template_kind=template_kind,
+                template_fixtures_dir=template_fixtures_dir,
+                output_prefix=output_prefix,
+                application_mode=mode,
+                uv_alignment_mode=uv_alignment_mode,
+                compress=compress,
+                normalize=normalize,
+                obj_units_to_mm=obj_units_to_mm,
+                tmd_mm_per_pixel=tmd_mm_per_pixel,
+                max_texture_edge=None if max_texture_edge == 0 else max_texture_edge,
+            )
+            console.print(f"[green]Bundle OBJ:[/] {result['obj']}")
+            console.print(f"[green]Bundle MTL:[/] {result['mtl']}")
+            console.print(f"[green]Textures:[/] {result['textures_dir']}")
+            console.print(
+                f"[green]Physical sizing:[/] tile={result['tile_size_px']} px, target={result['target_size_px']} px"
+            )
+        except Exception as e:
+            logger.error(f"Apply-on-mesh failed: {e}", exc_info=True)
+            console.print(f"[red]Apply-on-mesh failed: {e}[/red]")
             raise typer.Exit(code=1)
 
     return app

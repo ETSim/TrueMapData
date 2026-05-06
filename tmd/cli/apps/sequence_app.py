@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import typer
 
@@ -14,6 +14,7 @@ from tmd.cli.commands.export import export_maps_command
 from tmd.cli.commands.model import (
     MeshMethod,
     QualityPreset,
+    apply_maps_to_mesh,
     export_model,
     get_quality_params,
 )
@@ -264,6 +265,42 @@ def create_sequence_app() -> typer.Typer:
             "--save-heightmap/--no-save-heightmap",
             help="Also write *_heightmap.png next to each mesh (STL)",
         ),
+        template_mesh: Path = typer.Option(
+            None,
+            "--template-mesh",
+            help="Optional template OBJ to apply maps onto (separate apply-on-mesh flow).",
+        ),
+        template_kind: str = typer.Option(
+            "plane",
+            "--template-kind",
+            help="Built-in template kind for apply flow: plane, sphere, cube.",
+        ),
+        template_fixtures_dir: Path = typer.Option(
+            None,
+            "--template-fixtures-dir",
+            help="Override built-in template fixtures root directory.",
+        ),
+        template_plane_dir: Path = typer.Option(
+            None,
+            "--template-plane-dir",
+            help="Template dir containing plane.obj for apply-on-mesh flow.",
+        ),
+        apply_mode: str = typer.Option("uv", "--apply-mode", help="Apply mode: uv or displace"),
+        uv_alignment_mode: str = typer.Option(
+            "preserve",
+            "--uv-alignment-mode",
+            help="UV behavior: preserve (default) or remap_bbox.",
+        ),
+        obj_units_to_mm: float = typer.Option(
+            1000.0,
+            "--obj-units-to-mm",
+            help="Template OBJ units to millimeters conversion factor (meters=1000).",
+        ),
+        tmd_mm_per_pixel: Optional[float] = typer.Option(
+            None,
+            "--tmd-mm-per-pixel",
+            help="Override mm-per-pixel physical scale used for atlas/tile sizing.",
+        ),
     ) -> None:
         """
         For every ``*_aligned.tmd`` in a directory (sorted by name): export all maps into
@@ -295,27 +332,46 @@ def create_sequence_app() -> typer.Typer:
                     raise typer.Exit(1)
 
             if mesh_enable:
-                mesh_out = _mesh_output_path(aligned_dir, fp, mesh_format)
-                mesh_out.parent.mkdir(parents=True, exist_ok=True)
-                qp = get_quality_params(mesh_quality)
-                qp["max_subdivisions"] = max_subdivisions
-                console.print(f"\n[cyan]Mesh[/] {fp.name} → {mesh_out}")
-                ok = export_model(
-                    input_file=fp,
-                    output_file=mesh_out,
-                    format=mesh_format,
-                    method=mesh_method.value,
-                    scale=scale,
-                    binary=True,
-                    coordinate_system="right-handed",
-                    optimize=True,
-                    save_heightmap=save_heightmap,
-                    colormap="terrain",
-                    base_height=0.0,
-                    **qp,
-                )
-                if not ok:
-                    raise typer.Exit(1)
+                if template_mesh or template_plane_dir:
+                    bundle_dir = aligned_dir / "mesh" / fp.stem
+                    console.print(f"\n[cyan]Apply[/] {fp.name} → {bundle_dir}")
+                    apply_maps_to_mesh(
+                        tmd_file=fp,
+                        output_root=bundle_dir,
+                        template_mesh_path=template_mesh,
+                        template_plane_dir=template_plane_dir,
+                        template_kind=template_kind,
+                        template_fixtures_dir=template_fixtures_dir,
+                        output_prefix=fp.stem.replace("_aligned", ""),
+                        application_mode=apply_mode,
+                        uv_alignment_mode=uv_alignment_mode,
+                        obj_units_to_mm=obj_units_to_mm,
+                        tmd_mm_per_pixel=tmd_mm_per_pixel,
+                        compress=compress,
+                        normalize=normalize,
+                    )
+                else:
+                    mesh_out = _mesh_output_path(aligned_dir, fp, mesh_format)
+                    mesh_out.parent.mkdir(parents=True, exist_ok=True)
+                    qp = get_quality_params(mesh_quality)
+                    qp["max_subdivisions"] = max_subdivisions
+                    console.print(f"\n[cyan]Mesh[/] {fp.name} → {mesh_out}")
+                    ok = export_model(
+                        input_file=fp,
+                        output_file=mesh_out,
+                        format=mesh_format,
+                        method=mesh_method.value,
+                        scale=scale,
+                        binary=True,
+                        coordinate_system="right-handed",
+                        optimize=True,
+                        save_heightmap=save_heightmap,
+                        colormap="terrain",
+                        base_height=0.0,
+                        **qp,
+                    )
+                    if not ok:
+                        raise typer.Exit(1)
 
         console.print(f"\n[green]Sequence export finished for {len(files)} file(s).[/]")
 

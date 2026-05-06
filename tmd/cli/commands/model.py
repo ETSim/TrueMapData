@@ -2,10 +2,11 @@
 """Model generation core functionality for TMD CLI."""
 
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 from enum import Enum
 import logging
 import psutil
+import math
 
 # Import CLI utilities
 from tmd.cli.core import (
@@ -19,6 +20,368 @@ from tmd.cli.core import (
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+BUILTIN_TEMPLATE_NAMES = {"plane", "sphere", "cube"}
+
+
+def _resolve_map_slots(
+    tmd_data: Any,
+    output_root: Path,
+    stem: str,
+    *,
+    compress: int = 75,
+    normalize: bool = True,
+) -> dict[str, str]:
+    """Resolve map slot paths and lazily generate missing maps."""
+    from tmd.image.export.exporter import MapExporter
+
+    textures_dir = output_root / "textures"
+    textures_dir.mkdir(parents=True, exist_ok=True)
+
+    slot_types = {
+        "map_kd": "height",
+        "map_bump": "normal",
+        "map_disp": "displacement",
+        "map_pr": "roughness",
+    }
+    slots: dict[str, str] = {}
+    metadata = dict(getattr(tmd_data, "metadata", {}) or {})
+
+    for slot, map_type in slot_types.items():
+        out_path = textures_dir / f"{stem}_{map_type}.png"
+        if not out_path.exists():
+            MapExporter.export_map(
+                tmd_data.height_map,
+                str(out_path),
+                map_type,
+                compress=compress,
+                format="png",
+                normalize=normalize,
+                metadata=metadata,
+            )
+        if out_path.exists():
+            slots[slot] = str(out_path)
+    return slots
+
+
+def _read_template_obj_metrics(template_mesh_path: Path, obj_units_to_mm: float) -> tuple[float, float, bool]:
+    """Read template OBJ X/Z span in mm and whether UVs are present."""
+    verts: list[tuple[float, float, float]] = []
+    has_uv = False
+    for line in template_mesh_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("v "):
+            parts = stripped.split()
+            if len(parts) >= 4:
+                verts.append((float(parts[1]), float(parts[2]), float(parts[3])))
+        elif stripped.startswith("vt "):
+            has_uv = True
+
+    if not verts:
+        raise ValueError(f"Template OBJ has no vertices: {template_mesh_path}")
+
+    xs = [v[0] for v in verts]
+    zs = [v[2] for v in verts]
+    span_x_mm = (max(xs) - min(xs)) * obj_units_to_mm
+    span_z_mm = (max(zs) - min(zs)) * obj_units_to_mm
+    if span_x_mm <= 0 or span_z_mm <= 0:
+        raise ValueError(
+            f"Template OBJ bounds are invalid (x={span_x_mm:.4f}mm, z={span_z_mm:.4f}mm)."
+        )
+    return span_x_mm, span_z_mm, has_uv
+
+
+def _default_template_fixtures_dir() -> Path:
+    """Return built-in template fixtures directory."""
+    return Path(__file__).resolve().parents[2] / "fixtures" / "templates"
+
+
+def _resolve_template_mesh_path(
+    *,
+    template_mesh_path: Optional[Path],
+    template_plane_dir: Optional[Path],
+    template_kind: str,
+    template_fixtures_dir: Optional[Path],
+) -> Path:
+    """Resolve custom or built-in template mesh path."""
+    if template_mesh_path is not None:
+        return Path(template_mesh_path)
+
+    if template_plane_dir is not None:
+        return Path(template_plane_dir) / "plane.obj"
+
+    kind = template_kind.lower().strip()
+    if kind not in BUILTIN_TEMPLATE_NAMES:
+        raise ValueError(
+            f"template_kind must be one of {sorted(BUILTIN_TEMPLATE_NAMES)} when --template-mesh is not provided."
+        )
+    base = Path(template_fixtures_dir) if template_fixtures_dir else _default_template_fixtures_dir()
+    return base / kind / f"{kind}.obj"
+
+
+def _generate_uv_sphere_obj(path: Path, *, rings: int = 16, segments: int = 32, radius: float = 1.0) -> None:
+    """Generate a UV sphere OBJ template with UVs and normals."""
+    if rings < 3 or segments < 3:
+        raise ValueError("rings and segments must be >= 3")
+
+    lines: list[str] = ["mtllib sphere.mtl", "o sphere"]
+    verts: list[tuple[float, float, float]] = []
+    uvs: list[tuple[float, float]] = []
+    norms: list[tuple[float, float, float]] = []
+
+    for r in range(rings + 1):
+        v = r / rings
+        theta = math.pi * v
+        y = math.cos(theta) * radius
+        ring_radius = math.sin(theta) * radius
+
+        for s in range(segments + 1):
+            u = s / segments
+            phi = 2.0 * math.pi * u
+            x = math.cos(phi) * ring_radius
+            z = math.sin(phi) * ring_radius
+            verts.append((x, y, z))
+            uvs.append((u, 1.0 - v))
+
+            length = math.sqrt(x * x + y * y + z * z) or 1.0
+            norms.append((x / length, y / length, z / length))
+
+    for x, y, z in verts:
+        lines.append(f"v {x:.6f} {y:.6f} {z:.6f}")
+    for u, v in uvs:
+        lines.append(f"vt {u:.6f} {v:.6f}")
+    for nx, ny, nz in norms:
+        lines.append(f"vn {nx:.6f} {ny:.6f} {nz:.6f}")
+
+    lines.append("usemtl TemplateMaterial")
+    row = segments + 1
+    for r in range(rings):
+        for s in range(segments):
+            a = r * row + s + 1
+            b = a + 1
+            c = (r + 1) * row + s + 1
+            d = c + 1
+            lines.append(f"f {a}/{a}/{a} {c}/{c}/{c} {b}/{b}/{b}")
+            lines.append(f"f {b}/{b}/{b} {c}/{c}/{c} {d}/{d}/{d}")
+
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def _ensure_template_quality(template_mesh_path: Path, template_kind: str) -> Path:
+    """Upgrade low-fidelity built-in templates when needed."""
+    if template_kind.lower().strip() != "sphere":
+        return template_mesh_path
+
+    try:
+        contents = template_mesh_path.read_text(encoding="utf-8")
+    except Exception:
+        return template_mesh_path
+
+    # Legacy fixture is an octahedron (8 faces). Replace with UV sphere.
+    if contents.count("\nf ") <= 12:
+        _generate_uv_sphere_obj(template_mesh_path)
+    return template_mesh_path
+
+
+def _require_mm_length(metadata: dict[str, Any], key: str) -> float:
+    raw = metadata.get(key, None)
+    if raw is None:
+        raise ValueError(
+            f"Missing required TMD metadata '{key}' for physical tiling. "
+            "Provide TMD with x_length/y_length metadata or add an override pathway."
+        )
+    value = float(raw)
+    if value <= 0:
+        raise ValueError(f"TMD metadata '{key}' must be > 0, got {value}")
+    return value
+
+
+def _resolve_mm_per_pixel(
+    metadata: dict[str, Any],
+    override: Optional[float],
+    *,
+    fallback_mm_per_pixel: float = 0.06,
+) -> float:
+    """Resolve mm-per-pixel from override or common metadata keys."""
+    if override is not None:
+        value = float(override)
+        if value <= 0:
+            raise ValueError(f"tmd_mm_per_pixel must be > 0, got {value}")
+        return value
+
+    # Primary key used by apply-on-mesh, plus compatibility aliases.
+    for key in ("mm_per_pixel", "mmpp"):
+        raw = metadata.get(key, None)
+        if raw is None:
+            continue
+        value = float(raw)
+        if value > 0:
+            return value
+
+    # Fallback for TMDs that only carry dimensions and physical lengths.
+    width = metadata.get("width", None)
+    x_length = metadata.get("x_length", None)
+    if width not in (None, 0) and x_length is not None:
+        value = float(x_length) / float(width)
+        if value > 0:
+            return value
+
+    height = metadata.get("height", None)
+    y_length = metadata.get("y_length", None)
+    if height not in (None, 0) and y_length is not None:
+        value = float(y_length) / float(height)
+        if value > 0:
+            return value
+
+    if fallback_mm_per_pixel > 0:
+        return float(fallback_mm_per_pixel)
+
+    raise ValueError(
+        "Missing or invalid physical scale for apply-on-mesh. Provide --tmd-mm-per-pixel "
+        "or include positive 'mm_per_pixel'/'mmpp' in TMD metadata."
+    )
+
+
+def apply_maps_to_mesh(
+    tmd_file: Path,
+    output_root: Path,
+    *,
+    template_mesh_path: Optional[Path] = None,
+    template_plane_dir: Optional[Path] = None,
+    template_kind: str = "plane",
+    template_fixtures_dir: Optional[Path] = None,
+    output_prefix: str = "applied_mesh",
+    application_mode: str = "uv",
+    uv_alignment_mode: str = "preserve",
+    compress: int = 75,
+    normalize: bool = True,
+    obj_units_to_mm: float = 1000.0,
+    tmd_mm_per_pixel: Optional[float] = None,
+    max_texture_edge: Optional[int] = 8192,
+) -> dict[str, str]:
+    """
+    Apply TMD-derived maps to an external template mesh and emit OBJ+MTL+textures.
+    """
+    from tmd.core import TMD
+    from tmd.model.formats.obj import create_mtl_file
+    from tmd.image.export.exporter import MapExporter
+
+    mode = application_mode.lower().strip()
+    if mode not in {"uv", "displace"}:
+        raise ValueError("application_mode must be 'uv' or 'displace'")
+
+    uv_mode = uv_alignment_mode.lower().strip()
+    if uv_mode not in {"preserve", "remap_bbox"}:
+        raise ValueError("uv_alignment_mode must be 'preserve' or 'remap_bbox'")
+
+    if obj_units_to_mm <= 0:
+        raise ValueError(f"obj_units_to_mm must be positive, got {obj_units_to_mm}")
+
+    template_mesh_path = _resolve_template_mesh_path(
+        template_mesh_path=template_mesh_path,
+        template_plane_dir=template_plane_dir,
+        template_kind=template_kind,
+        template_fixtures_dir=template_fixtures_dir,
+    )
+    if not template_mesh_path.is_file():
+        raise FileNotFoundError(f"Template mesh not found: {template_mesh_path}")
+    template_mesh_path = _ensure_template_quality(template_mesh_path, template_kind)
+
+    output_root.mkdir(parents=True, exist_ok=True)
+    tmd_data = TMD.load(str(tmd_file))
+    metadata = dict(getattr(tmd_data, "metadata", {}) or {})
+    mm_per_pixel = _resolve_mm_per_pixel(metadata, tmd_mm_per_pixel, fallback_mm_per_pixel=0.06)
+
+    span_x_mm, span_z_mm, has_uv = _read_template_obj_metrics(template_mesh_path, obj_units_to_mm)
+    if mode == "uv" and not has_uv:
+        raise ValueError(
+            f"Template mesh has no UVs: {template_mesh_path}. UV mode requires vt coordinates."
+        )
+
+    x_length_mm = _require_mm_length(metadata, "x_length")
+    y_length_mm = _require_mm_length(metadata, "y_length")
+
+    target_w_px = max(1, int(round(span_x_mm / mm_per_pixel)))
+    target_h_px = max(1, int(round(span_z_mm / mm_per_pixel)))
+    tile_w_px = max(1, int(round(x_length_mm / mm_per_pixel)))
+    tile_h_px = max(1, int(round(y_length_mm / mm_per_pixel)))
+    scale_cap = 1.0
+    if max_texture_edge is not None and max_texture_edge > 0:
+        max_edge = max(target_w_px, target_h_px)
+        if max_edge > max_texture_edge:
+            scale_cap = float(max_texture_edge) / float(max_edge)
+            target_w_px = max(1, int(round(target_w_px * scale_cap)))
+            target_h_px = max(1, int(round(target_h_px * scale_cap)))
+            tile_w_px = max(1, int(round(tile_w_px * scale_cap)))
+            tile_h_px = max(1, int(round(tile_h_px * scale_cap)))
+
+    slots = MapExporter.export_material_binding_maps_with_physical_tiling(
+        tmd_data.height_map,
+        str(output_root / "textures"),
+        output_prefix,
+        tile_size_px=(tile_w_px, tile_h_px),
+        target_size_px=(target_w_px, target_h_px),
+        compress=compress,
+        normalize=normalize,
+        metadata=metadata,
+    )
+
+    out_obj = output_root / f"{output_prefix}_bundle.obj"
+    out_mtl = output_root / f"{output_prefix}_bundle.mtl"
+    material_name = f"Material_measured_{output_prefix}"
+
+    create_mtl_file(
+        str(out_mtl),
+        material_map_bindings=slots,
+        obj_dir=str(output_root),
+        material_name=material_name,
+    )
+
+    src_lines = template_mesh_path.read_text(encoding="utf-8").splitlines()
+    out_lines: list[str] = []
+    saw_mtllib = False
+    saw_usemtl = False
+    for line in src_lines:
+        if line.startswith("mtllib "):
+            out_lines.append(f"mtllib {out_mtl.name}")
+            saw_mtllib = True
+        elif line.startswith("usemtl "):
+            out_lines.append(f"usemtl {material_name}")
+            saw_usemtl = True
+        else:
+            out_lines.append(line)
+
+    if uv_mode == "remap_bbox":
+        # Optional troubleshooting mode; default remains preserving template UVs.
+        from tmd.model.formats.obj import apply_uv_margin_to_obj_lines
+
+        out_lines = apply_uv_margin_to_obj_lines(out_lines, margin=0.05)
+    if not saw_mtllib:
+        out_lines.insert(0, f"mtllib {out_mtl.name}")
+    if not saw_usemtl:
+        # Keep geometry untouched; both modes rely on material maps.
+        out_lines.insert(1, f"usemtl {material_name}")
+    out_obj.write_text("\n".join(out_lines).rstrip() + "\n", encoding="utf-8")
+
+    result = {
+        "obj": str(out_obj),
+        "mtl": str(out_mtl),
+        "textures_dir": str(output_root / "textures"),
+        "template_mesh_path": str(template_mesh_path),
+        "template_kind": template_kind,
+        "application_mode": mode,
+        "uv_alignment_mode": uv_mode,
+        "obj_units_to_mm": obj_units_to_mm,
+        "tmd_mm_per_pixel": mm_per_pixel,
+        "target_size_px": f"{target_w_px}x{target_h_px}",
+        "tile_size_px": f"{tile_w_px}x{tile_h_px}",
+        "scale_cap": scale_cap,
+        "max_texture_edge": max_texture_edge if max_texture_edge is not None else "None",
+    }
+    if mode == "displace":
+        # Displacement mode is material-driven for OBJ (map_disp); geometry remains template-based.
+        result["displacement_behavior"] = "material_map_disp"
+    return result
 
 # Add enum definitions
 class MeshMethod(str, Enum):
@@ -173,6 +536,17 @@ def export_model(
             
             config = ExportConfig(**config_params)
             config.progress_callback = progress_callback
+            config.bind_material_maps = bool(kwargs.get("bind_material_maps", False))
+            if config.bind_material_maps and format.lower() in {"obj", "gltf", "glb"}:
+                slots = _resolve_map_slots(
+                    tmd_data,
+                    output_file.parent,
+                    output_file.stem,
+                    compress=int(kwargs.get("material_map_compress", 75)),
+                    normalize=bool(kwargs.get("material_map_normalize", True)),
+                )
+                config.material_map_bindings = slots
+                config.extra["material_map_bindings"] = slots
             if "base_height" in kwargs:
                 config.base_height = float(kwargs["base_height"])
             if "save_heightmap" in kwargs:

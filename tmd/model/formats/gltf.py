@@ -10,6 +10,7 @@ import os
 import json
 import base64
 import struct
+from pathlib import Path
 import numpy as np
 import logging
 from typing import Optional, Dict, Tuple
@@ -93,7 +94,13 @@ class GLTFExporter(ModelExporter):
                 mesh=mesh,
                 texture_data=texture_data,
                 generate_binary=is_binary,
-                embed_textures=config.extra.get('embed_textures', True)
+                embed_textures=config.extra.get('embed_textures', True),
+                material_map_bindings=dict(
+                    getattr(config, "material_map_bindings", {})
+                    or config.extra.get("material_map_bindings", {})
+                    or {}
+                ),
+                output_filename=filename,
             )
             
             # Store output filename for potential external textures
@@ -121,7 +128,9 @@ def _create_gltf_structure(
     mesh: MeshData,
     texture_data: Optional[bytes] = None,
     generate_binary: bool = False,
-    embed_textures: bool = True
+    embed_textures: bool = True,
+    material_map_bindings: Optional[Dict[str, str]] = None,
+    output_filename: Optional[str] = None,
 ) -> Dict:
     """
     Create the glTF JSON structure with buffers.
@@ -257,11 +266,21 @@ def _create_gltf_structure(
         "bufferViews": buffer_views,
         "accessors": accessors
     }
+    if generate_binary:
+        # Binary texture packing appends to this buffer during material creation.
+        gltf["binary_buffer"] = bytearray(buffer_data)
     
     # 3. Add materials and textures if required
-    if texture_data:
+    if texture_data or material_map_bindings:
         # Generate a texture from the height map
-        material_idx = _add_material(gltf, texture_data, generate_binary, embed_textures)
+        material_idx = _add_material(
+            gltf,
+            texture_data,
+            generate_binary,
+            embed_textures,
+            material_map_bindings=material_map_bindings or {},
+            output_filename=output_filename,
+        )
         
         # Set material on primitive
         gltf["meshes"][0]["primitives"][0]["material"] = material_idx
@@ -269,7 +288,8 @@ def _create_gltf_structure(
     # 4. Add buffer data
     if generate_binary:
         # For GLB, store buffer data to be written later
-        gltf["binary_buffer"] = buffer_data
+        if "binary_buffer" not in gltf:
+            gltf["binary_buffer"] = bytearray(buffer_data)
     else:
         # For glTF, encode as Base64
         gltf["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(buffer_data).decode('ascii')
@@ -279,9 +299,11 @@ def _create_gltf_structure(
 
 def _add_material(
     gltf: Dict,
-    texture_data: bytes,
+    texture_data: Optional[bytes],
     binary: bool = False,
-    embed_textures: bool = True
+    embed_textures: bool = True,
+    material_map_bindings: Optional[Dict[str, str]] = None,
+    output_filename: Optional[str] = None,
 ) -> int:
     """
     Add material and texture to glTF structure.
@@ -305,52 +327,35 @@ def _add_material(
     if "images" not in gltf:
         gltf["images"] = []
     
-    # Add image
-    image_idx = len(gltf["images"])
-    image = {}
-    
-    if binary or embed_textures:
-        # For GLB or embedded texture, store for buffer view
-        buffer_view_idx = len(gltf.get("bufferViews", []))
-        
-        # Add buffer view for image
-        gltf["bufferViews"].append({
-            "buffer": 0,
-            "byteOffset": len(gltf["binary_buffer"]) if binary else len(base64.b64decode(gltf["buffers"][0]["uri"].split(",")[1])),
-            "byteLength": len(texture_data)
-        })
-        
-        # Update buffer
+    material_map_bindings = material_map_bindings or {}
+    output_dir = Path(output_filename).parent if output_filename else Path(".")
+
+    texture_idx: Optional[int] = None
+    if texture_data:
+        image_idx = len(gltf["images"])
+        image = {}
         if binary:
-            # Add texture to binary buffer with padding
+            buffer_view_idx = len(gltf.get("bufferViews", []))
+            gltf["bufferViews"].append({
+                "buffer": 0,
+                "byteOffset": len(gltf["binary_buffer"]),
+                "byteLength": len(texture_data),
+            })
             gltf["binary_buffer"].extend(texture_data)
             while len(gltf["binary_buffer"]) % 4 != 0:
                 gltf["binary_buffer"].append(0)
-                
-            # Update total buffer length
             gltf["buffers"][0]["byteLength"] = len(gltf["binary_buffer"])
-            
-            # Reference buffer view in image
             image["bufferView"] = buffer_view_idx
             image["mimeType"] = "image/png"
+        elif embed_textures:
+            image["uri"] = "data:image/png;base64," + base64.b64encode(texture_data).decode("ascii")
         else:
-            # For embedded textures in JSON, encode as base64
-            uri = "data:image/png;base64," + base64.b64encode(texture_data).decode('ascii')
-            image["uri"] = uri
-    else:
-        # For external texture
-        image_filename = os.path.splitext(os.path.basename(gltf["output_filename"]))[0] + "_texture.png"
-        image["uri"] = image_filename
-        gltf["external_textures"] = gltf.get("external_textures", []) + [(image_filename, texture_data)]
-    
-    gltf["images"].append(image)
-    
-    # Add texture referencing the image
-    texture_idx = len(gltf["textures"])
-    gltf["textures"].append({
-        "sampler": 0,
-        "source": image_idx
-    })
+            image_filename = os.path.splitext(os.path.basename(gltf.get("output_filename", "mesh.gltf")))[0] + "_texture.png"
+            image["uri"] = image_filename
+            gltf["external_textures"] = gltf.get("external_textures", []) + [(image_filename, texture_data)]
+        gltf["images"].append(image)
+        texture_idx = len(gltf["textures"])
+        gltf["textures"].append({"sampler": 0, "source": image_idx})
     
     # Add sampler if not present
     if "samplers" not in gltf:
@@ -363,18 +368,40 @@ def _add_material(
     
     # Add material with PBR (Physically Based Rendering) properties
     material_idx = len(gltf["materials"])
-    gltf["materials"].append({
+    material: Dict = {
         "pbrMetallicRoughness": {
-            "baseColorTexture": {
-                "index": texture_idx
-            },
             "metallicFactor": 0.0,
             "roughnessFactor": 0.9
         },
         "name": "TerrainMaterial",
         "doubleSided": False,
         "alphaMode": "OPAQUE"
-    })
+    }
+    if texture_idx is not None:
+        material["pbrMetallicRoughness"]["baseColorTexture"] = {"index": texture_idx}
+
+    def _add_external_texture(path_str: Optional[str]) -> Optional[int]:
+        if not path_str:
+            return None
+        p = Path(path_str)
+        if not p.is_file():
+            return None
+        idx_img = len(gltf["images"])
+        rel = os.path.relpath(str(p), str(output_dir)).replace("\\", "/")
+        gltf["images"].append({"uri": rel})
+        idx_tex = len(gltf["textures"])
+        gltf["textures"].append({"sampler": 0, "source": idx_img})
+        return idx_tex
+
+    normal_tex = _add_external_texture(material_map_bindings.get("map_bump"))
+    if normal_tex is not None:
+        material["normalTexture"] = {"index": normal_tex, "scale": 1.0}
+
+    rough_tex = _add_external_texture(material_map_bindings.get("map_pr"))
+    if rough_tex is not None:
+        material["pbrMetallicRoughness"]["metallicRoughnessTexture"] = {"index": rough_tex}
+
+    gltf["materials"].append(material)
     
     return material_idx
 

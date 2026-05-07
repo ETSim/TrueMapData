@@ -82,11 +82,11 @@ class GLTFExporter(ModelExporter):
             
             # Add texture if requested
             texture_data = None
-            if config.texture:
+            if getattr(config, "texture", False):
                 texture_data = _generate_texture_from_heightmap(
                     height_map,
-                    colormap=config.color_map,
-                    resolution=config.texture_resolution
+                    colormap=getattr(config, "color_map", "terrain"),
+                    resolution=getattr(config, "texture_resolution", None),
                 )
             
             # Create glTF structure

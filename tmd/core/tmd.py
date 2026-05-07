@@ -693,11 +693,23 @@ class TMD:
             if filepath.suffix.lower() != '.tmd':
                 filepath = filepath.with_suffix('.tmd')
                 
+            md = self._metadata
+            comment = str(md.get("comment", "Created by TrueMap v6\n"))
+            if not comment.endswith("\n"):
+                comment = comment + "\n"
+            x_len = float(md.get("x_length", 10.0))
+            y_len = float(md.get("y_length", 10.0))
+            x_off = float(md.get("x_offset", 0.0))
+            y_off = float(md.get("y_offset", 0.0))
             TMDUtils.write_tmd_file(
-                str(filepath),
                 self._height_map,
-                self._metadata,
-                version=version
+                str(filepath),
+                comment=comment,
+                x_length=x_len,
+                y_length=y_len,
+                x_offset=x_off,
+                y_offset=y_off,
+                version=version,
             )
             
             return str(filepath)

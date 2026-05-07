@@ -7,6 +7,7 @@ to various formats using a centralized factory-based approach.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -99,8 +100,8 @@ class TMDSequence:
                 timestamp = Path(filepath).stem
                 
             # Get the height map and metadata from the TMD object
-            height_map = tmd_obj.height_map()
-            metadata = tmd_obj.metadata()
+            height_map = tmd_obj.height_map
+            metadata = tmd_obj.metadata
             
             # Add the frame
             frame_idx = self.add_frame(height_map, timestamp, metadata)
@@ -563,12 +564,13 @@ class TMDSequence:
             # Get frame metadata if available
             frame_metadata = data['frame_metadata'] if 'frame_metadata' in data else []
             
-            # Find all frame keys
-            frame_keys = [k for k in data.keys() if k.startswith('frame_')]
-            
+            # Find all frame keys (exclude e.g. frame_metadata by requiring frame_<digits>)
+            frame_re = re.compile(r"^frame_(\d+)$")
+            frame_keys = [k for k in data.keys() if frame_re.match(str(k))]
+
             # Add each frame to the sequence
-            for key in sorted(frame_keys, key=lambda k: int(k.split('_')[1])):
-                idx = int(key.split('_')[1])
+            for key in sorted(frame_keys, key=lambda k: int(frame_re.match(str(k)).group(1))):
+                idx = int(frame_re.match(str(key)).group(1))
                 
                 # Get timestamp for this frame
                 timestamp = timestamps[idx] if idx < len(timestamps) else None

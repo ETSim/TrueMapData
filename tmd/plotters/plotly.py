@@ -862,13 +862,15 @@ class PlotlySequenceVisualizer(BaseSequencePlotter):
             width=width,
             height=height
         )
-        # Create frames for each height map
-        for i, frame in enumerate(height_maps):
-            fig.add_frame(
+        # Create frames for each height map (assign fig.frames; add_frame is not on Figure)
+        fig.frames = tuple(
+            self.go.Frame(
                 data=[self.go.Surface(z=frame, colorscale=colorscale)],
                 name=f"frame{i}",
-                layout=self.go.Layout(title_text=f"{title} - {timestamps[i]}")
+                layout=self.go.Layout(title_text=f"{title} - {timestamps[i]}"),
             )
+            for i, frame in enumerate(height_maps)
+        )
         # Add slider
         fig.update_layout(
             sliders=[{
@@ -925,12 +927,14 @@ class PlotlySequenceVisualizer(BaseSequencePlotter):
                 height=height
             )
             # Create frames for each height map
-            for i, frame in enumerate(height_maps):
-                fig.add_frame(
+            fig.frames = tuple(
+                self.go.Frame(
                     data=[self.go.Heatmap(z=frame, colorscale=colorscale)],
                     name=f"frame{i}",
-                    layout=self.go.Layout(title_text=f"{title} - {timestamps[i]}")
+                    layout=self.go.Layout(title_text=f"{title} - {timestamps[i]}"),
                 )
+                for i, frame in enumerate(height_maps)
+            )
             # Add slider
             fig.update_layout(
                 sliders=[{

@@ -1,12 +1,23 @@
+import importlib.util
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from tmd.utils.files import TMDFileUtilities
+
 from .base import BaseExporter
 
 logger = logging.getLogger(__name__)
+
+
+def _has_dep(root: str) -> bool:
+    return importlib.util.find_spec(root) is not None
+
+
+def _iter_progress(items: List[np.ndarray], show: bool, desc: str) -> List[np.ndarray]:
+    return items
 
 
 class GifExporter(BaseExporter):
@@ -27,24 +38,12 @@ class GifExporter(BaseExporter):
             - show_progress: Whether to display progress (default: True)
             - Additional kwargs passed to PIL.Image.save
         """
-        # Import dependencies and helper functions
-        from tmd.utils.lib_utils import import_optional_dependency, check_dependencies
-        from tmd.utils.files import ensure_directory_exists, get_progress_bar
-        
-        # Check dependencies
-        dependencies = ['matplotlib.pyplot', 'matplotlib.cm', 'PIL.Image']
-        dependency_status = check_dependencies(dependencies)
-        HAS_MATPLOTLIB = dependency_status['matplotlib.pyplot'] and dependency_status['matplotlib.cm']
-        HAS_PIL = dependency_status['PIL.Image']
-        
-        if not HAS_MATPLOTLIB or not HAS_PIL:
+        if not (_has_dep("matplotlib") and _has_dep("PIL")):
             logger.error("Required packages (matplotlib and Pillow) not available")
             return None
-        
-        # Import required modules
-        import_optional_dependency('matplotlib.pyplot')
-        cm = import_optional_dependency('matplotlib.cm')
-        Image = import_optional_dependency('PIL.Image')
+
+        import matplotlib.cm as cm
+        from PIL import Image
         
         # Retrieve parameters
         frames: List[np.ndarray] = kwargs.get('frames', [])
@@ -63,7 +62,7 @@ class GifExporter(BaseExporter):
         
         try:
             # Ensure output directory exists
-            ensure_directory_exists(os.path.dirname(os.path.abspath(output_file)))
+            TMDFileUtilities.ensure_directory_exists(os.path.dirname(os.path.abspath(output_file)))
             if not output_file.lower().endswith('.gif'):
                 output_file += '.gif'
             
@@ -79,7 +78,7 @@ class GifExporter(BaseExporter):
             cmap = cm.get_cmap(colormap)
             gif_frames = []
             
-            frame_iterator = get_progress_bar(frames, desc="Creating GIF") if show_progress else frames
+            frame_iterator = _iter_progress(frames, show_progress, "Creating GIF")
             
             for frame in frame_iterator:
                 norm_frame = (frame - all_min) / norm_range

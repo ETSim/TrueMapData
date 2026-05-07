@@ -56,11 +56,11 @@ class USDExporter(ModelExporter):
             logger.error("Invalid height map: empty, None, or too small")
             return None
         
-        # Get USD-specific parameters from config
+        # Get USD-specific parameters from config (base ExportConfig may omit texture fields)
         binary = config.binary
-        add_texture = config.texture
-        texture_resolution = config.texture_resolution
-        color_map = config.color_map
+        add_texture = getattr(config, "texture", False)
+        texture_resolution = getattr(config, "texture_resolution", None)
+        color_map = getattr(config, "color_map", "terrain")
         
         # Determine format from extension if binary not specified
         if binary is None:
@@ -145,7 +145,7 @@ def export_mesh_to_usd(
     """
     try:
         # Check if USD library is available
-        from pxr import Sdf, Usd, UsdGeom, UsdShade
+        from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade, Vt
     except ImportError:
         logger.error("Cannot export to USD: PixarUSD library not available")
         return None
@@ -164,39 +164,46 @@ def export_mesh_to_usd(
         # Create a mesh primitive at the root
         mesh_prim = UsdGeom.Mesh.Define(stage, '/terrainMesh')
         
-        # Set mesh vertices
+        # Set mesh vertices (VtVec3fArray / GfVec3f — plain tuples become VtValue and fail type checks)
         point_attr = mesh_prim.CreatePointsAttr()
-        points = [(v[0], v[2], v[1]) for v in mesh.vertices]  # Swap Y and Z for USD
-        point_attr.Set(points)
-        
+        pts = Vt.Vec3fArray(
+            [Gf.Vec3f(float(v[0]), float(v[2]), float(v[1])) for v in mesh.vertices]
+        )
+        point_attr.Set(pts)
+
         # Set mesh faces
-        face_vertex_counts = [3] * len(mesh.faces)  # All triangles
+        face_vertex_counts = Vt.IntArray([3] * len(mesh.faces))
         mesh_prim.CreateFaceVertexCountsAttr().Set(face_vertex_counts)
-        
-        # Set face vertex indices
-        face_indices = []
+
+        face_indices: list[int] = []
         for face in mesh.faces:
-            face_indices.extend(face)
-        mesh_prim.CreateFaceVertexIndicesAttr().Set(face_indices)
-        
+            face_indices.extend(int(i) for i in face)
+        mesh_prim.CreateFaceVertexIndicesAttr().Set(Vt.IntArray(face_indices))
+
         # Set normals if available
         if mesh.normals is not None:
             normal_attr = mesh_prim.CreateNormalsAttr()
-            normals = [(n[0], n[2], n[1]) for n in mesh.normals]  # Swap Y and Z for USD
-            normal_attr.Set(normals)
+            nrm = Vt.Vec3fArray(
+                [Gf.Vec3f(float(n[0]), float(n[2]), float(n[1])) for n in mesh.normals]
+            )
+            normal_attr.Set(nrm)
             mesh_prim.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
-        
-        # Set UVs if available
+
+        # Set UVs if available (TexCoord2f = Vec2f)
         if mesh.uvs is not None:
-            # We need to create a PrimvarsAPI for texture coordinates
             pv = UsdGeom.PrimvarsAPI(mesh_prim)
-            
-            # Create texture coordinate primvar
-            texcoords = [(uv[0], 1.0 - uv[1], 0.0) for uv in mesh.uvs]  # Flip V coordinate
-            texcoord_primvar = pv.CreatePrimvar("st", 
-                                               Sdf.ValueTypeNames.TexCoord2fArray, 
-                                               UsdGeom.Tokens.vertex)
-            texcoord_primvar.Set(texcoords)
+            texcoord_primvar = pv.CreatePrimvar(
+                "st",
+                Sdf.ValueTypeNames.TexCoord2fArray,
+                UsdGeom.Tokens.vertex,
+            )
+            tc = Vt.Vec2fArray(
+                [
+                    Gf.Vec2f(float(uv[0]), float(1.0 - uv[1]))
+                    for uv in mesh.uvs
+                ]
+            )
+            texcoord_primvar.Set(tc)
         
         # Add texture if requested
         if add_texture and height_map is not None:

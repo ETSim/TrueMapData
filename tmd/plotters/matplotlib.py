@@ -98,7 +98,7 @@ class MatplotlibHeightMapPlotter(BasePlotter):
         # Create a copy of kwargs without the parameters we're explicitly passing
         # to avoid duplicate argument errors
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in 
-                          ["title", "colorbar_label", "colormap", "cmap", "figsize"]}
+                          ["title", "colorbar_label", "colormap", "cmap", "figsize", "show"]}
         
         # Dispatch to appropriate plotting method based on mode
         if mode == "3d":
@@ -196,7 +196,7 @@ class MatplotlibHeightMapPlotter(BasePlotter):
             "mode", "colormap", "profile_row", "partial_range", "interpolation",
             "show_markers", "marker_spacing", "marker_style", "show_grid", 
             "clean_display", "x_label", "y_label", "show_axes", "transparent",
-            "wireframe"  # Add wireframe to excluded params
+            "wireframe", "show",
         ]
         
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in excluded_params}

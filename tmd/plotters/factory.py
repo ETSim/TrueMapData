@@ -112,7 +112,18 @@ class TMDPlotterFactory:
                 available_plotters[name] = False
         
         return available_plotters
-    
+
+    @classmethod
+    def get_available_plotters(cls) -> List[str]:
+        """Names of registered plotters whose dependencies load successfully."""
+        strat = cls.list_available_strategies()
+        return [name for name, ok in strat.items() if ok]
+
+    @classmethod
+    def get_registered_plotters(cls) -> List[str]:
+        """Names of all plotter implementations registered with the factory."""
+        return list(cls._plotter_registry.keys())
+
 
 class TMDSequencePlotterFactory:
     """

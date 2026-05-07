@@ -151,8 +151,11 @@ class SequenceExporterFactory:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         
         try:
-            # Perform the export
-            return exporter.export(frames, output_path, **kwargs)
+            # Exporters expect keyword-only frames/output_file (see BaseExporter.export).
+            export_kw = dict(kwargs)
+            export_kw["frames"] = frames
+            export_kw["output_file"] = output_path
+            return exporter.export(**export_kw)
         except Exception as e:
             logger.error(f"Error during export to {format_type}: {e}", exc_info=True)
             return None

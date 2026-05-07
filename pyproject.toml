@@ -107,14 +107,12 @@ packages = ["tmd"]
 [tool.setuptools.package-data]
 tmd = ["py.typed"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-addopts = "--cov=tmd --cov-report=xml --cov-report=term"
-filterwarnings = [
-    "ignore::DeprecationWarning:distutils",
-    "ignore::UserWarning:plotly",
-]
+# Pytest is configured in pytest.ini (root configfile). Keep only tool sections here.
+[tool.coverage.run]
+source = ["tmd"]
+
+[tool.coverage.report]
+show_missing = true
 
 [tool.black]
 line-length = 100

@@ -175,6 +175,25 @@ class TMDFileUtilities:
             return list(directory_path.glob(f"**/{pattern}"))
         else:
             return list(directory_path.glob(pattern))
+
+    @staticmethod
+    def list_files_with_extension(
+        folder_path: Union[str, Path],
+        extension: str,
+        *,
+        recursive: bool = True,
+    ) -> List[str]:
+        """Return sorted file paths with the given extension under ``folder_path``."""
+        root = Path(folder_path)
+        if not root.is_dir():
+            return []
+        ext = extension.lstrip(".").lower()
+        pattern = f"*.{ext}"
+        if recursive:
+            found = sorted(p for p in root.rglob(pattern) if p.is_file())
+        else:
+            found = sorted(p for p in root.glob(pattern) if p.is_file())
+        return [str(p) for p in found]
     
     @staticmethod
     def load_json(file_path: Union[str, Path]) -> Dict:

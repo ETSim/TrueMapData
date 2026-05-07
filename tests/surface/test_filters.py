@@ -10,6 +10,8 @@ import numpy as np
 import pytest
 from scipy import ndimage, signal
 
+pytest.importorskip("pywt")
+
 # Import the module to test
 import tmd.surface.filters as filtering
 

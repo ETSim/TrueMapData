@@ -199,3 +199,37 @@ def compress_tmd_command(
         # Handle other errors
         print_error(f"Error during compression: {e}")
         return False
+
+
+def compress_batch_command(
+    input_dir: Path,
+    mode: str = "downsample",
+    scale: float = 0.5,
+    levels: int = 256,
+    method: str = "bilinear",
+    recursive: bool = False,
+    version: int = 2,
+) -> bool:
+    """
+    Batch-compress all ``*.tmd`` files under ``input_dir``.
+
+    Uses :class:`tmd.cli.commands.batch.BatchProcessor` and
+    :func:`compress_tmd_command` per file.
+    """
+    from tmd.cli.commands.batch import BatchProcessor
+
+    def process_one(tmd_file: Path) -> bool:
+        return compress_tmd_command(
+            tmd_file=tmd_file,
+            output=None,
+            mode=mode,
+            scale=scale,
+            method=method,
+            levels=levels,
+            version=version,
+            auto_open=False,
+        )
+
+    processor = BatchProcessor(input_dir, recursive=recursive)
+    result = processor.process_files(process_one, description="Batch compression")
+    return result["failed"] == 0

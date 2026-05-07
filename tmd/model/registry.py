@@ -128,8 +128,8 @@ class ExporterRegistry:
             Exporter class if successfully imported, None otherwise
         """
         try:
-            # Convert 'stl' to 'formats.stl'
-            module_path = f"tmd.exporters.model.formats.{format_name}"
+            # Convert 'stl' to 'tmd.model.formats.stl'
+            module_path = f"tmd.model.formats.{format_name}"
             module = importlib.import_module(module_path)
             
             # Look for *Exporter class in the module
@@ -171,7 +171,7 @@ class ExporterRegistry:
                 if not is_pkg and module_name != '__init__':
                     try:
                         # Import the module
-                        module = importlib.import_module(f"tmd.exporters.model.formats.{module_name}")
+                        module = importlib.import_module(f"tmd.model.formats.{module_name}")
                         
                         # Look for exporter classes
                         for name in dir(module):

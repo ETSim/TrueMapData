@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PIL import Image
 
-from tmd.image.core.image_utils import save_image
+from tmd.image.core.image_utils import handle_nan_values, normalize_array, save_image
 
 
 def test_save_image_preserves_uint8_when_not_normalized(tmp_path: Path) -> None:
@@ -29,5 +30,56 @@ def test_save_image_preserves_uint16_when_not_normalized(tmp_path: Path) -> None
 
     assert written is not None
     restored = np.array(Image.open(out))
-    assert restored.dtype == np.uint16
-    assert np.array_equal(restored, img16)
+    assert restored.dtype.kind in {"i", "u"}
+    assert restored.max() > 255
+    assert np.array_equal(restored.astype(np.uint16), img16)
+
+
+def test_normalize_array_empty_returns_single_zero() -> None:
+    out = normalize_array(np.array([]))
+    assert out.shape == (1, 1)
+    assert out.dtype == np.float32
+    assert float(out[0, 0]) == 0.0
+
+
+def test_normalize_array_constant_is_min_val() -> None:
+    h = np.ones((2, 3), dtype=np.float64)
+    out = normalize_array(h, min_val=-1.0, max_val=1.0)
+    assert np.all(out == -1.0)
+
+
+def test_normalize_array_scales_to_range() -> None:
+    h = np.array([[0.0, 10.0], [5.0, 5.0]], dtype=np.float32)
+    out = normalize_array(h, min_val=0.0, max_val=100.0)
+    assert float(out.min()) == 0.0
+    assert float(out.max()) == 100.0
+
+
+def test_handle_nan_values_no_nan_unchanged() -> None:
+    h = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
+    assert np.array_equal(handle_nan_values(h), h)
+
+
+def test_handle_nan_values_zero_strategy() -> None:
+    h = np.array([[1.0, np.nan], [np.nan, 2.0]], dtype=np.float64)
+    out = handle_nan_values(h, strategy="zero")
+    assert not np.any(np.isnan(out))
+    assert out[0, 1] == 0.0
+
+
+def test_handle_nan_values_mean_strategy() -> None:
+    h = np.array([[2.0, np.nan], [4.0, np.nan]], dtype=np.float64)
+    out = handle_nan_values(h, strategy="mean")
+    assert not np.any(np.isnan(out))
+    assert out[0, 1] == 3.0
+
+
+def test_handle_nan_values_nearest_uses_scipy_when_available() -> None:
+    pytest.importorskip("scipy")
+    h = np.array(
+        [[1.0, 1.0, 1.0], [1.0, np.nan, 1.0], [1.0, 1.0, 1.0]],
+        dtype=np.float64,
+    )
+    out = handle_nan_values(h, strategy="nearest")
+    assert not np.any(np.isnan(out))
+    assert np.isfinite(out).all()

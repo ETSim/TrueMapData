@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 
+from rich.table import Table
+
 from tmd import TMD
 from tmd.cli.core.ui import console
 from ..commands.export import export_maps_command
@@ -141,7 +143,7 @@ def create_export_maps_app() -> typer.Typer:
             ("depth", "Depth maps showing distance from viewpoint to surfaces"),
         ]
         
-        table = typer.rich.table.Table()
+        table = Table()
         table.add_column("Type", style="cyan")
         table.add_column("Description", style="green")
         

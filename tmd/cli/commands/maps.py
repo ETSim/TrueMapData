@@ -87,7 +87,7 @@ def export_map(map_type: str, input_file: Path, output_file: Path, **kwargs):
     try:
         # Load and validate TMD file
         tmd_data = TMD.load(str(input_file))
-        if not tmd_data or not tmd_data.height_map:
+        if not tmd_data or tmd_data.height_map is None:
             print_error("Invalid TMD file or missing height map")
             return False
 

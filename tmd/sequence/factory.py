@@ -70,7 +70,8 @@ class SequenceExporterFactory:
         
         # Try all registered exporters if not found in mapping
         for exporter_class in cls._exporters.values():
-            if exporter_class.supports_format(format_type):
+            supports = getattr(exporter_class, "supports_format", None)
+            if callable(supports) and supports(format_type):
                 return exporter_class()
         
         logger.error(f"No exporter found for format: {format_type}")

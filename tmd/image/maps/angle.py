@@ -460,9 +460,10 @@ class AngleMapGenerator(MapGenerator):
             # Darken north-facing slopes
             rgb_map[north_facing] *= 0.7
             
-            # Brighten south-facing slopes
-            brightness_boost = np.minimum(1.5, 1.0 / np.maximum(0.01, rgb_map[south_facing]))
-            rgb_map[south_facing] *= brightness_boost.reshape(-1, 1)
+            # Brighten south-facing slopes (element-wise on RGB rows)
+            south_rgb = rgb_map[south_facing]
+            brightness_boost = np.minimum(1.5, 1.0 / np.maximum(0.01, south_rgb))
+            rgb_map[south_facing] = south_rgb * brightness_boost
             
             return np.clip(rgb_map, 0, 1)
             

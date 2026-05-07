@@ -3,7 +3,9 @@
 
 from pathlib import Path
 
+import pytest
 
+import tmd.utils.files as files_mod
 from tmd.utils.files import TMDFileUtilities, _check_visualization_capabilities
 
 
@@ -49,6 +51,90 @@ class TestTMDFileUtilities:
         assert TMDFileUtilities.delete_file(p) is True
         assert not p.exists()
         assert TMDFileUtilities.delete_file(p) is False
+
+    def test_get_file_size(self, tmp_path: Path) -> None:
+        p = tmp_path / "size.bin"
+        p.write_bytes(b"abcd")
+        assert TMDFileUtilities.get_file_size(p) == 4
+
+    def test_delete_files_by_pattern(self, tmp_path: Path) -> None:
+        (tmp_path / "a.tmp").write_text("1", encoding="utf-8")
+        (tmp_path / "b.tmp").write_text("2", encoding="utf-8")
+        (tmp_path / "c.txt").write_text("3", encoding="utf-8")
+
+        deleted = TMDFileUtilities.delete_files_by_pattern(tmp_path, "*.tmp")
+
+        assert deleted == 2
+        assert not (tmp_path / "a.tmp").exists()
+        assert not (tmp_path / "b.tmp").exists()
+        assert (tmp_path / "c.txt").exists()
+
+    def test_find_files_by_pattern_recursive(self, tmp_path: Path) -> None:
+        (tmp_path / "root.tmd").write_text("1", encoding="utf-8")
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        (nested / "child.tmd").write_text("2", encoding="utf-8")
+
+        files = TMDFileUtilities.find_files_by_pattern(tmp_path, "*.tmd", recursive=True)
+
+        assert sorted(path.name for path in files) == ["child.tmd", "root.tmd"]
+
+    def test_open_file_html_uses_webbrowser(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        p = tmp_path / "report.html"
+        p.write_text("<html></html>", encoding="utf-8")
+        opened: list[str] = []
+        monkeypatch.setattr(files_mod.webbrowser, "open", opened.append)
+
+        TMDFileUtilities.open_file(p)
+
+        assert opened == [f"file://{p.absolute()}"]
+
+    def test_open_file_non_html_uses_platform_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        p = tmp_path / "file.txt"
+        p.write_text("x", encoding="utf-8")
+        commands: list[str] = []
+
+        monkeypatch.setattr(files_mod.sys, "platform", "darwin")
+        monkeypatch.setattr(files_mod.os, "system", lambda command: commands.append(command) or 0)
+
+        TMDFileUtilities.open_file(p)
+
+        assert commands == [f"open '{p}'"]
+
+    def test_import_optional_dependency_handles_syntax_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def boom(name: str):
+            raise SyntaxError("broken optional dependency")
+
+        monkeypatch.setattr(files_mod.importlib, "import_module", boom)
+
+        assert TMDFileUtilities.import_optional_dependency("broken.module") is None
+
+    def test_check_tmd_dependencies_missing_required(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_find_spec(name: str):
+            if name == "numpy":
+                return None
+            return object()
+
+        monkeypatch.setattr(files_mod.importlib.util, "find_spec", fake_find_spec)
+
+        assert TMDFileUtilities.check_tmd_dependencies() is False
+
+    def test_check_tmd_dependencies_exit_on_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_find_spec(name: str):
+            if name == "numpy":
+                return None
+            return object()
+
+        monkeypatch.setattr(files_mod.importlib.util, "find_spec", fake_find_spec)
+
+        with pytest.raises(SystemExit):
+            TMDFileUtilities.check_tmd_dependencies(exit_on_failure=True)
 
 
 def test_check_visualization_capabilities_tuple() -> None:

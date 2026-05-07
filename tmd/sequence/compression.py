@@ -68,12 +68,13 @@ class CompressionStrategy(ABC):
 
 class NPZCompressionStrategy(CompressionStrategy):
     """Compression strategy using NumPy's NPZ format."""
-    
+
     def __init__(self, compress: bool = True):
-        self.compress = compress
-        
+        # Name must not shadow CompressionStrategy.compress() (instance method).
+        self._npz_compressed = compress
+
     def get_exporter(self, **kwargs) -> TMDDataExporter:
-        return TMDDataIOFactory.get_exporter('npz', compress=self.compress)
+        return TMDDataIOFactory.get_exporter("npz", compress=self._npz_compressed)
         
     def get_importer(self) -> TMDDataImporter:
         return TMDDataIOFactory.get_importer('npz')

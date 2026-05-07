@@ -1,7 +1,7 @@
 """Heightmap processing utilities."""
 
 import numpy as np
-from typing import Tuple
+from typing import Optional, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -244,3 +244,14 @@ def resample_heightmap(heightmap: np.ndarray, target_shape: tuple, method: str =
     
     # Perform resize
     return zoom(heightmap, (zoom_y, zoom_x), order=order)
+
+
+def generate_heightmap_texture(
+    height_map: np.ndarray,
+    colormap: str = "terrain",
+    resolution: Optional[Tuple[int, int]] = None,
+) -> np.ndarray:
+    """RGB uint8 texture from a height map (delegates to STL helper for one implementation)."""
+    from tmd.model.formats.stl import generate_heightmap_texture as _from_stl
+
+    return _from_stl(height_map, colormap, resolution)

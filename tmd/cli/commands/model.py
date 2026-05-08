@@ -599,11 +599,9 @@ def batch_export_models(
         
         # Find all TMD files
         if recursive:
-            pattern_path = input_dir / "**" / pattern
-            tmd_files = list(Path().glob(str(pattern_path)))
+            tmd_files = list(input_dir.rglob(pattern))
         else:
-            pattern_path = input_dir / pattern
-            tmd_files = list(Path().glob(str(pattern_path)))
+            tmd_files = list(input_dir.glob(pattern))
         
         if not tmd_files:
             print_error(f"No TMD files found matching pattern '{pattern}' in {input_dir}")

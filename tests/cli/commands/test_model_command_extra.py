@@ -149,7 +149,7 @@ def test_batch_export_models_patched_glob(tmp_path: Path, monkeypatch: pytest.Mo
     real_glob = Path.glob
 
     def _glob(self: Path, pattern: str):
-        if str(tmp_path) in pattern.replace("/", "\\") and pattern.endswith(".tmd"):
+        if self.resolve() == tmp_path.resolve() and pattern == "*.tmd":
             return iter([t1, t2])
         return real_glob(self, pattern)
 

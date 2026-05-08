@@ -73,7 +73,7 @@ def test_register_rejects_non_modelexporter() -> None:
 def test_get_exporter_classmethod_via_extension() -> None:
     cls = ExporterRegistry.get_exporter("stl")
     assert cls is not None
-    cls_via_ext = ExporterRegistry.get_exporter(".stl")
+    ExporterRegistry.get_exporter(".stl")
     # Some extensions are stored without dots; check at least the dotless form works:
     cls_dotless = ExporterRegistry.get_exporter("stl")
     assert cls_dotless is not None

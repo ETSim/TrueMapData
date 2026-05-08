@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import pickle
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from tmd.compression.factory import TMDDataIOFactory
-from tmd.compression.npy import NPYExporter, NPYImporter, export_to_npy, load_from_npy
-from tmd.compression.npz import NPZExporter, NPZImporter
-from tmd.compression.pickle import PickleExporter, PickleImporter
+from tmd.compression.npy import NPYExporter, export_to_npy, load_from_npy
+from tmd.compression.npz import NPZImporter
+from tmd.compression.pickle import PickleImporter
 
 
 def test_npy_factory_roundtrip(tmp_path: Path) -> None:

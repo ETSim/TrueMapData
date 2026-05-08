@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
 from types import SimpleNamespace
-import sys
 
 import pytest
 
 sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *args, **kwargs: 0.0))
-
-from tmd.cli.core import config as config_mod
-from tmd.cli.core import io as io_mod
-from tmd.cli.core.io import find_files_by_pattern, get_file_extension
-from tmd.cli.exceptions import FileError
+config_mod = importlib.import_module("tmd.cli.core.config")
+io_mod = importlib.import_module("tmd.cli.core.io")
+find_files_by_pattern = io_mod.find_files_by_pattern
+get_file_extension = io_mod.get_file_extension
+FileError = importlib.import_module("tmd.cli.exceptions").FileError
 
 
 @pytest.fixture

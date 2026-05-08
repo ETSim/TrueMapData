@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict
-from unittest.mock import MagicMock
 
 import numpy as np
 import pytest

@@ -12,6 +12,7 @@ from .npz import NPZExporter, NPZImporter
 from .pickle import PickleExporter, PickleImporter
 from .npy import NPYExporter, NPYImporter
 from .zip import ZIPExporter, ZIPImporter
+from .mat import MATExporter, MATImporter
 
 class TMDDataIOFactory:
     """Factory for creating TMD data exporters and importers."""
@@ -21,14 +22,16 @@ class TMDDataIOFactory:
         'npz': NPZExporter,
         'pickle': PickleExporter,
         'npy': NPYExporter,
-        'zip': ZIPExporter
+        'zip': ZIPExporter,
+        'mat': MATExporter,
     }
     
     _importers: Dict[str, Type[TMDDataImporter]] = {
         'npz': NPZImporter,
         'pickle': PickleImporter,
         'npy': NPYImporter,
-        'zip': ZIPImporter
+        'zip': ZIPImporter,
+        'mat': MATImporter,
     }
     
     @classmethod

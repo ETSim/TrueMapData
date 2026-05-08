@@ -10,12 +10,12 @@ from tmd.compression.factory import TMDDataIOFactory
 
 def test_supported_export_formats() -> None:
     fmt = set(TMDDataIOFactory.supported_export_formats())
-    assert fmt == {"npz", "pickle", "npy", "zip"}
+    assert fmt == {"npz", "pickle", "npy", "zip", "mat"}
 
 
 def test_supported_import_formats() -> None:
     fmt = set(TMDDataIOFactory.supported_import_formats())
-    assert fmt == {"npz", "pickle", "npy", "zip"}
+    assert fmt == {"npz", "pickle", "npy", "zip", "mat"}
 
 
 @pytest.mark.parametrize("key", ["npz", "NPZ", "Npy", "PICKLE", "ZiP"])

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from tmd.model.utils.mesh import (
     _add_base_to_mesh,

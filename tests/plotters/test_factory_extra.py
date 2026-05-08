@@ -12,8 +12,6 @@ from tmd.plotters.factory import (
     TMDPlotterFactory,
     TMDSequencePlotterFactory,
     get_best_plotter,
-    get_registered_plotters,
-    get_available_plotters,
 )
 
 

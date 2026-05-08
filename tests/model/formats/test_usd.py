@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 
-pxr = pytest.importorskip("pxr.Usd", reason="USD tests need USD / pxr")
-
 from tmd.model.base import ExportConfig
 from tmd.model.formats.usd import USDExporter
+
+pytestmark = pytest.mark.skipif(importlib.util.find_spec("pxr") is None, reason="USD tests need USD / pxr")
 
 
 def test_usd_export_minimal(tmp_path) -> None:

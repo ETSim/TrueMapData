@@ -10,9 +10,6 @@ import numpy as np
 import pytest
 from typer.testing import CliRunner
 
-sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *a, **k: 0.0))
-
-from tmd.cli.main import app
 from tmd.cli.commands import maps as maps_cmd
 from tmd.cli.commands import terrain as terrain_cmd
 from tmd.cli.commands import visualize as visualize_cmd
@@ -20,7 +17,14 @@ from tmd.cli.commands import visualize as visualize_cmd
 
 @pytest.fixture
 def runner() -> CliRunner:
+    sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *a, **k: 0.0))
     return CliRunner(env={"TERM": "dumb"})
+
+
+def _get_app():
+    from tmd.cli.main import app
+
+    return app
 
 
 # --- maps.py ---
@@ -166,7 +170,7 @@ def test_check_available_visualization_backends(monkeypatch: pytest.MonkeyPatch)
     ],
 )
 def test_cli_help_pages(runner: CliRunner, args: list[str], needle: str) -> None:
-    result = runner.invoke(app, args)
+    result = runner.invoke(_get_app(), args)
     assert result.exit_code == 0
     assert needle.lower() in result.stdout.lower()
 
@@ -181,7 +185,7 @@ def test_visualize_basic_invoke_mocked_create_visualization(
         lambda **kwargs: True,
     )
     result = runner.invoke(
-        app,
+        _get_app(),
         ["visualize", "basic", str(tmd), "--plotter", "matplotlib"],
         catch_exceptions=False,
     )
@@ -204,7 +208,7 @@ def test_terrain_generate_invoke_mocked(
 
     monkeypatch.setattr(ta, "generate_synthetic_terrain", terrain_cmd.generate_synthetic_terrain)
     result = runner.invoke(
-        app,
+        _get_app(),
         [
             "terrain",
             "generate",

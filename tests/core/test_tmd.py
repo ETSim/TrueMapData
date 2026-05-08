@@ -10,7 +10,6 @@ import pytest
 from tmd.core import tmd as tmd_module
 from tmd.core.tmd import TMD, TMDProcessor, get_registered_plotters, load
 from tmd.exceptions import TMDProcessingError
-from tmd.utils.utils import TMDUtils
 
 
 def test_tmd_from_array_metadata_and_dimensions(small_heightmap: np.ndarray) -> None:

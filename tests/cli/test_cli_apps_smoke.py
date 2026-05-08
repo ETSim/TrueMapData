@@ -9,60 +9,63 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
-sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *args, **kwargs: 0.0))
-
-from tmd.cli.main import app
-
 
 @pytest.fixture
 def runner() -> CliRunner:
+    sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *args, **kwargs: 0.0))
     return CliRunner(env={"TERM": "dumb"})
 
 
+def _get_app():
+    from tmd.cli.main import app
+
+    return app
+
+
 def test_compress_downsample_help(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["compress", "downsample", "--help"])
+    result = runner.invoke(_get_app(), ["compress", "downsample", "--help"])
     assert result.exit_code == 0
     assert "Downsample" in result.stdout
 
 
 def test_compress_quantize_help(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["compress", "quantize", "--help"])
+    result = runner.invoke(_get_app(), ["compress", "quantize", "--help"])
     assert result.exit_code == 0
     assert "Quantize" in result.stdout
 
 
 def test_compress_combined_help(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["compress", "combined", "--help"])
+    result = runner.invoke(_get_app(), ["compress", "combined", "--help"])
     assert result.exit_code == 0
     assert "downsampling" in result.stdout.lower() and "quantization" in result.stdout.lower()
 
 
 def test_compress_batch_help(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["compress", "batch", "--help"])
+    result = runner.invoke(_get_app(), ["compress", "batch", "--help"])
     assert result.exit_code == 0
     assert "batch" in result.stdout.lower() or "compress" in result.stdout.lower()
 
 
 def test_terrain_generate_help(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["terrain", "generate", "--help"])
+    result = runner.invoke(_get_app(), ["terrain", "generate", "--help"])
     assert result.exit_code == 0
     assert "terrain" in result.stdout.lower() or "pattern" in result.stdout.lower()
 
 
 def test_maps_normal_help(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["maps", "normal", "--help"])
+    result = runner.invoke(_get_app(), ["maps", "normal", "--help"])
     assert result.exit_code == 0
     assert "normal map" in result.stdout.lower() or "normal" in result.stdout
 
 
 def test_maps_list_runs(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["maps", "list"])
+    result = runner.invoke(_get_app(), ["maps", "list"])
     assert result.exit_code == 0
     assert "normal" in result.stdout.lower()
 
 
 def test_version_command_runs(runner: CliRunner) -> None:
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(_get_app(), ["version"])
     assert result.exit_code == 0
     assert "TMD" in result.stdout
 
@@ -96,7 +99,7 @@ def test_compress_downsample_forwards_to_compress_tmd_file(
     monkeypatch.setattr("tmd.cli.apps.compress_app.compress_tmd_file", fake_compress)
 
     result = runner.invoke(
-        app,
+        _get_app(),
         [
             "compress",
             "downsample",
@@ -142,7 +145,7 @@ def test_compress_quantize_forwards_to_compress_tmd_file(
     monkeypatch.setattr("tmd.cli.apps.compress_app.compress_tmd_file", fake_compress)
 
     result = runner.invoke(
-        app,
+        _get_app(),
         ["compress", "quantize", str(inp), "--levels", "128"],
     )
     assert result.exit_code == 0, result.stdout or str(result.exception)
@@ -181,7 +184,7 @@ def test_compress_combined_forwards_to_compress_tmd_file(
     monkeypatch.setattr("tmd.cli.apps.compress_app.compress_tmd_file", fake_compress)
 
     result = runner.invoke(
-        app,
+        _get_app(),
         [
             "compress",
             "combined",
@@ -223,7 +226,7 @@ def test_maps_normal_forwards_to_export_maps_command(
     monkeypatch.setattr("tmd.cli.apps.export_maps_app.export_maps_command", fake_export)
 
     result = runner.invoke(
-        app,
+        _get_app(),
         [
             "maps",
             "normal",
@@ -258,7 +261,7 @@ def test_info_cli_delegates_to_display_file_info(
 
     monkeypatch.setattr("tmd.cli.apps.info_app.display_file_info", fake_display)
 
-    result = runner.invoke(app, ["info", str(tmd_path), "--show-sample"])
+    result = runner.invoke(_get_app(), ["info", str(tmd_path), "--show-sample"])
     assert result.exit_code == 0, result.stdout or str(result.exception)
     assert called["path"] == tmd_path
     assert called["show_sample"] is True

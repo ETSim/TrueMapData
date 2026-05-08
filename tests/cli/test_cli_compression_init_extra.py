@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import numpy as np
 import pytest
@@ -90,8 +89,6 @@ def test_compress_tmd_file_with_mocked_tmd(
     out = tmp_path / "out.tmd"
 
     hm = np.linspace(0.0, 1.0, 256, dtype=np.float64).reshape(16, 16)
-    fake_obj = _FakeTMDObject(hm, {"x_length": 1.0, "y_length": 1.0})
-
     fake_calls = {"args": None}
 
     class _FakeTMDClass:

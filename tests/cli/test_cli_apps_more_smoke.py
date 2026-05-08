@@ -10,19 +10,23 @@ import numpy as np
 import pytest
 from typer.testing import CliRunner
 
-sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *a, **k: 0.0))
-
-from tmd.cli.main import app
 from tmd.utils.utils import TMDUtils
 
 
 @pytest.fixture
 def runner() -> CliRunner:
+    sys.modules.setdefault("noise", SimpleNamespace(snoise2=lambda *a, **k: 0.0))
     return CliRunner(env={"TERM": "dumb"})
 
 
+def _get_app():
+    from tmd.cli.main import app
+
+    return app
+
+
 def test_info_command_help(runner: CliRunner) -> None:
-    r = runner.invoke(app, ["info", "--help"])
+    r = runner.invoke(_get_app(), ["info", "--help"])
     assert r.exit_code == 0
     assert "tmd" in r.stdout.lower() or "file" in r.stdout.lower()
 
@@ -36,23 +40,23 @@ def test_info_command_runs_on_small_tmd(runner: CliRunner, tmp_path: Path) -> No
         x_length=1.0,
         y_length=1.0,
     )
-    r = runner.invoke(app, ["info", str(tmd_path)])
+    r = runner.invoke(_get_app(), ["info", str(tmd_path)])
     assert r.exit_code == 0
 
 
 def test_check_command_runs(runner: CliRunner) -> None:
-    r = runner.invoke(app, ["check"])
+    r = runner.invoke(_get_app(), ["check"])
     assert r.exit_code == 0
 
 
 def test_sequence_align_help(runner: CliRunner) -> None:
-    r = runner.invoke(app, ["sequence", "align", "--help"])
+    r = runner.invoke(_get_app(), ["sequence", "align", "--help"])
     assert r.exit_code == 0
     assert "align" in r.stdout.lower() or "reference" in r.stdout.lower()
 
 
 def test_sequence_export_help(runner: CliRunner) -> None:
-    r = runner.invoke(app, ["sequence", "export", "--help"])
+    r = runner.invoke(_get_app(), ["sequence", "export", "--help"])
     assert r.exit_code == 0
     assert "aligned" in r.stdout.lower()
 
@@ -68,7 +72,7 @@ def test_sequence_export_no_maps_no_mesh(runner: CliRunner, tmp_path: Path) -> N
         x_length=2.0,
         y_length=2.0,
     )
-    r = runner.invoke(app, ["sequence", "export", str(d), "--no-maps", "--no-mesh"])
+    r = runner.invoke(_get_app(), ["sequence", "export", str(d), "--no-maps", "--no-mesh"])
     assert r.exit_code == 0
 
 
@@ -81,6 +85,6 @@ def test_sequence_export_no_maps_no_mesh(runner: CliRunner, tmp_path: Path) -> N
     ],
 )
 def test_visualize_subcommand_help(runner: CliRunner, sub: str, needle: str) -> None:
-    r = runner.invoke(app, ["visualize", sub, "--help"])
+    r = runner.invoke(_get_app(), ["visualize", sub, "--help"])
     assert r.exit_code == 0
     assert needle in r.stdout.lower()

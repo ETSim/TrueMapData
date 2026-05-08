@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 import matplotlib
 

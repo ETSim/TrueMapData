@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import numpy as np
 import pytest
-
-pptx = pytest.importorskip("pptx", reason="python-pptx optional")
-
-
 from tmd.sequence.powerpoint import PowerPointExporter
+
+pytestmark = pytest.mark.skipif(importlib.util.find_spec("pptx") is None, reason="python-pptx optional")
 
 
 def test_powerpoint_exporter_writes(tmp_path: Path) -> None:

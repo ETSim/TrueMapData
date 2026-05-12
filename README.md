@@ -6,8 +6,6 @@
 [![License](https://img.shields.io/github/license/ETSTribology/TrueMapData)](https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://etstribology.github.io/TrueMapData/)
 
-The documentation workflow publishes with **GitHub Actions**; in the repository **Settings → Pages**, set **Build and deployment** source to **GitHub Actions** (once per repo or fork).
-
 A Python library and CLI for **TrueMap v6** and **GelSight** TMD height maps: I/O, processing, visualization, map export, and 3D mesh generation.
 
 <p align="center">

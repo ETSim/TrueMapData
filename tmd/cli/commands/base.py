@@ -7,7 +7,8 @@ that can be used across different TMD command-line tools.
 """
 
 import sys
-from typing import List, Any
+from importlib.metadata import PackageNotFoundError, version
+from typing import Any, List
 
 import typer
 
@@ -118,13 +119,15 @@ def check_dependencies_and_install(required_pkgs: List[str] = None) -> bool:
     if required_pkgs is None:
         required_pkgs = ["matplotlib", "plotly", "seaborn", "rich", "typer"]
     
-    missing = []
-    
+    missing: List[str] = []
+
     try:
-        import pkg_resources
-        installed_packages = {pkg.key.lower(): pkg.version for pkg in pkg_resources.working_set}
-        missing = [pkg for pkg in required_pkgs if pkg.lower() not in installed_packages]
-        
+        for pkg in required_pkgs:
+            try:
+                version(pkg)
+            except PackageNotFoundError:
+                missing.append(pkg)
+
         if missing:
             print_warning(f"Missing required dependencies: {', '.join(missing)}")
             install = typer.confirm("Would you like to install them now?", default=True)

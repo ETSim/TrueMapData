@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
-
 import pytest
 
 from tmd.cli.commands import base as base_mod
@@ -45,21 +43,6 @@ def test_base_command_update_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert saved.get("k") == "v" and msgs
 
 
-@pytest.mark.filterwarnings("ignore:.*pkg_resources.*:DeprecationWarning")
 def test_check_dependencies_all_installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    pr = importlib.import_module("pkg_resources")
-
-    class _Dist:
-        def __init__(self, key: str) -> None:
-            self.key = key
-            self.version = "0.0"
-
-    fake_set = [
-        _Dist("matplotlib"),
-        _Dist("rich"),
-        _Dist("typer"),
-        _Dist("plotly"),
-        _Dist("seaborn"),
-    ]
-    monkeypatch.setattr(pr, "working_set", fake_set)
+    monkeypatch.setattr(base_mod, "version", lambda name: "0.0")
     assert base_mod.check_dependencies_and_install() is True

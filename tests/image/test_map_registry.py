@@ -35,8 +35,18 @@ def test_map_registry_lists_core_generators() -> None:
         "angle",
         "parallax_ao",
         "depth",
+        "shear_hazard",
+        "debris_pocket",
+        "summit_curvature",
     }
     assert expected <= names
+
+
+def test_map_registry_includes_tribology_proxy_maps() -> None:
+    from tmd.image import get_available_map_types
+
+    names = set(get_available_map_types())
+    assert {"shear_hazard", "debris_pocket", "summit_curvature"} <= names
 
 
 def test_map_registry_unknown_returns_none() -> None:

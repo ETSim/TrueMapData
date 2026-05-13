@@ -32,6 +32,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install -e .
 
+    - name: Generate example TMD fixtures
+      run: python examples/generate_example_tmds.py
+
     - name: Test with pytest
       run: |
         pytest tests/ --cov-fail-under=84

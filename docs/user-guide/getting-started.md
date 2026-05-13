@@ -21,9 +21,15 @@ sequenceDiagram
 
 Use `path/to/file.tmd` with a real file from TrueMap or GelSight. The library does not include sample `.tmd` binaries in the git tree.
 
-For CLI examples, run:
+For CLI examples after `pip install truemapdata` (or `pip install -e .` from a clone):
 
 ```bash
-python tmd_cli.py --help
-python tmd_cli.py visualize examples
+tmd-process --help
+tmd-process visualize examples
 ```
+
+From a repository checkout you can also run **`python tmd_cli.py`** with the same subcommands if you prefer not to use the installed entry point.
+
+Wear- and tribology-oriented helpers use the separate **`tmd-wear`** entry point; see [Working with TMD files — Wear-oriented CLI](working-with-tmd-files.md#wear-oriented-cli-tmd-wear), the [Sequential wear analysis](sequential-wear-analysis.md) guide (alignment, volume series, slip axis, scratch evolution), and the [CLI reference](../reference/cli.md).
+
+A consolidated **`tmd-process`** command reference is in [CLI reference](../reference/cli.md).

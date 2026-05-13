@@ -8,6 +8,7 @@ from typing import Dict, Tuple
 import numpy as np
 from scipy import ndimage
 
+from tmd.surface import filters as _filters
 from tmd.surface.types import (
     DefectAnalysisResult,
     DefectClassResult,
@@ -115,26 +116,16 @@ def _compute_directionality_anomalies(
     magnitude_norm: np.ndarray,
     config: DefectDetectionConfig,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    magnitude = np.hypot(gradient_x, gradient_y)
-    angle = np.arctan2(gradient_y, gradient_x)
-
-    # Estimate dominant global orientation using doubled-angle representation.
-    weights = magnitude + 1e-12
-    cos2 = np.cos(2.0 * angle)
-    sin2 = np.sin(2.0 * angle)
-    global_angle = 0.5 * np.arctan2(np.sum(weights * sin2), np.sum(weights * cos2))
+    angle = _filters.gradient_slant_angle_rad(gradient_x, gradient_y)
+    cos2, sin2 = np.cos(2.0 * angle), np.sin(2.0 * angle)
+    global_angle = _filters.global_texture_angle_rad(gradient_x, gradient_y)
 
     win = int(max(3, config.directionality_window))
-    if win % 2 == 0:
-        win += 1
+    local_angle, local_coherence = _filters.local_texture_angle_and_coherence(
+        cos2, sin2, win
+    )
 
-    local_cos2 = ndimage.uniform_filter(cos2, size=win)
-    local_sin2 = ndimage.uniform_filter(sin2, size=win)
-    local_coherence = np.sqrt(local_cos2**2 + local_sin2**2)
-
-    local_angle = 0.5 * np.arctan2(local_sin2, local_cos2)
-    delta = local_angle - global_angle
-    diff = np.abs(np.arctan2(np.sin(delta), np.cos(delta)))
+    diff = _filters.wrapped_angle_diff_rad(local_angle, global_angle)
 
     angle_threshold = np.deg2rad(config.directionality_angle_threshold_deg)
     response = _normalize_response(local_coherence * (diff / np.pi) * magnitude_norm)

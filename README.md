@@ -6,9 +6,13 @@
 [![License](https://img.shields.io/github/license/ETSTribology/TrueMapData)](https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://etstribology.github.io/TrueMapData/)
 
-The documentation workflow publishes with **GitHub Actions**; in the repository **Settings → Pages**, set **Build and deployment** source to **GitHub Actions** (once per repo or fork).
+The documentation site builds from **GitHub Actions**. In the repository **Settings → Pages**, set **Build and deployment** to **GitHub Actions** once per repo or fork.
 
-A Python library and CLI for **TrueMap v6** and **GelSight** TMD height maps: I/O, processing, visualization, map export, and 3D mesh generation.
+Python library and **`tmd-process` CLI** for **TrueMap v6** and **GelSight** `.tmd` height maps: binary I/O, filters and transforms, visualization, derived maps (normal, displacement, bump, hillshade, ambient occlusion, tribology proxy maps, and related generators), defect detection, multi-frame sequences (GIF, video, PowerPoint), compression helpers, synthetic terrain for fixtures, and mesh export including apply-on-mesh OBJ/MTL bundles with tiling from template bounds and TMD metadata.
+
+Areal ISO 25178 roughness uses the optional `truemapdata[roughness]` extra, which installs **Surfalize** under **GPL-3.0** (see `pyproject.toml`; it is intentionally not part of the permissive `full` extra).
+
+Typical users: tribology and surface metrology, lab pipelines that need NumPy height arrays, and graphics workflows that want measured displacement or normal maps.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ETSTribology/TrueMapData/refs/heads/main/image.svg" width="300" alt="TMD Processor Logo">
@@ -19,9 +23,10 @@ A Python library and CLI for **TrueMap v6** and **GelSight** TMD height maps: I/
 ## Table of contents
 
 - [Features](#features)
+- [Documentation](#documentation)
 - [Installation](#installation)
 - [Usage](#usage)
-- [CLI command reference](#cli-command-reference)
+- [CLI](#cli)
 - [TMD file format](#tmd-file-format)
 - [Sample data](#sample-data)
 - [Visual examples](#visual-examples)
@@ -35,10 +40,31 @@ A Python library and CLI for **TrueMap v6** and **GelSight** TMD height maps: I/
 
 | Feature | Description |
 |---------|-------------|
-| **Rich visualizations** | 3D surfaces, 2D heatmaps, profiles (matplotlib, plotly, seaborn, optional Polyscope) |
-| **Export** | Displacement/normal maps, STL/OBJ/PLY/glTF/USD meshes, NumPy-friendly workflows |
+| **Visualizations** | 3D surfaces, 2D heatmaps, profiles via matplotlib, plotly, and seaborn; optional Polyscope in the `advanced` extra |
+| **Map export** | `maps` CLI and library generators: normal, displacement, bump, hillshade, ambient occlusion, parallax-style stacks, roughness-style textures, and related outputs |
+| **Meshes** | STL, OBJ, PLY, glTF, USD; optional `mesh` extra for trimesh, pygltflib, and numpy-stl |
+| **Apply-on-mesh** | Bundle height-derived textures onto a template OBJ/MTL with physically motivated tiling from template span, `mm_per_pixel`, and capture size metadata (see the CLI reference) |
+| **Sequences** | `sequence` commands align and crop stacks, with exporters for GIF, video, and PowerPoint (OpenCV-backed) |
+| **Defects** | `defect` commands for pits, peaks, scratches, cracks, and directionality-style anomalies |
+| **Roughness** | `roughness` subcommands for ISO 25178 areal metrics via optional Surfalize (`truemapdata[roughness]`; GPL-3.0, not bundled in `full`) |
+| **Tribology** | `tribology` CLI and `tmd.surface.metrics` helpers: preferred texture axis, bearing-style contact curve, **`tribology plot`** PNG dashboard, shear/debris/summit map types; lubrication ISO volumes via Surfalize subcommand |
+| **Wear toolkit** | `tmd-process wear` (also installed as **`tmd-wear`**) for Abbott / bearing curves, wear volume series, hazard maps, debris-pocket scores, scratch evolution, slip axis, and roughness trajectories on aligned sequences |
+| **Compression** | `compress` subcommands for npy, npz, zip, mat, and pickle-oriented workflows |
+| **Terrain** | `terrain` CLI and `TMDTerrain` helpers for synthetic heightmaps used in tests and demos |
 | **Formats** | TrueMap v6-style TMD (v2) and legacy v1; GelSight-compatible layouts |
-| **Python** | **3.8+** (see `requires-python` in [`pyproject.toml`](pyproject.toml)) |
+| **Python** | **3.8+** (`requires-python` in [`pyproject.toml`](pyproject.toml)); optional groups `viz`, `mesh`, `advanced`, `dev`, and `docs` are listed there |
+
+---
+
+## Documentation
+
+Full guides, developer notes, and the **CLI reference** live on **[GitHub Pages](https://etstribology.github.io/TrueMapData/)** (same URL as [`pyproject.toml` `[project.urls] Documentation`](pyproject.toml)).
+
+| Section | What you will find |
+|---------|-------------------|
+| [User guide](https://etstribology.github.io/TrueMapData/user-guide/installation/) | Install, getting started, TMD binary layout, visualization, export, [tribology metrics](https://etstribology.github.io/TrueMapData/user-guide/tribology-metrics/), [sequential wear analysis](https://etstribology.github.io/TrueMapData/user-guide/sequential-wear-analysis/) |
+| [CLI reference](https://etstribology.github.io/TrueMapData/reference/cli/) | Command tables, mesh and apply-on-mesh notes, defect defaults |
+| [Developers](https://etstribology.github.io/TrueMapData/developers/contributing/) | Contributing, building docs, doc style, optional MCP tooling |
 
 ---
 
@@ -48,6 +74,13 @@ From [PyPI](https://pypi.org/project/truemapdata/):
 
 ```bash
 pip install truemapdata
+```
+
+Optional dependency groups (see [`pyproject.toml`](pyproject.toml) for pins and Python version gates):
+
+```bash
+pip install "truemapdata[mesh,viz,advanced]"
+pip install "truemapdata[roughness]"   # Surfalize (GPL-3.0); Python 3.10+ only
 ```
 
 From a git checkout:
@@ -75,130 +108,38 @@ Use a real `.tmd` from your instrument or pipeline; **no sample `.tmd` files are
 
 ---
 
-## CLI command reference
+## CLI
 
-Console entry point: **`tmd-process`** (or **`python tmd_cli.py`** from a checkout). Global help: `tmd-process --help`. Embedded CLI examples (markdown): `tmd-process visualize examples`.
+Entry points: **`tmd-process`** (full toolkit) and **`tmd-wear`** (wear-oriented subset; same flags as `tmd-process wear`). From a repository checkout you can also run **`python tmd_cli.py`**. Global help: `tmd-process --help`. Embedded examples: `tmd-process visualize examples`.
 
-Full documentation: [GitHub Pages](https://etstribology.github.io/TrueMapData/) (same URL as [`pyproject.toml` `[project.urls] Documentation`](pyproject.toml)).
+Top-level groups include **`config`**, **`cache`**, **`compress`**, **`maps`**, **`mesh`**, **`sequence`**, **`roughness`**, **`tribology`**, **`wear`**, **`defect`**, **`visualize`**, and **`terrain`**, plus **`info`**, **`version`**, and **`check`**.
 
-### Top-level commands
-
-| Command | Feature | Example |
-|---------|---------|---------|
-| `info` | Inspect one `.tmd` (metadata, optional height sample) | `tmd-process info path/to/file.tmd` |
-| `version` | Print CLI and core `__version__` | `tmd-process version` |
-| `check` | Verify optional dependencies / environment | `tmd-process check` |
-| `maps` | Export image maps (normal, height, AO, …) | `tmd-process maps list` |
-| `mesh` | Height field → STL / OBJ / PLY / glTF / USD | `tmd-process mesh formats` |
-| `visualize` | 2D/3D plots, profiles, Polyscope, backends | `tmd-process visualize basic path/to/file.tmd` |
-| `sequence` | Align frames and export maps/meshes from a run | `tmd-process sequence align a.tmd b.tmd c.tmd -o ./aligned` |
-| `roughness` | ISO 25178 areal roughness (needs **Surfalize**) | `tmd-process roughness file path/to/file.tmd --quick` |
-| `defect` | Detect pits, peaks, scratches, cracks, and directionality anomalies | `tmd-process defect file path/to/file.tmd --json` |
-| `terrain` | Synthetic heightmaps and texture exports | `tmd-process terrain generate perlin --width 512 --height 512 -o ./synthetic` |
-| `compress` | Downsample / quantize / combined / batch TMDs | `tmd-process compress downsample path/to/file.tmd --scale 0.5` |
-| `cache` | Inspect or clear visualization cache | `tmd-process cache info` |
-| `config` | Show or change CLI-related settings | `tmd-process config show` |
-| `mesh apply` | Apply TMD maps onto an existing template OBJ mesh | `tmd-process mesh apply path/to/file.tmd -o ./bundle --template-plane-dir e:\\master\\TextureFriction\\notebook\\fixtures\\template_plane --mode uv` |
-
-### `maps` subcommands
-
-| Subcommand | Feature | Example |
-|------------|---------|---------|
-| `list` | List supported map type names | `tmd-process maps list` |
-| `batch` | Export many `.tmd` files from a directory | `tmd-process maps batch ./data -o ./textures --pattern "*.tmd"` |
-| `all` | Export the default map set for one file | `tmd-process maps all path/to/file.tmd -o ./maps_out` |
-| `height` | Grayscale height map PNG | `tmd-process maps height path/to/file.tmd --output-file height.png` |
-| `normal` | Tangent-space normal map | `tmd-process maps normal path/to/file.tmd -o normal.png` |
-| `ao` | Ambient occlusion map | `tmd-process maps ao path/to/file.tmd -o ao.png` |
-| `bump` | Bump / relief map | `tmd-process maps bump path/to/file.tmd -o bump.png` |
-| `hillshade` | Hillshade rendering | `tmd-process maps hillshade path/to/file.tmd --output-file hill.png` |
-| `curvature` | Curvature visualization | `tmd-process maps curvature path/to/file.tmd --output-file curv.png` |
-| `displacement` | Displacement map | `tmd-process maps displacement path/to/file.tmd --output-file disp.png` |
-
-Use `tmd-process maps --help` for every map type (`roughness`, `metallic`, `parallax_ao`, `angle`, `depth`, `synthetic`, …).
-
-### `mesh` subcommands
-
-| Subcommand | Feature | Example |
-|------------|---------|---------|
-| `formats` | List registered mesh exporters | `tmd-process mesh formats` |
-| `generate` | Unified mesh export (`--format`, `--method`, `--quality`) | `tmd-process mesh generate path/to/file.tmd --format stl --method adaptive --quality high` |
-| `stl` / `obj` / `ply` / `gltf` / `usd` | Shorthand export to one format | `tmd-process mesh stl path/to/file.tmd --quality high` |
-| `batch` | Mesh many files from a directory | `tmd-process mesh batch ./data --output-dir ./meshes --pattern "*.tmd"` |
-| `apply` | Separate apply-on-mesh flow (template mesh + maps → OBJ/MTL bundle) | `tmd-process mesh apply path/to/file.tmd -o ./bundle --template-mesh ./plane.obj --mode uv` |
-
-Mesh generation notes:
-
-- **`adaptive`** — error-driven refinement; lower **`error_threshold`** and higher **`max_triangles`** yield finer meshes.
-- **`quadtree`** — hierarchical grid refinement; **`max_subdivisions`** caps depth. The Python API also exposes **`detail_boost`** on `ExportConfig`.
-
-Apply-on-mesh notes:
-
-- `mesh apply` is separate from `mesh generate`; it does not regenerate topology by default.
-- Built-in templates are available with `--template-kind plane|sphere|cube`.
-- `--mode uv` (default) keeps template geometry unchanged and binds maps in MTL.
-- `--mode displace` is opt-in and emits displacement-ready material binding (`map_disp`) for downstream tools.
-- `--uv-alignment-mode preserve` is default and keeps template UVs unchanged.
-- Template OBJ units are treated as meters by default and converted with `--obj-units-to-mm` (default `1000`).
-- Physical tiling uses measured scale:
-  - `target_w_px = round(template_x_mm / tmd_mm_per_pixel)`
-  - `target_h_px = round(template_z_mm / tmd_mm_per_pixel)`
-  - `tile_w_px = round(tmd_x_length_mm / tmd_mm_per_pixel)`
-  - `tile_h_px = round(tmd_y_length_mm / tmd_mm_per_pixel)`
-- Use `--tmd-mm-per-pixel` to override metadata `mm_per_pixel` when needed.
-- Generated MTL uses standard keys only: `map_Kd`, `map_Bump`, `map_disp`, `map_Pr`.
-
-### Other useful `visualize` / `sequence` commands
-
-| Command | Feature | Example |
-|---------|---------|---------|
-| `visualize 3d` | 3D surface (matplotlib / plotly / …) | `tmd-process visualize 3d path/to/file.tmd -o surf.html` |
-| `visualize profile` | Row or column height profile | `tmd-process visualize profile path/to/file.tmd` |
-| `visualize backends` | Which backends are installed | `tmd-process visualize backends` |
-| `sequence export` | After `sequence align`, export maps + meshes for `*_aligned.tmd` | `tmd-process sequence export ./aligned_out` |
-| `roughness batch` | CSV / stdout roughness over a folder | `tmd-process roughness batch ./tmds --pattern "*.tmd"` |
-| `defect batch` | CSV / stdout defect counts and confidence over a folder | `tmd-process defect batch ./tmds -o ./defects.csv` |
-| `compress quantize` | Reduce unique height levels | `tmd-process compress quantize path/to/file.tmd` |
-| `cache clear` | Drop cached visualization artifacts | `tmd-process cache clear` |
-| `config set` | Persist a config key | `tmd-process config set --help` |
+The **[CLI reference](https://etstribology.github.io/TrueMapData/reference/cli/)** lists flags, `maps` / `mesh` details, apply-on-mesh tiling notes, defect defaults, and the full **`tribology`** and **`wear`** subcommand tables. For **aligned stacks**, volume series, slip axis, and scratch evolution, see **[Sequential wear analysis](https://etstribology.github.io/TrueMapData/user-guide/sequential-wear-analysis/)**. Use **`--help` on each subcommand** for the live flag list.
 
 ---
 
-### Defect command speed defaults
-
-- `tmd-process defect file --json` and `tmd-process defect batch` now use a fast summary mode by default.
-- Opt into heavier computations only when needed:
-  - `--include-mask`
-  - `--include-overlay`
-  - `--include-responses`
-  - `--mask-output <file.png>`
-  - `--overlay-output <file.png>`
-
 ## TMD file format
 
-### TrueMap v6 (v2 layout)
-
-| Field | Description |
-|-------|-------------|
-| **Header (32 bytes)** | ASCII prefix, e.g. `Binary TrueMap Data File v2.0` (null-padded) |
-| **Comment (24 bytes in reader path)** | ASCII comment / padding |
-| **Dimensions (8 bytes)** | Little-endian `uint32` **width**, **height** |
-| **Spatial info (16 bytes)** | `float32` **x_length**, **y_length**, **x_offset**, **y_offset** |
-| **Height data** | `float32` row-major block, logical shape **(height, width)** |
-
-### GelSight
-
-Same overall binary layout as v2; comments and naming may differ. The reader uses header cues and metadata to interpret the grid.
-
-### Legacy v1
-
-Shorter header (28-byte offset to dimensions), then **width**, **height**, **x_length**, **y_length** (two floats only), then height samples.
+The canonical byte layout, version 1 vs 2, GelSight quirks, and endianness are documented under **[Working with TMD files](https://etstribology.github.io/TrueMapData/user-guide/working-with-tmd-files/)** on the doc site (tables and diagrams). At a glance: v2 uses a fixed header plus **`float32`** heights in row-major order **`(height, width)`**; v1 is a shorter header with the same raster layout.
 
 ---
 
 ## Sample data
 
 Examples in docs and tests use **paths like `path/to/file.tmd`** or **synthetic heightmaps**. Committing large proprietary `.tmd` fixtures is avoided; use your own captures or published attachments.
+
+To populate the canonical **example paths** used by notebooks and `tests/cli/test_example_tmds_smoke.py` (`examples/gelsight/…`, `examples/v1/Dime.tmd`, `examples/v2/Dime.tmd`), run from the repo root:
+
+```bash
+python examples/generate_example_tmds.py
+```
+
+Then try wear metrics, for example:
+
+```bash
+tmd-wear bearing curve examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd --json
+tmd-wear volume-series examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd examples/gelsight/circle_worn_0mm_100g_heightmap_linear_detrend.tmd --json
+```
 
 ---
 

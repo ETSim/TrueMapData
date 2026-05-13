@@ -13,7 +13,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-The CLI is available as **`tmd-process`** after install, or run **`python tmd_cli.py`** from a clone.
+The CLI is available as **`tmd-process`** after install, or run **`python tmd_cli.py`** from a clone. A consolidated command reference is in **[CLI reference](../reference/cli.md)**.
 
 ### Optional: roughness analysis (Surfalize)
 

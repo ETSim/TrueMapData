@@ -49,15 +49,17 @@ See [`.devcontainer/README.md`](.devcontainer/README.md) for notes on `.tmd` fil
 pytest
 ```
 
-Options and coverage defaults are defined under `[tool.pytest.ini_options]` in [`pyproject.toml`](pyproject.toml).
+Options, logging, markers, and default `addopts` (including coverage reports) are defined in **[`pytest.ini`](pytest.ini)** at the repository root.
 
 ### Linting
 
 Continuous integration runs **Ruff** (see [`.github/workflows/ruff.yml`](.github/workflows/ruff.yml)). Run it locally before pushing:
 
 ```bash
-ruff check .
+python -m ruff check .
 ```
+
+Optional: `python -m ruff format .` to apply the formatter locally (CI currently runs **`ruff check`** only; see [`.github/workflows/ruff.yml`](.github/workflows/ruff.yml)).
 
 The `[project.optional-dependencies] dev` group in `pyproject.toml` still lists tools such as Black, isort, Flake8, and mypy for contributors who use them; **Ruff is the linter aligned with CI**.
 
@@ -81,9 +83,17 @@ mkdocs serve
 
 For binding to all interfaces inside a container, use `mkdocs serve -a 0.0.0.0:8000` and forward port **8000** if needed.
 
+For **AI-assisted editing**, the repository root [`llms.txt`](https://github.com/ETSTribology/TrueMapData/blob/main/llms.txt) lists canonical TrueMapData links; the published site expands that with **[AI assistants (llms.txt)](https://etstribology.github.io/TrueMapData/developers/ai-tooling/)** (optional editor tooling, verification, and security notes).
+
 ## Sample and proprietary `.tmd` data
 
-**Sample `.tmd` files are not committed** to this repository (size and licensing). Use your own captures, published attachments, or synthetic heightmaps (for example `TMDTerrain` / the `terrain` CLI) when developing or adding tests. Do not commit large binary fixtures without maintainer agreement.
+Large proprietary captures are not committed. For **canonical example paths** used by notebooks and `tests/cli/test_example_tmds_smoke.py`, generate small synthetic `.tmd` files locally:
+
+```bash
+python examples/generate_example_tmds.py
+```
+
+GitHub Actions runs the same command before `pytest` so those tests exercise real files in CI. Replace generated files under `examples/gelsight/` and `examples/v1/` with your own data when needed.
 
 ## Code style
 

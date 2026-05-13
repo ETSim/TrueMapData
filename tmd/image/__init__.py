@@ -32,10 +32,14 @@ from .maps.metallic import MetallicMapGenerator
 from .maps.displacement import DisplacementMapGenerator
 from .maps.heightmap import HeightMapGenerator
 from .maps.hillshade import HillshadeMapGenerator
-from .maps.curvature import CurvatureMapGenerator
+from .maps.curvature import CurvatureMapGenerator, SummitCurvatureMapGenerator
 from .maps.angle import AngleMapGenerator
 from .maps.parallax_ao import ParallaxAOMapGenerator
-from .maps.depth import DepthMapGenerator 
+from .maps.depth import DepthMapGenerator
+from .tribology_generators import (
+    DebrisPocketMapGenerator,
+    ShearHazardMapGenerator,
+)
 
 # Register generators with registry
 MapRegistry.register("ao", AOMapGenerator)
@@ -50,6 +54,9 @@ MapRegistry.register("curvature", CurvatureMapGenerator)
 MapRegistry.register("angle", AngleMapGenerator)
 MapRegistry.register("parallax_ao", ParallaxAOMapGenerator)
 MapRegistry.register("depth", DepthMapGenerator)
+MapRegistry.register("shear_hazard", ShearHazardMapGenerator)
+MapRegistry.register("debris_pocket", DebrisPocketMapGenerator)
+MapRegistry.register("summit_curvature", SummitCurvatureMapGenerator)
 
 # Convenience export functions
 def export_ao_map(height_map, output_file, **kwargs):
@@ -104,7 +111,10 @@ def get_available_map_types():
         "curvature", 
         "angle",
         "parallax_ao",
-        "depth"
+        "depth",
+        "shear_hazard",
+        "debris_pocket",
+        "summit_curvature",
     ]
 
 

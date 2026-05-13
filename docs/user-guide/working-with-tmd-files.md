@@ -1,5 +1,8 @@
 # Working with TMD files
 
+!!! tip "CLI vs binary spec"
+    For **`tmd-process` command tables** and mesh notes, use the **[CLI reference](../reference/cli.md)**. This page is the **authoritative binary layout**, version heuristics, and **Surfalize / roughness** workflow.
+
 TMD (**True Map Data**) is a small binary format: a fixed-size text header, numeric metadata, then a dense **row-major** grid of **`float32`** heights with logical shape **`(height, width)`** (NumPy/C order: first index is row / *y*, second is column / *x*).
 
 The library reads **version 1** (legacy TrueMap) and **version 2** (TrueMap v6–style) through [`TMD.load`](getting-started.md) and the lower-level `tmd.utils.utils.TMDUtils` API.
@@ -221,6 +224,10 @@ tmd-process roughness file path/to/map.tmd --all
 ```
 
 If Surfalize’s built-in `.tmd` reader fails (for example **non-UTF-8 text in the header** on some GelSight exports), the CLI **loads the raster with this library** and builds the Surfalize surface from height data and scan lengths, so roughness still runs on any TMD `TMD.load` accepts.
+
+### Wear-oriented CLI (`tmd-wear`)
+
+After `pip install truemapdata` (same package as `tmd-process`), a second entry point **`tmd-wear`** is available for tribology-oriented helpers that do **not** replace the main CLI: **Abbott / material ratio** (`bearing curve`), **roughness trajectory** with Sp/Sv-derived columns (`roughness-track`, needs the optional Surfalize extra), **shear proxy maps** (`hazard-map`), **debris-pocket heuristic** (`debris-risk`), **wear volume vs a reference frame** (`volume-series`), **scratch mask evolution** (`scratch-evolve`), and **slip-axis heuristics** (`slip-axis`). Use **`tmd-wear --help`** for options; align sequences first with **`tmd-process sequence align`** when comparing frames. To populate small demo `.tmd` files under `examples/gelsight/` and `examples/v1/` for local runs, execute **`python examples/generate_example_tmds.py`** from the repository root (see also the **Sample data** section in the project `README.md`).
 
 **Many maps / sequence folder** — every `*.tmd` in a directory (e.g. frames after alignment), CSV output:
 

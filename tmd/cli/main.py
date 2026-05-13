@@ -1,4 +1,4 @@
-"""TMD Typer application and ``main()`` entry point (shared by script and ``tmd-process``)."""
+"""TMD Typer application and CLI entry points (``tmd-process``, ``tmd-wear``)."""
 
 from __future__ import annotations
 
@@ -27,6 +27,8 @@ from tmd.cli.apps.roughness_app import create_roughness_app
 from tmd.cli.apps.sequence_app import create_sequence_app
 from tmd.cli.apps.terrain_app import create_terrain_app
 from tmd.cli.apps.defect_app import create_defect_app
+from tmd.cli.apps.tribology_app import create_tribology_app
+from tmd.cli.apps.wear_app import create_wear_app
 
 console = Console()
 
@@ -38,6 +40,9 @@ app = typer.Typer(
 app.command(name="info", help="Show TMD file information")(info_command)
 app.command(name="version", help="Show TMD version")(version_command)
 app.command(name="check", help="Check system dependencies")(check_command)
+
+# Same Typer instance is mounted under ``tmd-process wear`` and used by ``tmd-wear``.
+wear_app = create_wear_app()
 
 
 def _add_subcommands() -> None:
@@ -65,6 +70,16 @@ def _add_subcommands() -> None:
         name="defect",
         help="Detect pits, peaks, scratches, cracks and directionality anomalies",
     )
+    app.add_typer(
+        create_tribology_app(),
+        name="tribology",
+        help="Tribology metrics: texture axis, contact curve, lubrication ISO volumes",
+    )
+    app.add_typer(
+        wear_app,
+        name="wear",
+        help="Wear-oriented surface metrics (Abbott curve, wear volume, hazard maps, …)",
+    )
     app.add_typer(create_visualize_app(), name="visualize", help="Visualize TMD files")
     app.add_typer(create_terrain_app(), name="terrain", help="Generate synthetic terrain and textures")
 
@@ -82,6 +97,19 @@ def main() -> int:
     """Run the TMD CLI application."""
     try:
         app()
+        return 0
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled by user[/yellow]")
+        return 1
+    except Exception as e:
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        return 1
+
+
+def wear_main() -> int:
+    """Run the wear toolkit CLI (``tmd-wear`` console script)."""
+    try:
+        wear_app()
         return 0
     except KeyboardInterrupt:
         console.print("\n[yellow]Operation cancelled by user[/yellow]")

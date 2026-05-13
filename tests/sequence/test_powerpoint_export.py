@@ -1,4 +1,4 @@
-"""Tests for :mod:`tmd.sequence.powerpoint`."""
+"""Tests for :mod:`tmd.sequence.exporters.powerpoint`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from tmd.sequence.powerpoint import PowerPointExporter
+from tmd.sequence.exporters.powerpoint import PowerPointExporter
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("pptx") is None, reason="python-pptx optional")
 

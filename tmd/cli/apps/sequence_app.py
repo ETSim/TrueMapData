@@ -84,8 +84,15 @@ def create_sequence_app() -> typer.Typer:
             "auto",
             "--method",
             "-m",
-            help="Primary registration: auto (ORB+RANSAC affine, then phase fallback), "
-            "affine_ransac, or phase_correlation (translation only)",
+            help="Registration: auto | affine_ransac | phase_correlation (ORB / translation; "
+            "see --registration-channel) | sift (TextureFriction align.ipynb SIFT/ECC; "
+            "see --register-from)",
+        ),
+        register_from: str = typer.Option(
+            "height",
+            "--register-from",
+            help="For --method sift only: height (SIFT on normalized height) or normals "
+            "(derive normals from heights, align normals, warp heights)",
         ),
         refine_phase: bool = typer.Option(
             True,
@@ -138,13 +145,25 @@ def create_sequence_app() -> typer.Typer:
         ),
     ) -> None:
         """
-        Load several TMDs as a sequence, align them with OpenCV, optionally crop to overlap,
+        Load several TMDs as a sequence, align them, optionally crop to overlap,
         and write one aligned .tmd per input (same stem + ``_aligned.tmd``).
+
+        Use ``--method sift`` with ``--register-from normals`` for the same registration
+        strategy as TextureFriction ``align.ipynb`` (normals drive transforms; heights are
+        warped with scalar ``warpAffine``). ``--register-from height`` runs the same SIFT
+        pipeline on normalized height rasters (no tangent normal rotation).
         """
         if len(tmd_files) < 2:
             console.print("[red]Need at least two TMD files.[/]")
             raise typer.Exit(1)
-        if registration_channel not in ("height", "gradient", "detail"):
+        method_key = method.strip().lower().replace("_", "-")
+        sift_mode = method_key in ("sift", "texture-friction")
+        if sift_mode:
+            rf = register_from.strip().lower()
+            if rf not in ("height", "normals"):
+                console.print("[red]--register-from must be height or normals when using sift.[/]")
+                raise typer.Exit(1)
+        elif registration_channel not in ("height", "gradient", "detail"):
             console.print(
                 "[red]--registration-channel must be one of: height, gradient, detail[/]"
             )
@@ -175,22 +194,43 @@ def create_sequence_app() -> typer.Typer:
 
         console.print(
             f"[cyan]Aligning[/] {len(tmd_files)} frames "
-            f"(ref={reference_index}, method={method!r}, channel={registration_channel!r}, "
-            f"crop={crop}, margin={margin}, refine_phase={refine_phase}, second_pass={second_full_pass})…"
+            f"(ref={reference_index}, method={method!r}"
+            + (f", register_from={register_from!r}" if sift_mode else "")
+            + (
+                f", channel={registration_channel!r}, crop={crop}, margin={margin}, "
+                f"refine_phase={refine_phase}, second_pass={second_full_pass}"
+                if not sift_mode
+                else f", crop={crop}"
+            )
+            + ")…"
         )
         try:
-            info = seq.align_height_maps_opencv(
-                reference_index=reference_index,
-                method=method,
-                crop=crop,
-                margin=margin,
-                phase_refine=refine_phase,
-                second_full_pass=second_full_pass,
-                orb_nfeatures=orb_nfeatures,
-                min_inliers=min_inliers,
-                ransac_reproj_threshold=ransac_reproj_threshold,
-                registration_channel=registration_channel,
-            )
+            if sift_mode:
+                if rf == "height":
+                    info = seq.align_height_maps_sift(
+                        reference_index=reference_index,
+                        two_pass=True,
+                        crop=crop,
+                    )
+                else:
+                    info = seq.align_height_maps_from_normals(
+                        reference_index=reference_index,
+                        two_pass=True,
+                        crop=crop,
+                    )
+            else:
+                info = seq.align_height_maps_opencv(
+                    reference_index=reference_index,
+                    method=method,
+                    crop=crop,
+                    margin=margin,
+                    phase_refine=refine_phase,
+                    second_full_pass=second_full_pass,
+                    orb_nfeatures=orb_nfeatures,
+                    min_inliers=min_inliers,
+                    ransac_reproj_threshold=ransac_reproj_threshold,
+                    registration_channel=registration_channel,
+                )
         except ImportError as e:
             console.print(f"[red]{e}[/]")
             raise typer.Exit(1) from e

@@ -18,6 +18,7 @@ height maps or other 2D surface data, including:
 12. Surface Isotropy and Directionality
 13. Auto/Cross-correlation
 14. Advanced Wavelet Analysis
+15. Gradient-Based Texture Direction (circular statistics on doubled angles)
 
 Many of these ideas align with ISO 16610 concepts for surface filtering.
 """
@@ -167,6 +168,61 @@ def calculate_slope(height_map: np.ndarray, scale: float = 1.0) -> np.ndarray:
     """
     grad_x, grad_y = calculate_surface_gradient(height_map, scale=scale)
     return np.sqrt(grad_x**2 + grad_y**2)
+
+
+# --- Gradient / circular-statistics texture direction ------------------------
+
+
+def gradient_slant_angle_rad(gradient_x: np.ndarray, gradient_y: np.ndarray) -> np.ndarray:
+    """Direction of steepest ascent in the image plane, radians in (-pi, pi]."""
+    return np.arctan2(gradient_y, gradient_x)
+
+
+def global_texture_angle_rad(
+    gradient_x: np.ndarray,
+    gradient_y: np.ndarray,
+    weights: Optional[np.ndarray] = None,
+) -> float:
+    """
+    Dominant orientation (perpendicular to lay for directional grinding)
+    from circular mean of doubled gradient angles.
+    """
+    angle = gradient_slant_angle_rad(gradient_x, gradient_y)
+    cos2, sin2 = np.cos(2.0 * angle), np.sin(2.0 * angle)
+    if weights is None:
+        w = np.hypot(gradient_x, gradient_y) + 1e-12
+    else:
+        w = np.asarray(weights, dtype=np.float64).ravel()
+        w = w.reshape(gradient_x.shape) + 1e-12
+    num_s = float(np.sum(w * sin2))
+    num_c = float(np.sum(w * cos2))
+    return float(0.5 * np.arctan2(num_s, num_c))
+
+
+def local_texture_angle_and_coherence(
+    cos2: np.ndarray,
+    sin2: np.ndarray,
+    window: int,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Uniform-filtered doubled-angle field -> local texture angle and coherence in [0, 1].
+
+    Coherence is the magnitude of the local mean ``(cos2, sin2)`` vector.
+    """
+    win = int(max(3, window))
+    if win % 2 == 0:
+        win += 1
+    lc2 = ndimage.uniform_filter(cos2, size=win)
+    ls2 = ndimage.uniform_filter(sin2, size=win)
+    coherence = np.sqrt(lc2**2 + ls2**2)
+    local_angle = 0.5 * np.arctan2(ls2, lc2)
+    return local_angle, np.clip(coherence, 0.0, 1.0)
+
+
+def wrapped_angle_diff_rad(a: np.ndarray, b: float) -> np.ndarray:
+    """Absolute angular difference between array ``a`` and scalar ``b``, in [0, pi]."""
+    delta = a - b
+    return np.abs(np.arctan2(np.sin(delta), np.cos(delta)))
 
 
 def apply_median_filter(height_map: np.ndarray, size: int = 3) -> np.ndarray:

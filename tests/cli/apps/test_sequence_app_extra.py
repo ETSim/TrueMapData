@@ -64,6 +64,39 @@ def test_align_command_mocked(tmp_path: Path, runner: CliRunner, small_heightmap
     assert list(outd.glob("*_aligned.tmd"))
 
 
+def test_align_command_sift_mocked(tmp_path: Path, runner: CliRunner, small_heightmap: np.ndarray, monkeypatch) -> None:
+    t1 = tmp_path / "a.tmd"
+    t2 = tmp_path / "b.tmd"
+    TMDUtils.write_tmd_file(small_heightmap, str(t1), comment="1\n", version=2)
+    TMDUtils.write_tmd_file(small_heightmap, str(t2), comment="2\n", version=2)
+    outd = tmp_path / "aligned_sift"
+
+    monkeypatch.setattr(
+        TMDSequence,
+        "align_height_maps_sift",
+        lambda self, **_k: {"method": "opencv_sift_height_2d_mock", "per_frame": []},
+    )
+
+    app = seq_mod.create_sequence_app()
+    r = runner.invoke(
+        app,
+        [
+            "align",
+            str(t1),
+            str(t2),
+            "--output-dir",
+            str(outd),
+            "--method",
+            "sift",
+            "--register-from",
+            "height",
+            "--no-save-json",
+        ],
+    )
+    assert r.exit_code == 0
+    assert list(outd.glob("*_aligned.tmd"))
+
+
 def test_export_command_mocked(tmp_path: Path, runner: CliRunner, small_heightmap: np.ndarray, monkeypatch) -> None:
     ad = tmp_path / "aligned"
     ad.mkdir()

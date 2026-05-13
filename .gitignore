@@ -60,6 +60,11 @@ data/
 !examples/*.png
 !examples/*.stl
 
+# Synthetic example TMDs (regenerate: python examples/generate_example_tmds.py; CI runs this before pytest)
+examples/gelsight/*.tmd
+examples/v1/*.tmd
+examples/v2/*.tmd
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

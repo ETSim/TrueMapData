@@ -1,12 +1,8 @@
 # TrueMapData (truemapdata)
 
-> Python library and CLI for TrueMap v6 and GelSight TMD height maps: I/O, surface processing, visualization, texture map export, and 3D mesh generation. Python 3.8+. Package name on PyPI: `truemapdata`. Console script: `tmd-process`.
+> Python library and CLIs for TrueMap v6 and GelSight **TMD** height maps: binary I/O, surface processing, visualization, texture-style map export, mesh generation (STL, OBJ, PLY, glTF, USD), and apply-on-mesh OBJ/MTL bundling with physical tiling. **Python 3.8+**. PyPI package: `truemapdata`. Console scripts: **`tmd-process`** (maps, mesh, sequences, tribology, wear, …) and **`tmd-wear`** (same wear app as `tmd-process wear`, shorter invocations).
 
-## Project & install
-
-- [README (overview, CLI, format notes)](https://github.com/ETSTribology/TrueMapData/blob/main/README.md)
-- [pyproject.toml (dependencies, scripts, tooling)](https://github.com/ETSTribology/TrueMapData/blob/main/pyproject.toml)
-- [requirements.txt](https://github.com/ETSTribology/TrueMapData/blob/main/requirements.txt)
+This file is the **compact documentation map** for humans and coding assistants. Prefer these links over undocumented assumptions about the codebase.
 
 ## Published documentation (GitHub Pages)
 
@@ -16,20 +12,52 @@
 - [Working with TMD files](https://etstribology.github.io/TrueMapData/user-guide/working-with-tmd-files/)
 - [Visualization](https://etstribology.github.io/TrueMapData/user-guide/visualization/)
 - [Exporting data](https://etstribology.github.io/TrueMapData/user-guide/exporting-data/)
+- [Tribology metrics](https://etstribology.github.io/TrueMapData/user-guide/tribology-metrics/)
+- [Sequential wear analysis](https://etstribology.github.io/TrueMapData/user-guide/sequential-wear-analysis/)
+- [CLI reference](https://etstribology.github.io/TrueMapData/reference/cli/)
+- [Contributing](https://etstribology.github.io/TrueMapData/developers/contributing/)
+- [Building the docs](https://etstribology.github.io/TrueMapData/developers/building-docs/)
+- [Documentation style](https://etstribology.github.io/TrueMapData/developers/documentation-style/)
+- [AI assistants and project documentation](https://etstribology.github.io/TrueMapData/developers/ai-tooling/)
 
-## Repository sources (for agents)
+## Repository sources (canonical for agents)
 
-- [MkDocs config (nav, theme)](https://github.com/ETSTribology/TrueMapData/blob/main/mkdocs.yml)
-- [CLI entry](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/cli/main.py)
+- [README.md — overview, quick install, links into the doc site](https://github.com/ETSTribology/TrueMapData/blob/main/README.md)
+- [CONTRIBUTING.md — venv, pytest, Ruff, pre-commit, PR flow](https://github.com/ETSTribology/TrueMapData/blob/main/CONTRIBUTING.md)
+- [pyproject.toml — dependencies, optional extras, scripts, pytest/Ruff config](https://github.com/ETSTribology/TrueMapData/blob/main/pyproject.toml)
+- [requirements.txt](https://github.com/ETSTribology/TrueMapData/blob/main/requirements.txt) / [requirements-dev.txt](https://github.com/ETSTribology/TrueMapData/blob/main/requirements-dev.txt) / [requirements-docs.txt](https://github.com/ETSTribology/TrueMapData/blob/main/requirements-docs.txt)
+- [mkdocs.yml — site nav and Material theme](https://github.com/ETSTribology/TrueMapData/blob/main/mkdocs.yml)
+- [Notebooks README — wear height-matrix notebook index](https://github.com/ETSTribology/TrueMapData/blob/main/notebooks/README.md)
+- [`.github/workflows/` — CI (tests, Ruff, docs `--strict`)](https://github.com/ETSTribology/TrueMapData/tree/main/.github/workflows)
+
+## Implementation entry points (`tmd/`)
+
 - [Package root `tmd/`](https://github.com/ETSTribology/TrueMapData/tree/main/tmd)
+- [Core TMD load / model — `tmd/core/tmd.py`](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/core/tmd.py)
+- [CLI entry — `tmd/cli/main.py`](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/cli/main.py)
+- [Wear CLI app — `tmd/cli/apps/wear_app.py`](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/cli/apps/wear_app.py) (`tmd-wear` / `tmd-process wear`)
+- [Sequential wear metrics — `tmd/sequence/wear_analysis.py`](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/sequence/wear_analysis.py)
+- [Phase-correlation alignment — `tmd/sequence/alignment.py`](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/sequence/alignment.py) (`TMDSequence.align_height_maps_phase_fft`)
+- [CLI commands — `tmd/cli/commands/`](https://github.com/ETSTribology/TrueMapData/tree/main/tmd/cli/commands)
+- [Mesh export app — `tmd/cli/apps/export_mesh_app.py`](https://github.com/ETSTribology/TrueMapData/blob/main/tmd/cli/apps/export_mesh_app.py)
+- [Map generators — `tmd/image/maps/`](https://github.com/ETSTribology/TrueMapData/tree/main/tmd/image/maps)
+- [Plotters — `tmd/plotters/`](https://github.com/ETSTribology/TrueMapData/tree/main/tmd/plotters)
+- [Tests — `tests/`](https://github.com/ETSTribology/TrueMapData/tree/main/tests)
 
-## Contributing & policy
+## Domain reminders (do not contradict without checking code)
 
-- [CONTRIBUTING](https://github.com/ETSTribology/TrueMapData/blob/main/CONTRIBUTING.md)
-- [SECURITY](https://github.com/ETSTribology/TrueMapData/blob/main/SECURITY.md)
-- [License (MIT)](https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE)
+- **Apply-on-mesh**: tiling uses template OBJ X/Z span × `obj_units_to_mm` (default **1000** for meter OBJ) with TMD `mm_per_pixel` and `x_length` / `y_length`; UV mode needs UVs on the template. See **Exporting data** and **CLI** on the doc site.
+- **Sample `.tmd` files** are not committed; use local data or synthetic terrain for development.
+- **Optional roughness** may use Surfalize (GPL); keep docs and optional deps accurate when touching that path.
+- **Wear volume / slip / scratch series** on stacks: prefer **`--align phase-fft`** (or pre-align with `tmd-process sequence align`) when frames are shifted; loss convention is `z_ref − z_i` (positive = current lower than reference). See **Sequential wear analysis** on the doc site.
+
+## Contributing, security, license
+
+- [CONTRIBUTING.md](https://github.com/ETSTribology/TrueMapData/blob/main/CONTRIBUTING.md)
+- [SECURITY.md](https://github.com/ETSTribology/TrueMapData/blob/main/SECURITY.md)
+- [LICENSE (MIT)](https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE)
 
 ## Links
 
 - [Issues](https://github.com/ETSTribology/TrueMapData/issues)
-- [PyPI](https://pypi.org/project/truemapdata/)
+- [PyPI — truemapdata](https://pypi.org/project/truemapdata/)

@@ -1,4 +1,4 @@
-"""Tests for tmd.sequence.compression strategies and helpers."""
+"""Tests for :mod:`tmd.sequence.exporters.compression` strategies and helpers."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from tmd.compression.base import TMDDataExporter, TMDDataImporter
-from tmd.sequence.compression import (
+from tmd.sequence.exporters.compression import (
     CompressionStrategy,
     CompressionStrategyFactory,
     NPYCompressionStrategy,

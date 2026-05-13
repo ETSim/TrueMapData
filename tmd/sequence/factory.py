@@ -13,9 +13,9 @@ from pathlib import Path
 import numpy as np
 
 from .base import BaseExporter
-from .gif import GifExporter
-from .video import VideoExporter
-from .powerpoint import PowerPointExporter
+from .exporters.gif import GifExporter
+from .exporters.powerpoint import PowerPointExporter
+from .exporters.video import VideoExporter
 
 logger = logging.getLogger(__name__)
 

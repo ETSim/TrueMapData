@@ -4,33 +4,61 @@ site_description: TrueMap Data (TMD) file processing library
 site_author: Antoine Gagnon
 repo_url: https://github.com/ETSTribology/TrueMapData
 repo_name: ETSTribology/TrueMapData
+edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - User Guide:
+  - User guide:
       - Installation: user-guide/installation.md
-      - Getting Started: user-guide/getting-started.md
-      - Working with TMD Files: user-guide/working-with-tmd-files.md
+      - Getting started: user-guide/getting-started.md
+      - Working with TMD files: user-guide/working-with-tmd-files.md
       - Visualization: user-guide/visualization.md
-      - Exporting Data: user-guide/exporting-data.md
+      - Exporting data: user-guide/exporting-data.md
+      - Tribology metrics: user-guide/tribology-metrics.md
+      - Sequential wear analysis: user-guide/sequential-wear-analysis.md
+  - Reference:
+      - CLI: reference/cli.md
+  - Developers:
+      - Contributing: developers/contributing.md
+      - Building the docs: developers/building-docs.md
+      - Documentation style: developers/documentation-style.md
+      - AI assistants (llms.txt): developers/ai-tooling.md
   - License: https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE
 
 theme:
   name: material
   palette:
-    primary: blue
-    accent: teal
+    - scheme: default
+      primary: indigo
+      accent: blue grey
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: blue grey
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
   features:
     - navigation.instant
     - navigation.tracking
     - navigation.expand
     - navigation.indexes
     - navigation.top
+    - navigation.footer
     - toc.follow
     - search.suggest
     - search.highlight
     - content.code.copy
     - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
 
 extra:
   social:

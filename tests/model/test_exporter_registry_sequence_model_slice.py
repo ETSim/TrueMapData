@@ -15,8 +15,8 @@ from typer.testing import CliRunner
 from tmd.cli.main import app
 from tmd.model.base import ModelExporter, ExportConfig
 from tmd.model.registry import ExporterRegistry, get_exporter as module_get_exporter, register_format
-from tmd.sequence.gif import GifExporter
-from tmd.sequence.video import VideoExporter
+from tmd.sequence.exporters.gif import GifExporter
+from tmd.sequence.exporters.video import VideoExporter
 from tmd.sequence.base import BaseExporter
 from tmd.sequence.factory import SequenceExporterFactory
 

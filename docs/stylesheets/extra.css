@@ -1,0 +1,14 @@
+/* Technical-manual polish: readable line length and admonition spacing */
+.md-content .md-typeset {
+  max-width: 50rem;
+}
+
+.md-typeset .admonition {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+}

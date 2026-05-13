@@ -93,6 +93,7 @@ full = [
 
 [project.scripts]
 tmd-process = "tmd.cli.main:main"
+tmd-wear = "tmd.cli.main:wear_main"
 
 [tool.ruff]
 extend-exclude = ["tools/**/*.ipynb", "notebooks/**/*.ipynb"]
@@ -101,8 +102,9 @@ extend-exclude = ["tools/**/*.ipynb", "notebooks/**/*.ipynb"]
 # Lazy imports and re-exports in package inits
 "tmd/**/__init__.py" = ["E402", "F401"]
 
-[tool.setuptools]
-packages = ["tmd"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tmd*"]
 
 [tool.setuptools.package-data]
 tmd = ["py.typed"]

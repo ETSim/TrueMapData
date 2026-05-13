@@ -9,17 +9,38 @@ to various formats using a centralized factory-based approach.
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 
 from tmd.core.tmd import TMD, TMDProcessingError
 from tmd.utils.files import TMDFileUtilities
 from tmd.surface.processing import threshold_height_map
-from tmd.surface.transformations import align_height_map_sequence_opencv
+from tmd.surface.types import DefectDetectionConfig
+from tmd.sequence.alignment import (
+    NormalMapSequenceAlignmentConfig,
+    align_height_map_sequence_phase_fft,
+    align_height_map_sequence_sift,
+    align_normal_map_sequence,
+    height_maps_to_normal_bgr_uint8,
+    warp_scalar_sequence_with_affine_crop,
+)
 from tmd.sequence.factory import SequenceExporterFactory
+from tmd.surface.transformations import align_height_map_sequence_opencv
 
 logger = logging.getLogger(__name__)
+
+
+def _reference_first_permutation(n: int, reference_index: int) -> Tuple[List[int], List[int]]:
+    """``perm[j]`` = original frame index at algorithm position ``j``; ``inv[i]`` = position of original ``i``."""
+    if not (0 <= reference_index < n):
+        raise ValueError(f"reference_index must be in [0, {n - 1}], got {reference_index}")
+    perm = [reference_index] + [i for i in range(n) if i != reference_index]
+    inv = [0] * n
+    for j, orig in enumerate(perm):
+        inv[orig] = j
+    return perm, inv
+
 
 class TMDSequence:
     """
@@ -272,6 +293,269 @@ class TMDSequence:
         self.metadata["alignment"] = info
         return info
 
+    def align_height_maps_phase_fft(self, reference_index: int = 0) -> Dict[str, Any]:
+        """
+        Align frames to a reference using NumPy phase correlation and ``np.roll``.
+
+        Same shape for every frame is required. For affine drift or mixed resolutions,
+        prefer :meth:`align_height_maps_opencv` first.
+
+        Stores result under ``self.metadata["alignment"]`` (overwrites any prior entry).
+        """
+        if not self.frames:
+            raise ValueError("Cannot align an empty sequence")
+        aligned, info = align_height_map_sequence_phase_fft(
+            [np.asarray(f, dtype=np.float64) for f in self.frames],
+            reference_index=reference_index,
+        )
+        self.frames = aligned
+        self.metadata["alignment"] = info
+        return info
+
+    def align_height_maps_sift(
+        self,
+        reference_index: int = 0,
+        *,
+        two_pass: bool = True,
+        crop: bool = True,
+        config: Optional[NormalMapSequenceAlignmentConfig] = None,
+    ) -> Dict[str, Any]:
+        """
+        Align height frames using the TextureFriction ``align.ipynb`` **height** path
+        (SIFT / ECC cumulative affines, scalar ``warpAffine``, optional two-pass, valid crop).
+
+        The underlying registration always uses **algorithm frame 0** as the fixed
+        target. ``reference_index`` selects which *original* frame becomes that anchor
+        by reordering internally, then restoring original frame order afterward.
+
+        Requires OpenCV. Metadata is stored under ``self.metadata["alignment"]``.
+        """
+        if not self.frames:
+            raise ValueError("Cannot align an empty sequence")
+        n = len(self.frames)
+        perm, inv = _reference_first_permutation(n, reference_index)
+        permuted = [np.asarray(self.frames[i]) for i in perm]
+        aligned_p, info = align_height_map_sequence_sift(
+            permuted, two_pass=two_pass, crop=crop, config=config
+        )
+        self.frames = [aligned_p[inv[i]] for i in range(n)]
+        info["reference_index"] = int(reference_index)
+        info["permutation_to_algorithm_order"] = [int(x) for x in perm]
+        self.metadata["alignment"] = info
+        return info
+
+    def align_height_maps_from_normals(
+        self,
+        reference_index: int = 0,
+        *,
+        two_pass: bool = True,
+        crop: bool = True,
+        config: Optional[NormalMapSequenceAlignmentConfig] = None,
+        normal_strength: float = 1.0,
+        normal_normalize: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        TextureFriction ``align.ipynb`` **primary** path: derive BGR normals from heights,
+        run two-pass SIFT alignment on normals (tangent rotation on warp), then apply the
+        same affines + crop to the height maps.
+
+        ``reference_index`` is handled like :meth:`align_height_maps_sift` (reorder so that
+        frame becomes algorithm index ``0``, then unpermute).
+
+        Requires OpenCV. Metadata is stored under ``self.metadata["alignment"]``.
+        """
+        if not self.frames:
+            raise ValueError("Cannot align an empty sequence")
+        n = len(self.frames)
+        perm, inv = _reference_first_permutation(n, reference_index)
+        permuted = [np.asarray(self.frames[i]) for i in perm]
+        dtypes = [np.asarray(self.frames[i]).dtype for i in perm]
+        bgrs = height_maps_to_normal_bgr_uint8(
+            permuted, strength=float(normal_strength), normalize=bool(normal_normalize)
+        )
+        _, ninfo = align_normal_map_sequence(bgrs, two_pass=two_pass, crop=crop, config=config)
+        transforms = [np.asarray(p["affine_2x3"], dtype=np.float32) for p in ninfo["per_frame"]]
+        fs = ninfo["full_size"]
+        full_wh = (int(fs["width"]), int(fs["height"]))
+        cr = ninfo.get("crop_region")
+        if cr is None:
+            crop_xywh = (0, 0, full_wh[0], full_wh[1])
+        else:
+            crop_xywh = (int(cr["x"]), int(cr["y"]), int(cr["width"]), int(cr["height"]))
+        h32 = [np.asarray(f, dtype=np.float32) for f in permuted]
+        warped_perm = warp_scalar_sequence_with_affine_crop(
+            h32, transforms, full_wh, crop_xywh, border_value=0.0
+        )
+        out_perm: List[np.ndarray] = []
+        for w, dt in zip(warped_perm, dtypes):
+            if np.issubdtype(dt, np.integer):
+                out_perm.append(
+                    np.clip(np.round(w), np.iinfo(dt).min, np.iinfo(dt).max).astype(dt)
+                )
+            else:
+                out_perm.append(w.astype(dt, copy=False))
+        self.frames = [out_perm[inv[i]] for i in range(n)]
+        info: Dict[str, Any] = {**ninfo, "registration_source": "normals"}
+        info["reference_index"] = int(reference_index)
+        info["permutation_to_algorithm_order"] = [int(x) for x in perm]
+        self.metadata["alignment"] = info
+        return info
+
+    def sequential_wear_metrics(
+        self,
+        *,
+        dx_mm: Optional[float] = None,
+        dy_mm: Optional[float] = None,
+        reference_index: int = 0,
+        signed: bool = False,
+        top_fraction: float = 0.10,
+        align_before: Optional[Literal["phase_fft", "opencv", "sift", "sift_normals"]] = None,
+        align_opencv_kwargs: Optional[Dict[str, Any]] = None,
+        align_sift_kwargs: Optional[Dict[str, Any]] = None,
+        include_slip_axis_series: bool = False,
+        slip_axis_use_directionality_mask: bool = False,
+        include_scratch_series: bool = False,
+        scratch_defect_config: Optional[DefectDetectionConfig] = None,
+    ) -> Dict[str, Any]:
+        """
+        Per-frame wear volumes and/or optional slip-axis and scratch-evolution series.
+
+        All frames must share the same 2D shape. When ``align_before`` is set, the
+        corresponding alignment runs **first** (in-place on ``self.frames``); summary
+        is stored in ``self.metadata["alignment"]`` and echoed under the return key
+        ``alignment`` when alignment ran.
+
+        Volume tables (``vs_reference``, ``incremental``) require both ``dx_mm`` and
+        ``dy_mm``. Slip-axis and scratch series do not require pixel pitch.
+
+        Args:
+            dx_mm: Pixel pitch in mm along X for volume tables (optional if only slip/scratch).
+            dy_mm: Pixel pitch in mm along Y for volume tables.
+            reference_index: Reference frame for FFT/OpenCV alignment and ``vs_reference``.
+            signed: Passed to :func:`~tmd.sequence.wear_analysis.wear_series_vs_reference`.
+            top_fraction: Localization index top fraction for volume rows.
+            align_before: If ``\"phase_fft\"``, ``\"opencv\"``, ``\"sift\"`` (SIFT on height), or
+                ``\"sift_normals\"`` (SIFT on normals from height, then warp heights), align before metrics.
+            align_opencv_kwargs: Extra kwargs for :meth:`align_height_maps_opencv` when
+                ``align_before=\"opencv\"``.
+            align_sift_kwargs: Optional kwargs for SIFT paths (``two_pass``, ``crop``, ``config``,
+                and for ``sift_normals`` also ``normal_strength``, ``normal_normalize``).
+            include_slip_axis_series: If True, add ``slip_axis_series`` (per-frame dicts).
+            slip_axis_use_directionality_mask: If True, mask gradients using defect
+                ``directionality_anomalies`` (requires defect detection per frame).
+            include_scratch_series: If True, add ``scratch_series`` from defect scratch masks.
+            scratch_defect_config: Optional :class:`~tmd.surface.types.DefectDetectionConfig`;
+                defaults to ``output_mode=\"standard\"`` when scratch series is requested.
+        """
+        if not self.frames:
+            raise ValueError("Cannot compute wear metrics on an empty sequence")
+
+        has_volumes = dx_mm is not None and dy_mm is not None
+        if (dx_mm is None) ^ (dy_mm is None):
+            raise ValueError("dx_mm and dy_mm must both be set for volume wear tables, or both omitted")
+
+        if not has_volumes and not include_slip_axis_series and not include_scratch_series and not align_before:
+            raise ValueError(
+                "sequential_wear_metrics: set dx_mm and dy_mm and/or include_slip_axis_series, "
+                "include_scratch_series, or align_before"
+            )
+
+        import tmd.sequence.wear_analysis as wa
+
+        out: Dict[str, Any] = {}
+        align_info: Optional[Dict[str, Any]] = None
+        if align_before == "phase_fft":
+            align_info = self.align_height_maps_phase_fft(reference_index=reference_index)
+        elif align_before == "opencv":
+            ocv_kw = dict(align_opencv_kwargs or {})
+            align_info = self.align_height_maps_opencv(reference_index=reference_index, **ocv_kw)
+        elif align_before == "sift":
+            sk = dict(align_sift_kwargs or {})
+            cfg = sk.pop("config", None)
+            align_info = self.align_height_maps_sift(
+                reference_index=reference_index,
+                two_pass=bool(sk.pop("two_pass", True)),
+                crop=bool(sk.pop("crop", True)),
+                config=cfg,
+            )
+            if sk:
+                raise ValueError(f"Unexpected keys in align_sift_kwargs: {sorted(sk)}")
+        elif align_before == "sift_normals":
+            sk = dict(align_sift_kwargs or {})
+            cfg = sk.pop("config", None)
+            n_strength = float(sk.pop("normal_strength", 1.0))
+            n_norm = bool(sk.pop("normal_normalize", False))
+            align_info = self.align_height_maps_from_normals(
+                reference_index=reference_index,
+                two_pass=bool(sk.pop("two_pass", True)),
+                crop=bool(sk.pop("crop", True)),
+                config=cfg,
+                normal_strength=n_strength,
+                normal_normalize=n_norm,
+            )
+            if sk:
+                raise ValueError(f"Unexpected keys in align_sift_kwargs: {sorted(sk)}")
+        elif align_before is not None:
+            raise ValueError(
+                "align_before must be None, 'phase_fft', 'opencv', 'sift', or 'sift_normals'"
+            )
+
+        if align_info is not None:
+            out["alignment"] = align_info
+
+        f = [np.asarray(x, dtype=np.float64) for x in self.frames]
+
+        if has_volumes:
+            out["vs_reference"] = wa.wear_series_vs_reference(
+                f,
+                reference_index=reference_index,
+                dx=float(dx_mm),
+                dy=float(dy_mm),
+                top_fraction=top_fraction,
+                signed=signed,
+            )
+            out["incremental"] = wa.wear_incremental_series(
+                f, dx=float(dx_mm), dy=float(dy_mm), top_fraction=top_fraction
+            )
+
+        if include_slip_axis_series:
+            from tmd.surface.defects import detect_surface_defects
+
+            slip_cfg = DefectDetectionConfig(output_mode="standard")
+            slip_rows: List[Dict[str, Any]] = []
+            for i, frame in enumerate(self.frames):
+                z = np.asarray(frame, dtype=np.float64)
+                dmask: Optional[np.ndarray] = None
+                if slip_axis_use_directionality_mask:
+                    res = detect_surface_defects(z.astype(np.float32), slip_cfg)
+                    raw = res["defects"]["directionality_anomalies"].get("mask")
+                    if raw is None:
+                        raise ValueError(
+                            "directionality mask missing; use DefectDetectionConfig(output_mode='standard')"
+                        )
+                    dmask = np.asarray(raw, dtype=bool)
+                metrics = wa.slip_axis_metrics(z, direction_mask=dmask)
+                slip_rows.append({"frame_index": i, **metrics})
+            out["slip_axis_series"] = slip_rows
+
+        if include_scratch_series:
+            from tmd.surface.defects import detect_surface_defects
+
+            cfg = scratch_defect_config or DefectDetectionConfig(output_mode="standard")
+            masks: List[np.ndarray] = []
+            for frame in self.frames:
+                res = detect_surface_defects(np.asarray(frame, dtype=np.float32), cfg)
+                scratch_entry = res["defects"]["scratches"]
+                m = scratch_entry.get("mask")
+                if m is None:
+                    raise ValueError(
+                        "scratch mask missing; use DefectDetectionConfig(output_mode='standard' or 'full')"
+                    )
+                masks.append(np.asarray(m, dtype=bool))
+            out["scratch_series"] = wa.scratch_series_metrics(masks)
+
+        return out
+
     def apply_transformations(self) -> List[np.ndarray]:
         """
         Apply all defined transformations to frames.
@@ -359,14 +643,49 @@ class TMDSequence:
                 
         return stats
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(
+        self,
+        *,
+        include_derived: bool = False,
+        wear_dx_mm: Optional[float] = None,
+        wear_dy_mm: Optional[float] = None,
+        wear_reference_index: int = 0,
+        wear_signed: bool = False,
+        wear_top_fraction: float = 0.10,
+        wear_align_before: Optional[Literal["phase_fft", "opencv", "sift", "sift_normals"]] = None,
+        wear_align_opencv_kwargs: Optional[Dict[str, Any]] = None,
+        wear_align_sift_kwargs: Optional[Dict[str, Any]] = None,
+        wear_include_slip_axis_series: bool = False,
+        wear_slip_axis_use_directionality_mask: bool = False,
+        wear_include_scratch_series: bool = False,
+        wear_scratch_defect_config: Optional[DefectDetectionConfig] = None,
+    ) -> Dict[str, Any]:
         """
         Convert the sequence into a dictionary representation suitable for export.
-        
+
+        Args:
+            include_derived: If True, attach ``derived`` with per-frame statistics and
+                optional ``wear`` when any wear-related option is set (see below).
+            wear_dx_mm: Pixel pitch in mm along X for volume wear tables (optional if only
+                slip/scratch/alignment outputs are requested).
+            wear_dy_mm: Pixel pitch in mm along Y for volume wear tables.
+            wear_reference_index: Reference frame index for alignment and ``vs_reference``.
+            wear_signed: Passed through to ``wear_series_vs_reference``.
+            wear_top_fraction: Localization top fraction for volume rows.
+            wear_align_before: If set, align frames before computing wear (see
+                :meth:`sequential_wear_metrics`).
+            wear_align_opencv_kwargs: Extra kwargs for OpenCV alignment when ``wear_align_before=\"opencv\"``.
+            wear_align_sift_kwargs: Optional kwargs for ``sift`` / ``sift_normals`` alignment
+                (see :meth:`sequential_wear_metrics`).
+            wear_include_slip_axis_series: Include per-frame ``slip_axis_metrics`` rows.
+            wear_slip_axis_use_directionality_mask: Use directionality defect mask for slip axis.
+            wear_include_scratch_series: Include ``scratch_series_metrics`` table.
+            wear_scratch_defect_config: Optional defect config for scratch masks.
+
         Returns:
-            Dictionary containing all sequence data
+            Dictionary containing sequence data (and optional ``derived`` block).
         """
-        return {
+        base: Dict[str, Any] = {
             "name": self.name,
             "metadata": self.metadata,
             "frames": self.frames,
@@ -374,6 +693,35 @@ class TMDSequence:
             "frame_metadata": self.frame_metadata,
             "transformations": self.transformations,
         }
+        if not include_derived:
+            return base
+        derived: Dict[str, Any] = {"statistics": self.calculate_statistics()}
+        if (wear_dx_mm is None) ^ (wear_dy_mm is None):
+            raise ValueError("wear_dx_mm and wear_dy_mm must both be set or both omitted")
+        wear_pitch_ok = wear_dx_mm is not None and wear_dy_mm is not None
+        want_wear = bool(self.frames) and (
+            wear_pitch_ok
+            or wear_include_slip_axis_series
+            or wear_include_scratch_series
+            or wear_align_before is not None
+        )
+        if want_wear:
+            derived["wear"] = self.sequential_wear_metrics(
+                dx_mm=wear_dx_mm,
+                dy_mm=wear_dy_mm,
+                reference_index=wear_reference_index,
+                signed=wear_signed,
+                top_fraction=wear_top_fraction,
+                align_before=wear_align_before,
+                align_opencv_kwargs=wear_align_opencv_kwargs,
+                align_sift_kwargs=wear_align_sift_kwargs,
+                include_slip_axis_series=wear_include_slip_axis_series,
+                slip_axis_use_directionality_mask=wear_slip_axis_use_directionality_mask,
+                include_scratch_series=wear_include_scratch_series,
+                scratch_defect_config=wear_scratch_defect_config,
+            )
+        base["derived"] = derived
+        return base
 
     # -------------------------------------------------------------------------
     # Simplified Export Methods using the Centralized Factory

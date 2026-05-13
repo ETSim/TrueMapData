@@ -12,8 +12,11 @@ def create_terrain_app() -> typer.Typer:
     @app.command("generate")
     def generate(
         pattern: str = typer.Argument(
-            "waves", 
-            help="Pattern type (waves, peak, dome, ramp, combined, flat, random, perlin, fbm)"
+            "waves",
+            help=(
+                "Pattern type (waves, peak, dome, ramp, combined, flat, random, perlin, fbm, "
+                "wm_ab / ausloos_berman_wm)"
+            ),
         ),
         width: int = typer.Option(1024, "--width", "-w", help="Width of height map"),
         height: int = typer.Option(1024, "--height", "-h", help="Height of height map"),
@@ -49,7 +52,12 @@ def create_terrain_app() -> typer.Typer:
         valley_depth: float = typer.Option(0.4, "--valley-depth", help="Relative depth of valleys"),
         mountain_peaks: bool = typer.Option(True, "--mountain-peaks/--no-mountain-peaks", help="Enable mountain peak enhancement"),
         peak_threshold: float = typer.Option(0.7, "--peak-threshold", help="Height threshold for peak enhancement"),
-        peak_factor: float = typer.Option(1.5, "--peak-factor", help="Mountain peak enhancement factor")
+        peak_factor: float = typer.Option(1.5, "--peak-factor", help="Mountain peak enhancement factor"),
+        wm_df: float = typer.Option(2.5, "--wm-df", help="W–M fractal dimension (2 < D_f < 3)"),
+        wm_gamma: float = typer.Option(1.5, "--wm-gamma", help="W–M frequency ratio γ (> 1)"),
+        wm_m: int = typer.Option(16, "--wm-m", help="W–M number of ridge directions M"),
+        wm_n_max: int = typer.Option(32, "--wm-n-max", help="W–M harmonics N_max"),
+        wm_l: float = typer.Option(10.0, "--wm-l", help="W–M characteristic length L (same units as grid span)"),
     ):
         """Generate synthetic terrain patterns."""
         if not generate_synthetic_terrain(
@@ -88,7 +96,12 @@ def create_terrain_app() -> typer.Typer:
             valley_depth=valley_depth,
             mountain_peaks=mountain_peaks,
             peak_threshold=peak_threshold,
-            peak_factor=peak_factor
+            peak_factor=peak_factor,
+            wm_df=wm_df,
+            wm_gamma=wm_gamma,
+            wm_M=wm_m,
+            wm_n_max=wm_n_max,
+            wm_L=wm_l,
         ):
             raise typer.Exit(1)
     

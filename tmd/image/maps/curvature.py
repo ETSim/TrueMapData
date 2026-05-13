@@ -8,9 +8,23 @@ with multiple visualization modes and feature detection capabilities.
 import logging
 import numpy as np
 from scipy import ndimage
+
+from tmd.surface import metrics as trib
+from tmd.surface.metrics import mean_curvature_from_derivatives
+
 from .base_generator import MapGenerator
 
 logger = logging.getLogger(__name__)
+
+
+def _percentile_norm01(x: np.ndarray, lo: float = 2.0, hi: float = 98.0) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float64)
+    x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+    lo_v, hi_v = np.percentile(x, (lo, hi))
+    if hi_v <= lo_v:
+        return np.zeros_like(x, dtype=np.float32)
+    y = (x - lo_v) / (hi_v - lo_v)
+    return np.clip(y, 0.0, 1.0).astype(np.float32, copy=False)
 
 class CurvatureMapGenerator(MapGenerator):
     """Enhanced generator for Curvature maps with advanced visualization options."""
@@ -240,8 +254,7 @@ class CurvatureMapGenerator(MapGenerator):
                 # Gaussian curvature = (fxx*fyy - fxy^2) / (1 + fx^2 + fy^2)^2
                 curvature = (fxx * fyy - fxy * fyx) / (q**2)
             elif mode == 'mean':
-                # Mean curvature = 0.5 * (fxx*(1+fy^2) - 2*fxy*fx*fy + fyy*(1+fx^2)) / (1 + fx^2 + fy^2)^(3/2)
-                curvature = 0.5 * ((1 + fy**2) * fxx - 2 * fx * fy * fxy + (1 + fx**2) * fyy) / (q**(3/2))
+                curvature = mean_curvature_from_derivatives(fx, fy, fxx, fxy, fyy, scale)
             elif mode == 'maximal':
                 # Maximum principal curvature
                 H = 0.5 * ((1 + fy**2) * fxx - 2 * fx * fy * fxy + (1 + fx**2) * fyy) / (q**(3/2))
@@ -265,12 +278,11 @@ class CurvatureMapGenerator(MapGenerator):
                 curvature = ((fy**2 * fxx - 2 * fx * fy * fxy + fx**2 * fyy) / 
                            (safe_p * np.sqrt(q)))
             else:
-                # Default to mean curvature
-                curvature = 0.5 * ((1 + fy**2) * fxx - 2 * fx * fy * fxy + (1 + fx**2) * fyy) / (q**(3/2))
-            
-            # Apply scaling factor
-            curvature = curvature * scale
-            
+                curvature = mean_curvature_from_derivatives(fx, fy, fxx, fxy, fyy, scale)
+
+            if mode in ("gaussian", "maximal", "minimal", "profile", "planform"):
+                curvature = curvature * scale
+
             # Handle potential NaN or infinity values
             curvature = np.nan_to_num(curvature)
             
@@ -704,3 +716,33 @@ class CurvatureMapGenerator(MapGenerator):
             params['edge_width'] = 5
             
         return params
+
+
+class SummitCurvatureMapGenerator(MapGenerator):
+    """|Mean curvature| on detected summits (normalized). ``min_mean_curvature`` gates |H|."""
+
+    def __init__(
+        self,
+        smooth_sigma: float = 0.8,
+        min_mean_curvature: float = 0.0,
+        plane_removal: str = "none",
+        **kwargs,
+    ):
+        super().__init__(
+            smooth_sigma=smooth_sigma,
+            min_mean_curvature=min_mean_curvature,
+            plane_removal=plane_removal,
+            **kwargs,
+        )
+
+    def generate(self, height_map: np.ndarray, **kwargs) -> np.ndarray:
+        params = self._get_params(**kwargs)
+        metadata = kwargs.get("metadata") or {}
+        inv = trib.summit_curvature_map(
+            height_map,
+            metadata,
+            smooth_sigma=float(params["smooth_sigma"]),
+            min_mean_curvature=float(params["min_mean_curvature"]),
+            plane_removal=str(params.get("plane_removal", "none")),
+        )["inv_radius"]
+        return _percentile_norm01(np.asarray(inv, dtype=np.float64))

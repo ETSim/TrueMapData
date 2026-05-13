@@ -1,10 +1,10 @@
-"""Tests for :mod:`tmd.sequence.video`."""
+"""Tests for :mod:`tmd.sequence.exporters.video`."""
 
 from __future__ import annotations
 
 import numpy as np
 
-from tmd.sequence.video import VideoExporter
+from tmd.sequence.exporters.video import VideoExporter
 
 
 def test_video_exporter_requires_frames() -> None:

@@ -18,7 +18,7 @@ def test_version_semver():
 
 def test_version_matches_release():
     """Keep in sync with pyproject.toml [project].version for releases."""
-    assert tmd.__version__ == "1.0.5"
+    assert tmd.__version__ == "1.0.6"
 
 
 def test_tmd_version_module_has_metadata():

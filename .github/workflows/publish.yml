@@ -1,9 +1,11 @@
-# Build wheels/sdist, create a GitHub Release, and publish to PyPI — **manual only**.
+# Build wheels/sdist, create a GitHub Release (auto-generated release notes), and publish to PyPI — **manual only**.
 #
-# 1. Push an annotated tag to the commit you want to ship, e.g.:
+# 1. Bump `version` in `pyproject.toml` and `tmd/__version__.py`, commit, push.
+# 2. Push an annotated tag for that commit, e.g.:
 #      git tag -a v1.0.6 -m "Release v1.0.6" && git push origin v1.0.6
-# 2. In GitHub: Actions → "Release and publish" → Run workflow → enter that tag as **ref** (e.g. v1.0.6).
+# 3. In GitHub: Actions → "Release and publish" → Run workflow → enter that tag as **ref** (e.g. v1.0.6).
 #
+# The release step uses `generate_release_notes: true` so GitHub fills the body from merged PRs/commits.
 # PyPI is not triggered by tag push; only this workflow_dispatch run publishes.
 name: Release and publish
 
@@ -80,11 +82,13 @@ jobs:
         run: twine check dist/*
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ inputs.ref }}
           files: dist/*
+          # Let GitHub generate the changelog from commits/PRs since the previous tag.
           generate_release_notes: true
+          draft: false
           fail_on_unmatched_files: true
           make_latest: true
           # Allow re-running this workflow for the same tag (e.g. after a transient PyPI failure).

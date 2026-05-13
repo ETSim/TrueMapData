@@ -3,14 +3,14 @@ Setup configuration for the TMD Processor package.
 This setup.py file is maintained for backward compatibility with older tools.
 The primary build configuration is in pyproject.toml.
 
-Version 1.0.5.
+Version 1.0.6.
 """
 
 from setuptools import find_packages, setup
 
 setup(
     name="truemapdata",
-    version="1.0.5",
+    version="1.0.6",
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",

@@ -32,16 +32,22 @@ jobs:
             mv requirements.txt .graph-scan-stash/requirements.txt
           fi
 
+      # Pin to upstream merge commit (includes Node 24 runner); GitHub's snapshot API often
+      # returns 5xx / "try again later" — retry a few times, then do not fail the workflow.
       - name: Submit dependencies to GitHub
         id: submit
         continue-on-error: true
-        uses: actions/component-detection-dependency-submission-action@374343effede691df3a5ffaf36b4e7acab919590
+        uses: Wandalen/wretry.action@v3.8.0
         with:
-          detectorsFilter: PipReport
-          detectorsCategories: Python
-          directoryExclusionList: ".graph-scan-stash"
+          action: actions/component-detection-dependency-submission-action@98beaea5a1227f3db476e4c9ca959a0cacd7ac4f
+          with: |
+            detectorsFilter: PipReport
+            detectorsCategories: Python
+            directoryExclusionList: .graph-scan-stash
+          attempt_limit: 5
+          attempt_delay: 20000
 
       - name: Report submission failure
         if: steps.submit.outcome == 'failure'
         run: |
-          echo "::warning::Dependency snapshot upload failed (often a transient GitHub API error). Re-run this workflow; the job is green because submission uses continue-on-error."
+          echo "::warning::Dependency snapshot upload failed after retries (often a transient GitHub API error). Re-run this workflow; the job stays green because submission uses continue-on-error."

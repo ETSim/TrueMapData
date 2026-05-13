@@ -125,19 +125,13 @@ The canonical byte layout, version 1 vs 2, GelSight quirks, and endianness are d
 
 ## Sample data
 
-Examples in docs and tests use **paths like `path/to/file.tmd`** or **synthetic heightmaps**. Committing large proprietary `.tmd` fixtures is avoided; use your own captures or published attachments.
+Examples in docs and tests use **paths like `path/to/file.tmd`** or **synthetic heightmaps**. The repository includes tracked `.tmd` fixtures at the canonical paths used by `tests/cli/test_example_tmds_smoke.py` and notebooks (`examples/gelsight/circle_0mm_…`, `examples/v1/Dime.tmd`, `examples/v2/Dime.tmd`), plus a **grid-matched second frame** for wear-volume smoke tests under `tests/fixtures/gelsight_wear_volume_second_frame.tmd`. Other `.tmd` files under `examples/` remain **gitignored** so you can drop in large or proprietary captures locally without committing them.
 
-To populate the canonical **example paths** used by notebooks and `tests/cli/test_example_tmds_smoke.py` (`examples/gelsight/…`, `examples/v1/Dime.tmd`, `examples/v2/Dime.tmd`), run from the repo root:
-
-```bash
-python examples/generate_example_tmds.py
-```
-
-Then try wear metrics, for example:
+Try wear metrics on the shipped fixtures, for example:
 
 ```bash
 tmd-wear bearing curve examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd --json
-tmd-wear volume-series examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd examples/gelsight/circle_worn_0mm_100g_heightmap_linear_detrend.tmd --json
+tmd-wear volume-series examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd tests/fixtures/gelsight_wear_volume_second_frame.tmd --json
 ```
 
 ---

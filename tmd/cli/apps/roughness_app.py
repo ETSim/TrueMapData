@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 import typer
+from rich.table import Table
 
 from tmd.cli.apps import roughness_common as rc
 from tmd.cli.core.ui import console
@@ -90,7 +91,7 @@ def create_roughness_app() -> typer.Typer:
         if json_out:
             typer.echo(json.dumps(rc.sanitize_json_values(payload), indent=2, allow_nan=False))
         else:
-            table = typer.rich.table.Table(title=f"Roughness — {path.name}")
+            table = Table(title=f"Roughness — {path.name}")
             table.add_column("Parameter", style="cyan")
             table.add_column("Value", justify="right")
             for k in sorted(values.keys(), key=str.lower):

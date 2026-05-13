@@ -88,3 +88,24 @@ def test_visualize_subcommand_help(runner: CliRunner, sub: str, needle: str) -> 
     r = runner.invoke(_get_app(), ["visualize", sub, "--help"])
     assert r.exit_code == 0
     assert needle in r.stdout.lower()
+
+
+def test_roughness_file_table_output_mocked(
+    runner: CliRunner, tmp_tmd_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-JSON roughness table uses ``rich.table.Table`` (not ``typer.rich``)."""
+    from tmd.cli.apps import roughness_common as rc
+
+    class _Dummy:
+        def level(self):
+            return self
+
+    monkeypatch.setattr(rc, "surfalize_surface_class", lambda: object)
+    monkeypatch.setattr(rc, "load_surface_for_roughness", lambda path, Surface: _Dummy())
+    monkeypatch.setattr(rc, "parse_roughness_params", lambda *a, **k: ("Sa", "Sq"))
+    monkeypatch.setattr(rc, "roughness_dict", lambda surface, names: {"Sa": 0.1, "Sq": 0.2})
+
+    r = runner.invoke(_get_app(), ["roughness", "file", str(tmp_tmd_path)])
+    assert r.exit_code == 0, r.stdout or str(r.exception)
+    out = r.stdout or ""
+    assert "Sa" in out and "Sq" in out

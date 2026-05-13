@@ -10,6 +10,7 @@ from typing import Optional
 
 import numpy as np
 import typer
+from rich.table import Table
 
 from tmd import TMD
 from tmd.cli.apps import roughness_common as rc
@@ -188,7 +189,7 @@ def create_tribology_app() -> typer.Typer:
         if json_out:
             typer.echo(json.dumps(rc.sanitize_json_values(payload), indent=2, allow_nan=False))
         else:
-            table = typer.rich.table.Table(title=f"Lubrication-related ISO — {path.name}")
+            table = Table(title=f"Lubrication-related ISO — {path.name}")
             table.add_column("Parameter", style="cyan")
             table.add_column("Value", justify="right")
             for k in names:

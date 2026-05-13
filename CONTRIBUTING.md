@@ -87,13 +87,13 @@ For **AI-assisted editing**, the repository root [`llms.txt`](https://github.com
 
 ## Sample and proprietary `.tmd` data
 
-Large proprietary captures are not committed. For **canonical example paths** used by notebooks and `tests/cli/test_example_tmds_smoke.py`, generate small synthetic `.tmd` files locally:
+Large proprietary captures are not committed as a rule. **Whitelisted** `.tmd` paths under `examples/` and the wear-volume second-frame binary under `tests/fixtures/` used by notebooks and `tests/cli/test_example_tmds_smoke.py` are **tracked in git** (see `.gitignore` negation rules for `examples/`). CI runs `pytest` on a clean checkout without a generator step.
 
-```bash
-python examples/generate_example_tmds.py
-```
+Do **not** replace the canonical bytes of `examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd`, `examples/v1/Dime.tmd`, or `examples/v2/Dime.tmd` when refreshing fixtures. The GelSight `circle_0mm` file may be a **full-resolution** capture (large on disk); shrinking it for convenience requires an explicit project decision (for example Git LFS), not an automated rewrite.
 
-GitHub Actions runs the same command before `pytest` so those tests exercise real files in CI. Replace generated files under `examples/gelsight/` and `examples/v1/` with your own data when needed.
+To refresh the wear-volume smoke **second frame** only, regenerate `tests/fixtures/gelsight_wear_volume_second_frame.tmd` locally by loading `examples/gelsight/circle_0mm_100g_heightmap_linear_detrend.tmd` (read-only) and writing that fixture path with the same grid and metadata-derived `x_length` / `y_length`. Do not write under `examples/gelsight/` except the frozen `circle_0mm` asset you maintain yourself.
+
+To work with your own data, add files under `examples/` locally; only the whitelisted fixture filenames are tracked—other `examples/**/*.tmd` paths stay ignored.
 
 ## Code style
 

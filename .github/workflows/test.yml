@@ -32,8 +32,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install -e .
 
-    - name: Generate example TMD fixtures
-      run: python examples/generate_example_tmds.py
+    # Example TMDs at whitelisted paths under examples/ are version-controlled (see .gitignore).
 
     - name: Test with pytest
       run: |

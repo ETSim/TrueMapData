@@ -4,7 +4,7 @@ This configuration uses **Python 3.12** on Debian Bookworm with runtime packages
 
 ## Working with `.tmd` files
 
-The repository does not ship large proprietary `.tmd` binaries. For **small synthetic fixtures** at the canonical paths (`examples/gelsight/`, `examples/v1/`, `examples/v2/`), run **`python examples/generate_example_tmds.py`** from the repo root after cloning. Otherwise mount or copy your own captures (or use `TMDTerrain` / the `terrain` CLI).
+The repository includes tracked `.tmd` fixtures at smoke-test paths (`examples/gelsight/…`, `examples/v1/Dime.tmd`, `examples/v2/Dime.tmd`, and `tests/fixtures/gelsight_wear_volume_second_frame.tmd`). Other `.tmd` files under `examples/` are gitignored—mount or copy your own captures there when needed (or use `TMDTerrain` / the `terrain` CLI).
 
 ## Useful commands
 

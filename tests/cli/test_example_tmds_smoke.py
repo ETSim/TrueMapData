@@ -80,11 +80,11 @@ def test_example_tmd_tmd_wear_bearing_json(tmd_path: Path) -> None:
 
 
 def test_example_gelsight_tmd_wear_volume_pair() -> None:
-    """Two-frame wear volume on GelSight example pair when both exist."""
+    """Two-frame wear volume: frozen ``circle_0mm`` example + grid-matched fixture second frame."""
     p0 = _REPO / "examples" / "gelsight" / "circle_0mm_100g_heightmap_linear_detrend.tmd"
-    p1 = _REPO / "examples" / "gelsight" / "circle_worn_0mm_100g_heightmap_linear_detrend.tmd"
+    p1 = _REPO / "tests" / "fixtures" / "gelsight_wear_volume_second_frame.tmd"
     if not p0.is_file() or not p1.is_file():
-        pytest.skip("gelsight example pair not in workspace")
+        pytest.skip("gelsight reference + tests/fixtures worn frame not in workspace")
 
     import json
 

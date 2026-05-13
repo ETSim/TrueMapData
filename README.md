@@ -6,7 +6,6 @@
 [![License](https://img.shields.io/github/license/ETSTribology/TrueMapData)](https://github.com/ETSTribology/TrueMapData/blob/main/LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://etstribology.github.io/TrueMapData/)
 
-The documentation site builds from **GitHub Actions**. In the repository **Settings → Pages**, set **Build and deployment** to **GitHub Actions** once per repo or fork.
 
 Python library and **`tmd-process` CLI** for **TrueMap v6** and **GelSight** `.tmd` height maps: binary I/O, filters and transforms, visualization, derived maps (normal, displacement, bump, hillshade, ambient occlusion, tribology proxy maps, and related generators), defect detection, multi-frame sequences (GIF, video, PowerPoint), compression helpers, synthetic terrain for fixtures, and mesh export including apply-on-mesh OBJ/MTL bundles with tiling from template bounds and TMD metadata.
 

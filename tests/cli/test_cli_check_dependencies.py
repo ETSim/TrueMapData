@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import builtins
 import subprocess
-import sys
 from typing import Any
 
 import pytest
